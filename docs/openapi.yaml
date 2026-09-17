@@ -1,0 +1,51 @@
+openapi: 3.1.0
+info:
+  title: Barber-chat foundation API
+  version: 0.1.0
+  description: Only foundation endpoints are implemented. Business contracts are proposed in api-contract.md.
+servers:
+  - url: http://127.0.0.1:8080
+paths:
+  /health:
+    get:
+      operationId: health
+      summary: Process liveness; does not query dependencies
+      responses:
+        '200':
+          description: Process is serving HTTP
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ok
+  /ready:
+    get:
+      operationId: ready
+      summary: PostgreSQL connectivity; does not verify schema or RabbitMQ
+      responses:
+        '200':
+          description: PostgreSQL is reachable
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: ready
+        '503':
+          description: PostgreSQL is unavailable
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status:
+                    type: string
+                    const: unavailable
