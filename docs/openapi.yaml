@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: Barber-chat foundation API
-  version: 0.1.0
-  description: Only foundation endpoints are implemented. Business contracts are proposed in api-contract.md.
+  title: Barber-chat API
+  version: 0.2.0
+  description: Health/readiness and service catalog. Administrative creation is a local development facility, not production authentication.
 servers:
   - url: http://127.0.0.1:8080
 paths:
@@ -49,3 +49,170 @@ paths:
                   status:
                     type: string
                     const: unavailable
+  /api/v1/admin/services:
+    post:
+      operationId: createService
+      summary: Create a service for the server-configured development shop
+      description: Requires DEV_SHOP_SLUG, a loopback listener, local peer/Host and no browser Origin. The server resolves the active shop; tenant fields are not accepted in JSON. Maximum body size is 64 KiB. Do not expose this development route through a proxy.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServiceRequest'
+            example:
+              name: Corte masculino
+              description: Corte com máquina e tesoura
+              duration_minutes: 30
+              price_cents: 3500
+      responses:
+        '201':
+          description: Service created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Service'
+        '400':
+          $ref: '#/components/responses/InvalidBody'
+        '403':
+          description: Local creation is disabled or the request is not local
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/ShopNotFound'
+        '413':
+          description: Body exceeds 64 KiB
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '415':
+          description: Content-Type must be application/json
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '422':
+          description: Invalid service input or missing price
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/v1/public/shops/{slug}/services:
+    get:
+      operationId: listPublicServices
+      summary: List active services of an active shop
+      description: Ordered by name then ID. Returns an empty array for an active shop with no active services. Public reads do not require DEV_SHOP_SLUG.
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Active services
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Service'
+        '404':
+          $ref: '#/components/responses/ShopNotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+components:
+  schemas:
+    CreateServiceRequest:
+      type: object
+      additionalProperties: false
+      required: [name, duration_minutes, price_cents]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          description: Trimmed before validation; must contain 1-100 Unicode characters after trimming.
+        description:
+          type: string
+          default: ''
+        duration_minutes:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        price_cents:
+          type: integer
+          format: int64
+          minimum: 0
+    Service:
+      type: object
+      additionalProperties: false
+      required: [id, name, description, duration_minutes, price_cents, currency, active]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+        duration_minutes:
+          type: integer
+          minimum: 1
+          maximum: 2147483647
+        price_cents:
+          type: integer
+          format: int64
+          minimum: 0
+        currency:
+          type: string
+          const: BRL
+        active:
+          type: boolean
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+  responses:
+    InvalidBody:
+      description: Invalid JSON, unknown fields or extra content
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ShopNotFound:
+      description: Unknown or inactive shop
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalError:
+      description: Unexpected failure; internal SQL details are not exposed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unavailable:
+      description: Operation timed out or was canceled
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

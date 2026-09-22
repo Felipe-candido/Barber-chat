@@ -15,7 +15,7 @@ import (
 func testLogger() *slog.Logger { return slog.New(slog.NewJSONHandler(io.Discard, nil)) }
 
 func TestHealthDoesNotDependOnDatabase(t *testing.T) {
-	h := NewHandler(func(context.Context) error { t.Fatal("liveness must not query database"); return nil }, time.Second, testLogger())
+	h := NewHandler(func(context.Context) error { t.Fatal("liveness must not query database"); return nil }, nil, time.Second, testLogger())
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/health", nil))
 	if w.Code != 200 || w.Body.String() != "{\"status\":\"ok\"}\n" {
@@ -36,7 +36,7 @@ func TestReadiness(t *testing.T) {
 				return errors.New("postgres://secret@host")
 			}
 			return nil
-		}, time.Second, testLogger())
+		}, nil, time.Second, testLogger())
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/ready", nil))
 		want := 200
@@ -53,7 +53,7 @@ func TestReadiness(t *testing.T) {
 }
 
 func TestRoutes(t *testing.T) {
-	h := NewHandler(func(context.Context) error { return nil }, time.Second, testLogger())
+	h := NewHandler(func(context.Context) error { return nil }, nil, time.Second, testLogger())
 	for _, test := range []struct {
 		method, path string
 		status       int

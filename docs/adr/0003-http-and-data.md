@@ -2,6 +2,8 @@
 
 Status: adotada; Chi escolhido pelo usuário. Data: 2026-09-17.
 
+Atualização: o [ADR 0006](0006-automatic-dotenv.md) adiciona o parser de `.env` para inicialização automática local; substitui a decisão inicial de dispensar um parser de configuração.
+
 ## Decisão
 
 Chi v5 sobre `net/http`, para aprender um framework/router preservando handlers padrão. `slog`, `context`, `os` e `testing` cobrem logging, cancelamento, configuração e testes. `pgx/v5` com pool para PostgreSQL; Goose CLI fixado para migrations SQL. Cliente `rabbitmq/amqp091-go` para AMQP.

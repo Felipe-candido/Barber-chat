@@ -224,15 +224,19 @@ class Config:
 
 Go não valida automaticamente tipos de variáveis de ambiente. A função `Load` faz essa conversão. Campos com maiúscula são acessíveis de outros pacotes; em Python seriam atributos públicos convencionais.
 
-### Linhas 24–28: função pública e função testável
+### Função pública e função testável
 
 ```go
-func Load() (Config, error) {
-    return load(os.Getenv)
-}
+// After reading the optional .env into fileValues:
+return load(func(key string) string {
+    if value, exists := os.LookupEnv(key); exists {
+        return value
+    }
+    return fileValues[key]
+})
 ```
 
-`Load` é a API pública. `load` com letra minúscula é interna e recebe uma função `getenv func(string) string`. Isso é uma dependência injetada: produção entrega `os.Getenv`; testes entregam uma função que consulta um mapa.
+`Load` é a API pública. Ela lê o `.env` opcional com `godotenv.Read`, trata erros sem expor seu conteúdo e consulta primeiro o ambiente do processo. `os.LookupEnv` distingue variável ausente de variável explicitamente vazia. `load` com letra minúscula é interna e recebe uma função `getenv func(string) string`. Isso é uma dependência injetada: a aplicação entrega a função que combina ambiente e arquivo; testes de validação entregam uma função que consulta um mapa. O [ADR 0006](adr/0006-automatic-dotenv.md) explica o carregamento automático. As referências de linhas desta seção anteriores à mudança podem estar deslocadas.
 
 Em Python, uma versão seria:
 
@@ -241,7 +245,8 @@ def load(getenv: Callable[[str], str]) -> Config:
     ...
 
 def load_from_os() -> Config:
-    return load(os.getenv)
+    file_values = read_optional_dotenv()  # illustrative helper
+    return load(lambda key: os.environ.get(key, file_values.get(key, "")))
 ```
 
 ### Linhas 29–39: padrão e construção inicial

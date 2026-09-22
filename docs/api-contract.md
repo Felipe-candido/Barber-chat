@@ -2,7 +2,7 @@
 
 ## Estado atual
 
-Apenas `GET /health` e `GET /ready` existem; ver [OpenAPI](openapi.yaml). A primeira rota mede liveness, a segunda testa PostgreSQL com deadline. Readiness não valida migrations nem RabbitMQ: a futura API grava uma outbox e não depende do broker para aceitar agendamentos. O worker precisa de PostgreSQL e RabbitMQ e encerra com erro se perder uma dependência. As demais rotas abaixo são propostas, não endpoints implementados.
+GET /health, GET /ready, POST /api/v1/admin/services (modo local explícito) e GET /api/v1/public/shops/{slug}/services estão implementados; ver [OpenAPI](openapi.yaml) e [guia de testes](catalog-testing.md). A primeira rota mede liveness, a segunda testa PostgreSQL com deadline. Readiness não valida migrations nem RabbitMQ: a futura API grava uma outbox e não depende do broker para aceitar agendamentos. O worker precisa de PostgreSQL e RabbitMQ e encerra com erro se perder uma dependência. As rotas de agendamento abaixo são propostas. Criação/listagem de serviços seguem o ADR 0007; escrita administrativa com membership ainda é futura.
 
 ## Fluxo público proposto
 
@@ -10,9 +10,9 @@ Frontend separado, provavelmente Next.js, com áreas pública e administrativa. 
 
 | Método e rota proposta | Contrato |
 | --- | --- |
-| `GET /v1/public/shops/{slug}` | Identidade pública, timezone IANA, serviços ativos e profissionais habilitados; sem dados privados |
-| `GET /v1/public/shops/{slug}/availability?service_id=...&professional_id=...&date=2026-10-01` | Data civil na barbearia; slots com `starts_at` e `ends_at` RFC 3339 com offset; seleção não reserva |
-| `POST /v1/public/shops/{slug}/appointments` | Header `Idempotency-Key`; cliente, seleção e consentimentos; preço e duração calculados pelo servidor |
+| `GET /api/v1/public/shops/{slug}` | Identidade pública, timezone IANA, serviços ativos e profissionais habilitados; sem dados privados |
+| `GET /api/v1/public/shops/{slug}/availability?service_id=...&professional_id=...&date=2026-10-01` | Data civil na barbearia; slots com `starts_at` e `ends_at` RFC 3339 com offset; seleção não reserva |
+| `POST /api/v1/public/shops/{slug}/appointments` | Header `Idempotency-Key`; cliente, seleção e consentimentos; preço e duração calculados pelo servidor |
 
 Exemplo de corpo futuro (identificadores ilustrativos):
 
@@ -36,6 +36,6 @@ Proposta de erros JSON: `{"error":{"code":"slot_unavailable","message":"Horário
 
 Aplicar limites de corpo, rejeitar campos desconhecidos, exigir exatamente um objeto JSON e validar tamanho de nomes, IDs, data e telefone no backend. A validação do frontend serve à experiência, não à integridade. Normalizar telefone internacionalmente para E.164 com país explícito; não basta remover pontuação ou prefixar +55. Selecionar biblioteca baseada em metadados de telefonia quando o fluxo for implementado. Telefone informado não prova identidade; números compartilhados/reciclados exigem cuidado ao reutilizar clientes. Nunca retornar histórico só porque alguém conhece o telefone.
 
-Rotas administrativas propostas sob `/v1/admin`, com sessão e membership da barbearia verificados no backend. Avaliar OIDC com provedor maduro e sessão via cookie HttpOnly/Secure/SameSite; evitar criar autenticação própria neste scaffold. Autenticação pode ficar em um BFF Next.js, mas autorização por tenant deve permanecer na API. CSRF para autenticação por cookie; CORS com origens explícitas se as origens forem diferentes. Um proxy no mesmo domínio pode simplificar o MVP. Nenhum endpoint administrativo existe agora.
+Rotas administrativas propostas sob `/api/v1/admin`, com sessão e membership da barbearia verificados no backend. Avaliar OIDC com provedor maduro e sessão via cookie HttpOnly/Secure/SameSite; evitar criar autenticação própria neste scaffold. Autenticação pode ficar em um BFF Next.js, mas autorização por tenant deve permanecer na API. CSRF para autenticação por cookie; CORS com origens explícitas se as origens forem diferentes. Um proxy no mesmo domínio pode simplificar o MVP. O POST de serviços atual é uma facilidade de teste em loopback; não implementa autenticação nem membership.
 
 Cancelamento/confirmacão pública futura: token opaco, aleatório, limitado ao agendamento, armazenado com hash e expiração; nunca apenas ID previsível ou telefone. Webhooks SIM/NÃO terão assinatura e deduplicação do ID do provedor. Se houver várias reservas para o mesmo telefone, correlacionar com uma mensagem/agendamento antes de alterar estado. Marketing precisa de opt-in separado, revogável e não pré-selecionado. Registrar versão do aviso e instante do consentimento sem acrescentar PII desnecessária aos logs.

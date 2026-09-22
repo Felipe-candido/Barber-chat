@@ -11,5 +11,6 @@
 //
 // Reuse internal/platform for generic connections. Application and domain must
 // not import infra. Add concrete adapter subpackages only with working code;
-// this file currently documents boundaries and does not implement persistence.
+// postgres.Resolver now implements active-shop lookup by slug for catalog use
+// cases. Shop CRUD and membership creation are still future workflows.
 package infra

@@ -1,4 +1,27 @@
-# Validação da fundação
+# Registro de validações
+
+## Catálogo de serviços — 22/09/2026
+
+Implementados criação local explícita, listagem pública por slug, resolução de tenant via shops, validação e moeda BRL, com documentação nos doc.go. Nenhum commit/push foi feito. O .env e o Supabase não foram alterados.
+
+| Verificação desta etapa | Resultado |
+| --- | --- |
+| gofmt e go mod tidy | PASS |
+| go vet ./... e go test ./... | PASS; domínio, aplicação, HTTP, configuração e testes anteriores |
+| Builds cmd/api e cmd/worker | PASS |
+| sqlc generate e sqlc compile | PASS |
+| goose -dir db/migrations validate | PASS; estrutura dos arquivos, não execução no banco |
+| docker compose --env-file .env.example config --quiet | PASS |
+| go doc ./internal/modules/catalog/infra | PASS; documentação do fluxo renderizada |
+| git diff --check | PASS |
+| go test -tags=integration -count=1 ./tests/integration/... | FAIL por dependências locais indisponíveis: transação/ping PostgreSQL e conexão RabbitMQ |
+| Aplicação das migrations em PostgreSQL real | NÃO EXECUTADA nesta etapa; engine Docker indisponível |
+
+O Docker Desktop foi iniciado, mas o pipe dockerDesktopLinuxEngine continuou ausente. A integração foi tentada explicitamente contra as URLs locais de .env.example, sem acessar o Supabase. A suíte compilou, mas nenhum comportamento de persistência do catálogo é declarado aprovado por esse resultado. Rodar migrations e integração novamente com PostgreSQL/RabbitMQ disponíveis; instruções em [Testar catálogo](catalog-testing.md).
+
+Os registros abaixo são históricos e não substituem essa validação mais recente.
+
+## Fundação — 17/09/2026
 
 Execução em 17/09/2026 UTC (16/09 à noite em America/Sao_Paulo), Windows amd64, Go 1.27.1 instalado pelo usuário, Docker Desktop com engine Linux. O repositório inicialmente continha somente README.md, sem alterações pendentes. Remote e branch foram preservados; nenhum commit/push foi feito.
 

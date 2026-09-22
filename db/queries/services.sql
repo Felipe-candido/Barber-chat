@@ -1,0 +1,2 @@
+-- Service queries live in catalog.sql.
+-- Table definitions are versioned only in db/migrations.

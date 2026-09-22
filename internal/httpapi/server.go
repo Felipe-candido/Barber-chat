@@ -9,18 +9,26 @@ import (
 	"net/http"
 	"time"
 
+	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewHandler(checkDB func(context.Context) error, timeout time.Duration, logger *slog.Logger) http.Handler {
-	mux := chi.NewRouter()
-	mux.Use(middleware.RequestID)
-	mux.Use(middleware.Recoverer)
-	mux.Get("/health", func(w http.ResponseWriter, r *http.Request) {
+func NewHandler(
+	checkDB func(context.Context) error,
+	catalogHandler *cataloghttp.Handler,
+	timeout time.Duration,
+	logger *slog.Logger,
+) http.Handler {
+
+	router := chi.NewRouter()
+	router.Use(middleware.RequestID)
+	router.Use(middleware.Recoverer)
+	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		writeStatus(w, http.StatusOK, "ok")
 	})
-	mux.Get("/ready", func(w http.ResponseWriter, r *http.Request) {
+	router.Get("/ready", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
 		if err := checkDB(ctx); err != nil {
@@ -30,7 +38,10 @@ func NewHandler(checkDB func(context.Context) error, timeout time.Duration, logg
 		}
 		writeStatus(w, http.StatusOK, "ready")
 	})
-	return mux
+	if catalogHandler != nil {
+		cataloghttp.RegisterRoutes(router, catalogHandler)
+	}
+	return router
 }
 
 func writeStatus(w http.ResponseWriter, code int, status string) {

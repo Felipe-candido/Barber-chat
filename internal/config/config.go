@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -9,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -19,10 +22,23 @@ type Config struct {
 	DBTimeout       time.Duration
 	ShutdownTimeout time.Duration
 	WorkerInterval  time.Duration
+	DevShopSlug     string
 }
 
+// Load reads the optional .env in the working directory, then validates settings.
+// Process environment values take precedence, including explicitly empty values.
 func Load() (Config, error) {
-	return load(os.Getenv)
+	fileValues, err := godotenv.Read(".env")
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		// Parser errors can contain file contents, including credentials.
+		return Config{}, errors.New("could not read .env: check file access and KEY=VALUE syntax")
+	}
+	return load(func(key string) string {
+		if value, exists := os.LookupEnv(key); exists {
+			return value
+		}
+		return fileValues[key]
+	})
 }
 
 func load(getenv func(string) string) (Config, error) {
@@ -36,11 +52,18 @@ func load(getenv func(string) string) (Config, error) {
 		HTTPAddr:    value("HTTP_ADDR", "127.0.0.1:8080"),
 		DatabaseURL: getenv("DATABASE_URL"),
 		RabbitMQURL: getenv("RABBITMQ_URL"),
+		DevShopSlug: strings.TrimSpace(getenv("DEV_SHOP_SLUG")),
 	}
 	_, port, err := net.SplitHostPort(c.HTTPAddr)
 	n, portErr := strconv.Atoi(port)
 	if err != nil || portErr != nil || n < 1 || n > 65535 {
 		return Config{}, fmt.Errorf("HTTP_ADDR must contain a host and port between 1 and 65535")
+	}
+	if c.DevShopSlug != "" {
+		host, _, _ := net.SplitHostPort(c.HTTPAddr)
+		if !net.ParseIP(host).IsLoopback() {
+			return Config{}, fmt.Errorf("DEV_SHOP_SLUG requires a loopback IP in HTTP_ADDR")
+		}
 	}
 	if err := validateURL(c.DatabaseURL, "DATABASE_URL", "postgres", "postgresql"); err != nil {
 		return Config{}, err

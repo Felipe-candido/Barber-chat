@@ -2,6 +2,8 @@
 
 Pesquisa e decisão: 17/09/2026 (UTC; sessão iniciada em 16/09 em São Paulo). Este documento separa a fundação executável do desenho dos próximos incrementos. Os links são fontes oficiais consultadas; as escolhas e os trade-offs são avaliações para este produto.
 
+Atualização de 22/09/2026: catálogo agora implementa criar serviços em modo local explícito e listar ativos por slug. Shops implementa lookup de slug ativo. O [ADR 0007](adr/0007-catalog-services-and-local-tenant.md) registra as portas, moeda BRL e limite entre identificação de tenant e autorização. Os doc.go de catalog e shops/infra/postgres documentam o código atual; os demais fluxos de negócio abaixo permanecem alvo futuro.
+
 ## Contexto e requisitos
 
 SaaS de agendamentos, inicialmente para uma barbearia e um profissional, preparado conceitualmente para múltiplas barbearias, profissionais e serviços. Um desenvolvedor deseja aprender Go, um framework HTTP (Chi escolhido pelo usuário), SQL, filas e workers. O MVP tem baixo volume. Não existe portfólio: serviços realizados são agendamentos concluídos usados em relatórios.
@@ -44,7 +46,7 @@ flowchart LR
   Port --> Provider[Provedor futuro WhatsApp ou SMS]
 ```
 
-Diagrama do alvo, não do código completo entregue. Hoje a API oferece health/readiness e o worker testa conexões e seu ciclo de vida. Scheduler, relay, filas de negócio e adaptadores de envio ainda não existem.
+Diagrama do alvo, não do código completo entregue. Hoje a API oferece health/readiness e criação/listagem de serviços; o worker testa conexões e seu ciclo de vida. Scheduler, relay, filas de negócio e adaptadores de envio ainda não existem.
 
 ## Limites e diretórios
 
@@ -71,9 +73,9 @@ internal/modules/reporting/    consultas e relatórios sobre agendamentos
 docs/                          arquitetura, ADRs, contrato e OpenAPI
 ```
 
-O usuário solicitou materializar os módulos/casos de uso e depois explicitar as camadas domain e infra. Cada diretório em `internal/modules` agora contém `domain/doc.go` (limites e invariantes), `application/doc.go` (casos de uso) e `infra/doc.go` (adaptadores previstos e suas obrigações). São 21 arquivos de documentação de pacotes, sem funcionalidades de negócio executáveis. `modules` é um agrupamento de capacidades, não múltiplos módulos Go: continua existindo somente o go.mod da raiz. A finalidade imediata desses arquivos é orientar a implementação e tornar os limites consultáveis por `go doc`.
+Os módulos usam domain/doc.go para invariantes, application/doc.go para casos de uso e infra/doc.go para adaptadores e fluxo. Catálogo possui implementações concretas em infra/http e infra/postgres, com doc.go próprios; shops/infra/postgres resolve slugs. `modules` continua sendo um agrupamento de capacidades, com um único go.mod na raiz. Os limites são consultáveis com `go doc`.
 
-A raiz de cada módulo é um diretório organizador. `domain` receberá tipos e regras de negócio; `application` receberá casos de uso em arquivos como `create_appointment.go`, sem uma pasta por ação; `infra` receberá adaptadores HTTP/SQL/provider. Os adaptadores concretos e seus subpacotes serão criados junto com a primeira implementação que os utilize. Não foram criados handlers falsos, interfaces antecipadas, structs vazias ou métodos que retornam “não implementado”. Em módulos de leitura, como reporting, domain pode conter conceitos de período/moeda/regras de relatório, sem exigir agregados artificiais.
+A raiz de cada módulo é um diretório organizador. `domain` contém tipos e regras de negócio; `application` contém casos de uso em arquivos por ação; `infra` contém adaptadores concretos quando existe uma implementação que os utiliza. No catálogo, CreateService e ListServices recebem ServiceRepository e ShopResolver; o resolver é implementado em shops/infra/postgres. Não foram criados handlers falsos nem métodos que retornam “não implementado”. Em reporting, domain poderá conter conceitos de período/moeda/regras de relatório, sem exigir agregados artificiais.
 
 O código reutilizável de conexão continua em `internal/platform`: abre pools/conexões, mas não conhece tabelas/regras de agendamento. `booking/infra` receberá esses recursos para implementar SQL e mapeamentos específicos de booking. `internal/httpapi` continua montando o servidor global; futuros handlers dos módulos serão registrados ali pela composição em cmd. Não abrir um pool por módulo nem importar um adapter de outro módulo para burlar seu contrato.
 
@@ -100,7 +102,7 @@ As versões abaixo foram consultadas nas páginas oficiais e, para projetos Go, 
 | Goose | v3.28.0; CLI externa fixada | Migrations SQL explícitas e versionadas; [comandos](https://pressly.github.io/goose/documentation/cli-commands/), [release](https://github.com/pressly/goose/releases/tag/v3.28.0) |
 | Docker Compose | v2.31.0 disponível localmente | PostgreSQL/RabbitMQ locais com volumes/healthchecks; [referência](https://docs.docker.com/reference/compose-file/services/). Não afirmamos ser a versão mais recente |
 
-Dependências de runtime diretas: somente Chi, pgx e amqp091-go. Goose é ferramenta externa, não dependência dos binários. `slog` gera JSON, `os.Getenv` configura, `context` propaga cancelamento, `testing`/`httptest` testam. Não adicionar Viper, dotenv, Zap ou biblioteca de assertions sem necessidade. O Compose lê `.env`; Go lê o ambiente do processo. O script PowerShell não interpreta código nem interpola variáveis.
+Configuração usa `os.LookupEnv` com fallback para o `.env` opcional do diretório de execução, lido por `godotenv` v1.5.1. API e worker compartilham `config.Load()`, sem modificar o ambiente do processo. O [ADR 0006](adr/0006-automatic-dotenv.md) registra a necessidade, precedência e tratamento de erros. Goose é ferramenta externa, não dependência dos binários. `slog` gera JSON, `context` propaga cancelamento e `testing`/`httptest` testam. O Compose lê `.env`; o script PowerShell continua disponível para ferramentas externas e não interpreta código nem interpola variáveis.
 
 ### HTTP e dados: opções avaliadas
 
