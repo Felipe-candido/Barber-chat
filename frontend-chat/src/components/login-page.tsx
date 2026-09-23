@@ -18,11 +18,11 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { Brand, Modal } from "./ui";
-import { useDemo } from "./demo-provider";
+import { useFeedback } from "./feedback-provider";
 
 export function LoginPage() {
   const router = useRouter();
-  const { notify } = useDemo();
+  const { notify } = useFeedback();
   const [visible, setVisible] = useState(false);
   const [help, setHelp] = useState<"recovery" | "invitation" | null>(null);
   const [recoveryPreview, setRecoveryPreview] = useState(false);
@@ -137,7 +137,7 @@ export function LoginPage() {
                 e.preventDefault();
                 e.currentTarget.reset();
                 setVisible(false);
-                notify("Painel de demonstração aberto. Nenhuma credencial foi validada ou salva.");
+                notify("Interface aberta sem autenticação. O catálogo usa a API local.");
                 router.push("/admin");
               }}
             >
@@ -191,7 +191,7 @@ export function LoginPage() {
               <span />
             </div>
             <Link href="/admin" className="button button-secondary login-explore">
-              Explorar demonstração
+              Explorar interface
               <ArrowUpRight size={15} />
             </Link>
             <p className="login-invitation">
@@ -250,7 +250,7 @@ export function LoginPage() {
                 conta.
               </div>
               <Link href="/admin" className="button button-primary" onClick={closeHelp}>
-                Explorar demonstração
+                Explorar interface
                 <ArrowRight size={16} />
               </Link>
             </div>

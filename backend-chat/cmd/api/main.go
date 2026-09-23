@@ -63,7 +63,7 @@ func run(
 	createService := catalogapp.NewCreateService(catalogRepository, shopResolver)
 	listServices := catalogapp.NewListServices(catalogRepository, shopResolver)
 
-	catalogHandler := cataloghttp.NewHandler(createService, listServices, cfg.DevShopSlug, cfg.DBTimeout, logger)
+	catalogHandler := cataloghttp.NewHandler(createService, listServices, cfg.DevShopSlug, cfg.DBTimeout, logger, cfg.DevFrontendOrigin)
 	if cfg.DevShopSlug != "" {
 		logger.Warn("local catalog writes enabled; do not expose this listener through a proxy")
 	}

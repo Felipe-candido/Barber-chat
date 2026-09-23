@@ -3140,3 +3140,49 @@ svg {
     font-size: 10px;
   }
 }
+
+.integration-note {
+  margin-bottom: 24px;
+  line-height: 1.9;
+}
+.integration-note a {
+  color: #315b92;
+  text-decoration: underline;
+  margin-left: 6px;
+}
+.integration-note strong {
+  display: inline-block;
+  margin-right: 5px;
+}
+.chat-conversation .integration-note {
+  margin: 22px 0 0 33px;
+}
+.api-error {
+  border: 1px solid #eadcda;
+  background: #fffafa;
+  color: #8c5c58;
+  padding: 32px 24px;
+  border-radius: 10px;
+  margin-top: 24px;
+}
+.api-error h2 {
+  font-size: 18px;
+  margin: 12px 0 8px;
+}
+.api-error p {
+  font-size: 13px;
+  line-height: 1.8;
+  margin-bottom: 18px;
+}
+.service-card-actions button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (max-width: 560px) {
+  .chat-conversation .integration-note {
+    margin-left: 27px;
+  }
+  .calendar-date-nav {
+    flex-wrap: wrap;
+  }
+}

@@ -11,16 +11,21 @@ import {
   Menu,
 } from "lucide-react";
 import { useState } from "react";
+import { publicBookingPath, configuredShopSlug } from "@/lib/api/config";
 import { Brand } from "./ui";
-import { useDemo } from "./demo-provider";
+import { useFeedback } from "./feedback-provider";
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { notify } = useDemo();
+  const { notify } = useFeedback();
   const [open, setOpen] = useState(false);
   async function copyLink() {
+    if (!configuredShopSlug) {
+      notify("Configure NEXT_PUBLIC_SHOP_SLUG antes de compartilhar o link.");
+      return;
+    }
     try {
-      await navigator.clipboard.writeText(window.location.origin + "/chat");
+      await navigator.clipboard.writeText(window.location.origin + publicBookingPath);
       notify("Link de agendamento copiado!");
     } catch {
       notify("Acesse o chat e copie o endereço na barra do navegador.");
@@ -75,9 +80,9 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <br />
             Mais tempo para cuidar.
           </h3>
-          <p>Seu cliente escolhe o serviço e agenda pelo chat.</p>
-          <Link href="/chat">
-            Abrir agendamento
+          <p>Seu cliente consulta os serviços. Agendamentos em breve.</p>
+          <Link href={publicBookingPath}>
+            Abrir catálogo público
             <ArrowUpRight size={16} />
           </Link>
           <button onClick={copyLink}>
@@ -88,13 +93,13 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <div className="sidebar-bottom">
           <div className="demo-note">
             <span />
-            Ambiente de demonstração
+            Catálogo conectado à API
           </div>
           <div className="profile">
-            <span className="avatar">FP</span>
+            <span className="avatar">BC</span>
             <div>
-              <strong>Felipe Palma</strong>
-              <small>Administrador</small>
+              <strong>Barber-chat</strong>
+              <small>Autenticação pendente</small>
             </div>
             <span className="profile-dot" />
           </div>
@@ -118,10 +123,10 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           <div className="topbar-right">
             <span className="demo-pill">
               <span />
-              Modo demonstração
+              Integração parcial
             </span>
             <Link href="/login" className="avatar avatar-small" aria-label="Abrir tela de acesso">
-              FP
+              BC
             </Link>
           </div>
         </header>

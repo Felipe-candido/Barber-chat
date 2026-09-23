@@ -3,7 +3,7 @@
 O repositório reúne duas aplicações independentes:
 
 - [backend-chat](backend-chat/README.md): backend Go com API, worker, migrations e testes.
-- [frontend-chat](frontend-chat/README.md): Next.js e Tailwind, com painel e chat de demonstração sem integração com a API.
+- [frontend-chat](frontend-chat/README.md): Next.js e Tailwind, com catálogo integrado à API e estrutura de agenda/chat em evolução.
 
 ## Backend
 

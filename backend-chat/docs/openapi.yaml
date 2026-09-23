@@ -53,7 +53,7 @@ paths:
     post:
       operationId: createService
       summary: Create a service for the server-configured development shop
-      description: Requires DEV_SHOP_SLUG, a loopback listener, local peer/Host and no browser Origin. The server resolves the active shop; tenant fields are not accepted in JSON. Maximum body size is 64 KiB. Do not expose this development route through a proxy.
+      description: Requires DEV_SHOP_SLUG, a loopback listener, local peer/Host and either no Origin or the exact configured DEV_FRONTEND_ORIGIN. Local browser access requires opt-in CORS; this remains unauthenticated development access. The server resolves the active shop; tenant fields are not accepted in JSON. Maximum body size is 64 KiB. Do not expose this development route through a proxy.
       requestBody:
         required: true
         content:

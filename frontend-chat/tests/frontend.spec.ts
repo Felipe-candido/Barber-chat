@@ -1,140 +1,208 @@
-import { test, expect } from "@playwright/test";
-test.beforeEach(async ({ page }) => {
-  await page.clock.install({ time: new Date("2026-09-22T10:00:00-03:00") });
-});
-test("service lifecycle persists and inactive services stay out of chat", async ({ page }) => {
+import { test, expect, Page } from "@playwright/test";
+
+// HTTP fixtures exercise the UI contract only; they are never shipped to the application.
+const sample = {
+  id: "11111111-1111-4111-8111-111111111111",
+  name: "Corte da API",
+  description: "Retornado pelo contrato de serviços",
+  duration_minutes: 30,
+  price_cents: 4500,
+  currency: "BRL",
+  active: true,
+};
+async function intercept(
+  page: Page,
+  handler: (method: string, body: unknown) => { status?: number; json: unknown },
+) {
+  await page.route("http://127.0.0.1:8080/api/v1/**", async (route) => {
+    const request = route.request();
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({
+        status: 204,
+        headers: {
+          "Access-Control-Allow-Origin": "http://127.0.0.1:3100",
+          "Access-Control-Allow-Methods": "GET, POST",
+          "Access-Control-Allow-Headers": "Content-Type",
+        },
+      });
+      return;
+    }
+    const result = handler(request.method(), request.postData() ? request.postDataJSON() : null);
+    await route.fulfill({
+      status: result.status ?? 200,
+      contentType: "application/json",
+      headers: { "Access-Control-Allow-Origin": "http://127.0.0.1:3100" },
+      body: JSON.stringify(result.json),
+    });
+  });
+}
+test("lists API data, creates with the real payload and reloads the list", async ({ page }) => {
+  let items = [sample];
+  const bodies: unknown[] = [];
+  await intercept(page, (method, body) => {
+    if (method === "POST") {
+      bodies.push(body);
+      const input = body as object;
+      const created = { ...sample, ...input, id: "22222222-2222-4222-8222-222222222222" };
+      items = [...items, created];
+      return { status: 201, json: created };
+    }
+    return { json: items };
+  });
   await page.goto("/admin/servicos");
+  await expect(page.getByRole("heading", { name: "Corte da API", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Adicionar serviço", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Nome do serviço").fill("Corte de teste");
-  await dialog.getByLabel("Descrição").fill("Cuidado especial de demonstração.");
-  await dialog.getByLabel("Preço (R$)").fill("62.50");
-  await dialog.getByLabel("Duração (minutos)").fill("45");
+  await dialog.getByLabel("Nome do serviço").fill("Corte novo");
+  await dialog.getByLabel("Descrição").fill("Novo serviço");
+  await dialog.getByLabel("Preço (R$)").fill("62,50");
+  await dialog.getByLabel("Duração (minutos)").fill("1");
   await dialog.getByRole("button", { name: "Adicionar serviço", exact: true }).click();
-  let card = page
-    .locator("article")
-    .filter({ has: page.getByRole("heading", { name: "Corte de teste", exact: true }) });
-  await expect(card).toContainText("62,50");
+  await expect(page.getByRole("heading", { name: "Corte novo", exact: true })).toBeVisible();
+  expect(bodies).toEqual([
+    { name: "Corte novo", description: "Novo serviço", price_cents: 6250, duration_minutes: 1 },
+  ]);
+  await expect(page.getByRole("status")).toContainText("criado na API");
   await page.reload();
-  await expect(card).toBeVisible();
-  await card.getByRole("button", { name: "Editar serviço" }).click();
-  await dialog.getByLabel("Nome do serviço").fill("Corte exclusivo");
-  await dialog.getByRole("switch").click();
-  await dialog.getByRole("button", { name: "Salvar alterações" }).click();
-  card = page
-    .locator("article")
-    .filter({ has: page.getByRole("heading", { name: "Corte exclusivo", exact: true }) });
-  await expect(card).toContainText("Inativo");
-  await page.goto("/chat");
-  await expect(page.getByRole("button", { name: /Corte clássico/ })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Corte exclusivo/ })).toHaveCount(0);
-  await page.goto("/admin/servicos");
-  await page.getByRole("button", { name: "Excluir Corte exclusivo", exact: true }).click();
-  await dialog.getByRole("button", { name: "Excluir serviço", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Corte exclusivo", exact: true })).toHaveCount(0);
-  await page.reload();
-  await expect(page.getByRole("heading", { name: "Corte clássico", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Corte exclusivo", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Corte novo", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem("palma-barbearia-demo-v1"))).toBeNull();
+  await expect(page.getByRole("button", { name: "Editar serviço" }).first()).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Excluir Corte novo" })).toBeDisabled();
 });
-test("manual booking can be edited and cancelled, keeping occupied times unavailable", async ({
+test("empty and failed lists never restore legacy demonstration data", async ({ page }) => {
+  let fail = true;
+  await intercept(page, () =>
+    fail
+      ? {
+          status: 503,
+          json: { error: { code: "temporarily_unavailable", message: "internal details" } },
+        }
+      : { json: [] },
+  );
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "palma-barbearia-demo-v1",
+      JSON.stringify({ services: [{ name: "Old mock" }] }),
+    ),
+  );
+  await page.goto("/admin/servicos");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "temporariamente indisponível",
+  );
+  await expect(page.getByText("Old mock")).toHaveCount(0);
+  fail = false;
+  await page.getByRole("button", { name: "Tentar novamente" }).click();
+  await expect(page.getByRole("heading", { name: "Nenhum serviço ativo" })).toBeVisible();
+});
+test("public chat loads the slug from its URL and cannot book", async ({ page }) => {
+  const requested: string[] = [];
+  await page.route("http://127.0.0.1:8080/api/v1/**", async (route) => {
+    requested.push(route.request().url());
+    await route.fulfill({
+      json: [sample],
+      headers: { "Access-Control-Allow-Origin": "http://127.0.0.1:3100" },
+    });
+  });
+  await page.goto("/b/outra-barbearia");
+  await page.getByRole("button", { name: /Corte da API/ }).click();
+  expect(requested[0]).toContain("/api/v1/public/shops/outra-barbearia/services");
+  await expect(page.getByText("Agendamento ainda indisponível.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /Confirmar.*agendamento/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Painel|agenda/ })).toHaveCount(0);
+});
+for (const [status, code, text] of [
+  [403, "admin_access_unavailable", "criação local está desabilitada"],
+  [404, "shop_not_found", "Barbearia não encontrada"],
+  [422, "invalid_service", "Revise o nome"],
+  [500, "internal_error", "não conseguiu concluir"],
+] as const) {
+  test("creation handles " + status + " without losing form data", async ({ page }) => {
+    let attempts = 0;
+    await intercept(page, (method) => {
+      if (method === "POST") {
+        attempts++;
+        return { status, json: { error: { code, message: "server error" } } };
+      }
+      return { json: [sample] };
+    });
+    await page.goto("/admin/servicos");
+    await page.getByRole("button", { name: "Adicionar serviço", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Nome do serviço").fill("Teste com erro");
+    await dialog.getByLabel("Preço (R$)").fill("0");
+    await dialog.getByRole("button", { name: "Adicionar serviço", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toContainText(text);
+    await expect(dialog.getByLabel("Nome do serviço")).toHaveValue("Teste com erro");
+    expect(attempts).toBe(1);
+  });
+}
+test("rejects malformed responses and shows a readable network error", async ({ page }) => {
+  await intercept(page, () => ({ json: { items: [sample] } }));
+  await page.goto("/admin/servicos");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("retornar uma lista");
+  await page.unrouteAll();
+  await page.route("http://127.0.0.1:8080/api/v1/**", (route) => route.abort("failed"));
+  await page.getByRole("button", { name: "Tentar novamente" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "Não foi possível acessar a API",
+  );
+});
+test("pending requests disable duplicate submissions; a failed refresh keeps creation success distinct", async ({
   page,
 }) => {
-  await page.goto("/admin");
-  await page.getByRole("button", { name: "Novo agendamento" }).click();
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let created = false;
+  let posts = 0;
+  await page.route("http://127.0.0.1:8080/api/v1/**", async (route) => {
+    if (route.request().method() === "POST") {
+      posts++;
+      await gate;
+      created = true;
+      await route.fulfill({ status: 201, json: sample });
+    } else
+      await route.fulfill(
+        created
+          ? { status: 503, json: { error: { code: "temporarily_unavailable" } } }
+          : { json: [] },
+      );
+  });
+  await page.goto("/admin/servicos");
+  await page.getByRole("button", { name: "Adicionar serviço", exact: true }).click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Nome do cliente").fill("Cliente Manual");
-  await dialog.getByLabel("Telefone com DDD").fill("11988887777");
-  await dialog.getByLabel("Data", { exact: true }).fill("2026-09-23");
-  await dialog.getByRole("combobox", { name: "Horário", exact: true }).selectOption("12:00");
-  await dialog.getByRole("button", { name: "Confirmar agendamento" }).click();
-  await page.getByRole("button", { name: /Cliente Manual, Corte clássico, 12:00/ }).click();
-  await expect(dialog).toContainText("Cliente Manual");
-  await dialog.getByRole("button", { name: "Editar", exact: true }).click();
-  await dialog.getByRole("combobox", { name: "Horário", exact: true }).selectOption("12:30");
-  await dialog.getByRole("button", { name: "Salvar alterações" }).click();
-  await page.getByRole("button", { name: "Novo agendamento" }).click();
-  await dialog.getByLabel("Data", { exact: true }).fill("2026-09-23");
-  await expect(
-    dialog.getByRole("combobox", { name: "Horário", exact: true }).locator("option[value='12:30']"),
-  ).toHaveCount(0);
-  await dialog.getByRole("button", { name: "Fechar janela" }).click();
-  await page.getByRole("button", { name: /Cliente Manual, Corte clássico, 12:30/ }).click();
-  await dialog.getByRole("button", { name: "Cancelar", exact: true }).click();
-  await dialog.getByRole("button", { name: "Sim, cancelar" }).click();
-  await expect(page.getByRole("button", { name: /Cliente Manual, Corte clássico/ })).toHaveCount(0);
-  await page.getByRole("button", { name: "Novo agendamento" }).click();
-  await dialog.getByLabel("Data", { exact: true }).fill("2026-09-23");
-  await expect(
-    dialog.getByRole("combobox", { name: "Horário", exact: true }).locator("option[value='12:30']"),
-  ).toHaveCount(1);
+  await dialog.getByLabel("Nome do serviço").fill("Serviço");
+  await dialog.getByLabel("Preço (R$)").fill("0");
+  await dialog.getByRole("button", { name: "Adicionar serviço", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "Salvando…" })).toBeDisabled();
+  await expect(dialog.getByLabel("Nome do serviço")).toBeDisabled();
+  release();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("status")).toContainText("criado na API");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "temporariamente indisponível",
+  );
+  expect(posts).toBe(1);
 });
-test("chat saves only on confirmation and reservation appears in admin", async ({ page }) => {
-  await page.goto("/chat");
-  await page.getByRole("button", { name: /Cabelo \+ barba/ }).click();
-  await page.getByRole("button", { name: /Felipe Palma.*Escolher/ }).click();
-  await page.getByLabel("Escolher outra data").fill("2026-09-24");
-  await page.getByRole("button", { name: "12:00", exact: true }).click();
-  await page.getByLabel("Seu nome").fill("Cliente Chat");
-  await page.getByLabel("Telefone com DDD").fill("11999998888");
-  await page.getByRole("button", { name: "Revisar agendamento" }).click();
-  expect(await page.evaluate(() => localStorage.getItem("palma-barbearia-demo-v1"))).toBeNull();
-  await page.getByRole("button", { name: "Confirmar meu agendamento" }).click();
-  await expect(page.getByRole("heading", { name: "Seu horário está reservado." })).toBeVisible();
-  await page.getByRole("link", { name: "Ver na agenda" }).click();
-  const appointment = page.getByRole("button", { name: /Cliente Chat, Cabelo \+ barba, 12:00/ });
-  await expect(appointment).toBeVisible();
-  await appointment.click();
-  await expect(page.getByRole("dialog")).toContainText("Agendado pelo chat");
-});
-test("calendar navigation, filters and month view work", async ({ page }) => {
-  await page.goto("/admin");
-  await expect(page.locator(".calendar-event")).toHaveCount(18);
-  await page.getByLabel("Filtrar por profissional").selectOption("rafael");
-  await expect(page.locator(".calendar-event")).toHaveCount(9);
-  await page.getByLabel("Buscar na agenda").fill("Pedro");
-  await expect(page.locator(".calendar-event")).toHaveCount(1);
-  await page.getByLabel("Buscar na agenda").clear();
-  await page.getByRole("button", { name: "Mês", exact: true }).click();
-  await expect(page.locator(".month-cell")).toHaveCount(42);
-  await page.getByRole("button", { name: "Próximo período" }).click();
-  await expect(page.getByRole("heading", { name: "outubro de 2026" })).toBeVisible();
-  await page.getByRole("button", { name: "Hoje", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "setembro de 2026" })).toBeVisible();
-  await page.getByRole("button", { name: "Dia", exact: true }).click();
-  await expect(page.locator(".day-column")).toHaveCount(1);
-});
-test("mobile layouts fit viewport and menu works", async ({ page }) => {
+test("agenda and responsive screens expose pending capabilities without mock appointments", async ({
+  page,
+}) => {
+  await intercept(page, () => ({ json: [sample] }));
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/admin", "/admin/servicos", "/chat"]) {
+  for (const path of ["/admin", "/admin/servicos", "/b/barbearia-do-felipe"]) {
     await page.goto(path);
-    await expect(page.locator(".loading-screen")).toHaveCount(0);
+    await page.getByRole("heading").first().waitFor();
     expect(
-      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+      await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     ).toBeTruthy();
     await page.screenshot({
-      path: "test-results/" + path.replaceAll("/", "-") + "-mobile.png",
+      path: "test-results/" + path.replaceAll("/", "-") + "-integrated-mobile.png",
       fullPage: true,
     });
   }
   await page.goto("/admin");
-  await page.getByRole("button", { name: "Abrir menu" }).click();
-  await page.getByRole("navigation").getByRole("link", { name: "Serviços", exact: true }).click();
-  await expect(page.getByRole("heading", { name: /Seu catálogo de serviços/ })).toBeVisible();
-  await page.getByRole("button", { name: "Adicionar serviço", exact: true }).click();
-  await expect(page.getByRole("dialog")).toBeVisible();
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-});
-test("desktop screens have no client errors", async ({ page }) => {
-  const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
-  for (const path of ["/admin", "/admin/servicos", "/chat"]) {
-    await page.goto(path);
-    await expect(page.locator(".loading-screen")).toHaveCount(0);
-    await page.screenshot({
-      path: "test-results/" + path.replaceAll("/", "-") + "-desktop.png",
-      fullPage: true,
-    });
-  }
-  expect(errors).toEqual([]);
+  await expect(page.getByRole("button", { name: "Novo agendamento" })).toBeDisabled();
+  await expect(page.getByText("Agenda ainda não integrada.")).toBeVisible();
+  await expect(page.locator(".calendar-event")).toHaveCount(0);
 });

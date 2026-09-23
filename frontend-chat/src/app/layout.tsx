@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import "@fontsource-variable/dm-sans";
 import "./globals.css";
-import { DemoProvider } from "@/components/demo-provider";
+import { FeedbackProvider } from "@/components/feedback-provider";
 
 export const metadata: Metadata = {
   title: {
@@ -16,7 +16,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="pt-BR">
       <body>
-        <DemoProvider>{children}</DemoProvider>
+        <FeedbackProvider>{children}</FeedbackProvider>
       </body>
     </html>
   );

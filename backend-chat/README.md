@@ -2,7 +2,7 @@
 
 Fundação de um SaaS de agendamentos para barbearias e projeto de estudo de Go, Chi e mensageria. Uma aplicação modular, um módulo Go e dois executáveis: API e worker. PostgreSQL guarda os dados; RabbitMQ será o transporte das notificações.
 
-**Implementado:** configuração por ambiente/.env, HTTP com Chi, health/readiness, logs JSON, graceful shutdown, pool PostgreSQL, conexão AMQP, ciclo de vida do worker, Compose, migrations e testes. O catálogo agora cria serviços em modo local explícito e lista serviços ativos por slug. **Ainda não existe:** edição/ativação de serviços, autenticação administrativa, agendamento, scheduler/outbox, consumer de negócio, envio de mensagens ou relatórios. O frontend de demonstração está em [`../frontend-chat`](../frontend-chat/README.md), sem integração com a API. O worker verifica dependências e aguarda encerramento; não envia notificações.
+**Implementado:** configuração por ambiente/.env, HTTP com Chi, health/readiness, logs JSON, graceful shutdown, pool PostgreSQL, conexão AMQP, ciclo de vida do worker, Compose, migrations e testes. O catálogo agora cria serviços em modo local explícito e lista serviços ativos por slug. **Ainda não existe:** edição/ativação de serviços, autenticação administrativa, agendamento, scheduler/outbox, consumer de negócio, envio de mensagens ou relatórios. O frontend está em [`../frontend-chat`](../frontend-chat/README.md), com criação/listagem de serviços integrada à API. Veja [configuração do acesso local pelo navegador](../frontend-chat/API-INTEGRATION.md). O worker verifica dependências e aguarda encerramento; não envia notificações.
 
 **Estrutura de negócio:** sete módulos em `internal/modules`, cada um com `domain`, `application` e `infra`. Catálogo implementa criar/listar serviços; shops fornece resolução de slug ativo. Os demais fluxos continuam planejados. Os `doc.go` do catálogo explicam o fluxo completo, cada camada, os adaptadores e a fronteira de acesso local. Veja [como testar serviços](docs/catalog-testing.md) e o [ADR 0007](docs/adr/0007-catalog-services-and-local-tenant.md).
 
@@ -170,3 +170,5 @@ Não remover volumes para resolver erros de configuração. O resultado das vali
 - [AGENTS.md](AGENTS.md): instruções persistentes para próximas tarefas.
 
 Próximo passo do catálogo: edição e ativação/desativação, listagem administrativa e autorização por membership antes de publicação. Depois profissionais/associações e a fatia de agendamento com proteção de sobreposição, seguida de outbox/worker. Definir regras de lembrete, cancelamento, seleção de profissional e canal/provedor antes das funcionalidades correspondentes.
+
+Para o navegador local consumir o catálogo, configure `DEV_FRONTEND_ORIGIN=http://127.0.0.1:3000` (sem barra final) além de `DEV_SHOP_SLUG` para escrita. O listener continua restrito a loopback; isso não é autenticação de produção.

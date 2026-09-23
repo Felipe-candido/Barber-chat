@@ -5,7 +5,7 @@ export default defineConfig({
   workers: 2,
   timeout: 30000,
   use: {
-    baseURL: "http://127.0.0.1:3000",
+    baseURL: "http://127.0.0.1:3100",
     channel: "msedge",
     viewport: { width: 1440, height: 1000 },
     timezoneId: "America/Sao_Paulo",
@@ -13,9 +13,13 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "npm run start",
-    url: "http://127.0.0.1:3000",
-    reuseExistingServer: !process.env.CI,
+    command: "node node_modules/next/dist/bin/next dev --webpack --hostname 127.0.0.1 --port 3100",
+    url: "http://127.0.0.1:3100",
+    reuseExistingServer: false,
+    env: {
+      NEXT_PUBLIC_API_BASE_URL: "http://127.0.0.1:8080",
+      NEXT_PUBLIC_SHOP_SLUG: "barbearia-do-felipe",
+    },
     timeout: 60000,
   },
   reporter: [["list"]],

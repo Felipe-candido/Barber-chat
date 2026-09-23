@@ -8,7 +8,9 @@
 //
 // The local-only POST rejects writes unless DEV_SHOP_SLUG is configured. The
 // composition/configuration requires a loopback listener; the handler checks
-// the peer address and Host and rejects Origin/cross-site browser requests.
+// the peer address and Host. Browser Origin must exactly match the optional
+// DEV_FRONTEND_ORIGIN; without it, browser requests remain rejected.
+// Catalog OPTIONS requests implement a narrow, credential-free local CORS policy.
 // It never uses forwarded headers as proof of identity. This development
 // facility must not be exposed through a proxy and is not staff authentication.
 //

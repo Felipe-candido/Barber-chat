@@ -15,14 +15,15 @@ import (
 )
 
 type Config struct {
-	HTTPAddr        string
-	DatabaseURL     string
-	RabbitMQURL     string
-	LogLevel        slog.Level
-	DBTimeout       time.Duration
-	ShutdownTimeout time.Duration
-	WorkerInterval  time.Duration
-	DevShopSlug     string
+	HTTPAddr          string
+	DatabaseURL       string
+	RabbitMQURL       string
+	LogLevel          slog.Level
+	DBTimeout         time.Duration
+	ShutdownTimeout   time.Duration
+	WorkerInterval    time.Duration
+	DevShopSlug       string
+	DevFrontendOrigin string
 }
 
 // Load reads the optional .env in the working directory, then validates settings.
@@ -49,20 +50,33 @@ func load(getenv func(string) string) (Config, error) {
 		return fallback
 	}
 	c := Config{
-		HTTPAddr:    value("HTTP_ADDR", "127.0.0.1:8080"),
-		DatabaseURL: getenv("DATABASE_URL"),
-		RabbitMQURL: getenv("RABBITMQ_URL"),
-		DevShopSlug: strings.TrimSpace(getenv("DEV_SHOP_SLUG")),
+		HTTPAddr:          value("HTTP_ADDR", "127.0.0.1:8080"),
+		DatabaseURL:       getenv("DATABASE_URL"),
+		RabbitMQURL:       getenv("RABBITMQ_URL"),
+		DevShopSlug:       strings.TrimSpace(getenv("DEV_SHOP_SLUG")),
+		DevFrontendOrigin: strings.TrimSpace(getenv("DEV_FRONTEND_ORIGIN")),
 	}
 	_, port, err := net.SplitHostPort(c.HTTPAddr)
 	n, portErr := strconv.Atoi(port)
 	if err != nil || portErr != nil || n < 1 || n > 65535 {
 		return Config{}, fmt.Errorf("HTTP_ADDR must contain a host and port between 1 and 65535")
 	}
-	if c.DevShopSlug != "" {
+	if c.DevShopSlug != "" || c.DevFrontendOrigin != "" {
 		host, _, _ := net.SplitHostPort(c.HTTPAddr)
 		if !net.ParseIP(host).IsLoopback() {
-			return Config{}, fmt.Errorf("DEV_SHOP_SLUG requires a loopback IP in HTTP_ADDR")
+			return Config{}, fmt.Errorf("DEV_SHOP_SLUG and DEV_FRONTEND_ORIGIN require a loopback IP in HTTP_ADDR")
+		}
+	}
+	if c.DevFrontendOrigin != "" {
+		u, err := url.Parse(c.DevFrontendOrigin)
+		if err != nil || u.Scheme != "http" || u.User != nil || u.Path != "" || u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || (u.Hostname() != "localhost" && !net.ParseIP(u.Hostname()).IsLoopback()) {
+			return Config{}, errors.New("DEV_FRONTEND_ORIGIN must be an exact http loopback origin without path or credentials")
+		}
+		if u.Port() != "" {
+			port, err := strconv.Atoi(u.Port())
+			if err != nil || port < 1 || port > 65535 {
+				return Config{}, errors.New("DEV_FRONTEND_ORIGIN has an invalid port")
+			}
 		}
 	}
 	if err := validateURL(c.DatabaseURL, "DATABASE_URL", "postgres", "postgresql"); err != nil {

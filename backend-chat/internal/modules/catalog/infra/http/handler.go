@@ -19,15 +19,20 @@ import (
 const maxBodyBytes = 64 << 10
 
 type Handler struct {
-	createService *application.CreateService
-	listServices  *application.ListServices
-	devShopSlug   string
-	timeout       time.Duration
-	logger        *slog.Logger
+	createService     *application.CreateService
+	listServices      *application.ListServices
+	devShopSlug       string
+	devFrontendOrigin string
+	timeout           time.Duration
+	logger            *slog.Logger
 }
 
-func NewHandler(create *application.CreateService, list *application.ListServices, devShopSlug string, timeout time.Duration, logger *slog.Logger) *Handler {
-	return &Handler{createService: create, listServices: list, devShopSlug: devShopSlug, timeout: timeout, logger: logger}
+func NewHandler(create *application.CreateService, list *application.ListServices, devShopSlug string, timeout time.Duration, logger *slog.Logger, frontendOrigin ...string) *Handler {
+	h := &Handler{createService: create, listServices: list, devShopSlug: devShopSlug, timeout: timeout, logger: logger}
+	if len(frontendOrigin) > 0 {
+		h.devFrontendOrigin = frontendOrigin[0]
+	}
+	return h
 }
 
 type createServiceRequest struct {
@@ -52,7 +57,7 @@ func responseOf(s application.ServiceOutput) serviceResponse {
 }
 
 func (h *Handler) CreateService(w http.ResponseWriter, r *http.Request) {
-	if h.devShopSlug == "" || !localRequest(r) {
+	if h.devShopSlug == "" || !localRequest(r, h.devFrontendOrigin) {
 		writeError(w, http.StatusForbidden, "admin_access_unavailable", "local catalog writes are disabled or this request is not local")
 		return
 	}
@@ -83,17 +88,16 @@ func (h *Handler) CreateService(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
 	defer cancel()
-	
+
 	service, err := h.createService.Execute(
 		ctx, application.CreateServiceInput{
-			ShopSlug: h.devShopSlug, 
-			Name: request.Name, 
-			Description: request.Description,
-			DurationMinutes: 
-			request.DurationMinutes, 
-			PriceCents: *request.PriceCents,
+			ShopSlug:        h.devShopSlug,
+			Name:            request.Name,
+			Description:     request.Description,
+			DurationMinutes: request.DurationMinutes,
+			PriceCents:      *request.PriceCents,
 		})
-		
+
 	if err != nil {
 		h.writeOperationError(w, err, "create")
 		return
@@ -117,7 +121,7 @@ func (h *Handler) ListServices(w http.ResponseWriter, r *http.Request) {
 }
 
 // Local development access is not authentication. Never expose it through a proxy.
-func localRequest(r *http.Request) bool {
+func localRequest(r *http.Request, allowedOrigin string) bool {
 	remote, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil || !net.ParseIP(remote).IsLoopback() {
 		return false
@@ -129,7 +133,10 @@ func localRequest(r *http.Request) bool {
 	if host != "localhost" && !net.ParseIP(host).IsLoopback() {
 		return false
 	}
-	return r.Header.Get("Origin") == "" && r.Header.Get("Sec-Fetch-Site") != "cross-site"
+	if origin := r.Header.Get("Origin"); origin != "" {
+		return allowedOrigin != "" && origin == allowedOrigin
+	}
+	return r.Header.Get("Sec-Fetch-Site") != "cross-site"
 }
 
 func writeDecodeError(w http.ResponseWriter, err error) {
