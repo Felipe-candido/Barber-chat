@@ -114,23 +114,40 @@ Exemplo: http://127.0.0.1:3000 é diferente de http://localhost:3000 e da porta 
 
 Isso é uma facilidade de desenvolvimento, não autenticação. Não publicar a API local por proxy/túnel. A integração de produção depende da autenticação/membership descrita na proposta do backend. NEXT_PUBLIC_SHOP_SLUG deve corresponder a DEV_SHOP_SLUG para que a tela administrativa leia a mesma barbearia onde o servidor cria. O POST atual não retorna contexto de tenant que permita essa verificação pelo navegador.
 
+## Sessão Supabase e token administrativo
+
+`/login` usa `supabase.auth.signInWithPassword`. As credenciais vão diretamente do navegador ao Supabase Auth e não passam pela API Go. O SDK persiste a sessão, renova o access token e entrega o JWT curto ao cliente HTTP quando uma operação administrativa usa `authenticated: true`.
+
+O cliente envia `Authorization: Bearer <access_token>` em `POST /api/v1/admin/services`. O token nunca é exibido, registrado ou incluído em query string; o refresh token permanece sob o gerenciamento do SDK. Leituras públicas continuam sem Authorization.
+
+Configuração do navegador:
+
+```dotenv
+NEXT_PUBLIC_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
+
+Esses dois valores são públicos por design. Nunca usar `sb_secret_*`, `service_role`, `DATABASE_URL` ou senha do banco. O frontend rejeita explicitamente chaves com prefixo `sb_secret_`, mas essa validação não substitui o cuidado operacional.
+
+Limite atual: o Go ainda não valida JWT/membership e o CORS local ainda rejeita o header `Authorization`. Assim, o login pode ser testado contra o Supabase, mas a escrita administrativa autenticada ficará bloqueada até o backend implementar esse contrato. Nenhum arquivo do backend foi alterado nesta etapa.
+
 ## Funcionalidades pendentes e contratos necessários
 
 Os itens abaixo são requisitos para definição futura. URI e método ainda devem ser acordados/implementados no backend; não há chamadas ou URLs fictícias no código.
 
-| Capacidade pendente         | Dados/contrato que o backend deve fornecer                                                     | Comportamento atual                                            |
-| --------------------------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Listagem administrativa     | Serviços ativos e inativos, escopo autenticado, filtros/paginação definidos                    | Lista pública de ativos identificada como tal                  |
-| Editar serviço              | ID, campos alteráveis, validação, objeto atualizado, erros de acesso/ausência/conflito         | Botão desabilitado                                             |
-| Excluir/desativar           | Política para históricos/agendamentos, resposta definida, referências/conflitos                | Botão desabilitado; sem toggle falso                           |
-| Categorias                  | Modelo, identificador e vínculo opcional no serviço                                            | Campo/filtro removidos                                         |
-| Dados públicos da barbearia | Nome, slug, logo, timezone e estado, sem dados administrativos                                 | Slug real exibido; Palma identificada como marca de referência |
-| Profissionais               | IDs, nomes, serviços habilitados e atividade, limitados ao tenant                              | Nenhuma equipe fictícia                                        |
-| Disponibilidade             | Profissional/serviço/data ou intervalo; horários em UTC e timezone; duração                    | Seleção de horário indisponível                                |
-| Criar agendamento           | Serviço, profissional, início, contato/consentimento; reserva confirmada e conflito de horário | Fluxo para após selecionar serviço; não coleta contato         |
-| Consultar agenda            | Intervalo, profissional/status, timezone, paginação; agendamentos e snapshots                  | Calendário sem dados, sem métricas fictícias                   |
-| Alterar/cancelar/concluir   | ID, transições permitidas, concorrência/versão, estado atualizado                              | Ações não disponíveis                                          |
-| Login/sessão/membership     | Identidade verificada, unidades e permissões; sem confiar em shop_id do cliente                | /login continua prévia explícita sem autenticação              |
+| Capacidade pendente         | Dados/contrato que o backend deve fornecer                                                     | Comportamento atual                                                |
+| --------------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Listagem administrativa     | Serviços ativos e inativos, escopo autenticado, filtros/paginação definidos                    | Lista pública de ativos identificada como tal                      |
+| Editar serviço              | ID, campos alteráveis, validação, objeto atualizado, erros de acesso/ausência/conflito         | Botão desabilitado                                                 |
+| Excluir/desativar           | Política para históricos/agendamentos, resposta definida, referências/conflitos                | Botão desabilitado; sem toggle falso                               |
+| Categorias                  | Modelo, identificador e vínculo opcional no serviço                                            | Campo/filtro removidos                                             |
+| Dados públicos da barbearia | Nome, slug, logo, timezone e estado, sem dados administrativos                                 | Slug real exibido; Palma identificada como marca de referência     |
+| Profissionais               | IDs, nomes, serviços habilitados e atividade, limitados ao tenant                              | Nenhuma equipe fictícia                                            |
+| Disponibilidade             | Profissional/serviço/data ou intervalo; horários em UTC e timezone; duração                    | Seleção de horário indisponível                                    |
+| Criar agendamento           | Serviço, profissional, início, contato/consentimento; reserva confirmada e conflito de horário | Fluxo para após selecionar serviço; não coleta contato             |
+| Consultar agenda            | Intervalo, profissional/status, timezone, paginação; agendamentos e snapshots                  | Calendário sem dados, sem métricas fictícias                       |
+| Alterar/cancelar/concluir   | ID, transições permitidas, concorrência/versão, estado atualizado                              | Ações não disponíveis                                              |
+| Login/sessão/membership     | Backend valida JWT e resolve unidades/permissões; sem confiar em shop_id do cliente            | Frontend obtém sessão Supabase e envia Bearer; Go ainda não valida |
 
 Health/readiness já existem: GET /health -> 200 {"status":"ok"}; GET /ready -> 200 {"status":"ready"} ou 503 {"status":"unavailable"}. São probes operacionais, não fontes de dados das telas; não receberam CORS nem consumo no catálogo.
 
@@ -162,6 +179,8 @@ Em .env.local:
 ```dotenv
 NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:8080
 NEXT_PUBLIC_SHOP_SLUG=barbearia-do-felipe
+NEXT_PUBLIC_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
 Variáveis NEXT_PUBLIC_* são públicas e incorporadas ao build. Não colocar segredos. Reiniciar o servidor de desenvolvimento após mudar; em produção, gerar novo build.

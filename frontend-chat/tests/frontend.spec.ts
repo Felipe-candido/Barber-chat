@@ -1,4 +1,5 @@
 import { test, expect, Page } from "@playwright/test";
+import { installSupabaseSession } from "./supabase-fixture";
 
 // HTTP fixtures exercise the UI contract only; they are never shipped to the application.
 const sample = {
@@ -22,7 +23,7 @@ async function intercept(
         headers: {
           "Access-Control-Allow-Origin": "http://127.0.0.1:3100",
           "Access-Control-Allow-Methods": "GET, POST",
-          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
         },
       });
       return;
@@ -37,6 +38,7 @@ async function intercept(
   });
 }
 test("lists API data, creates with the real payload and reloads the list", async ({ page }) => {
+  await installSupabaseSession(page);
   let items = [sample];
   const bodies: unknown[] = [];
   await intercept(page, (method, body) => {
@@ -117,6 +119,7 @@ for (const [status, code, text] of [
   [500, "internal_error", "não conseguiu concluir"],
 ] as const) {
   test("creation handles " + status + " without losing form data", async ({ page }) => {
+    await installSupabaseSession(page);
     let attempts = 0;
     await intercept(page, (method) => {
       if (method === "POST") {
@@ -150,6 +153,7 @@ test("rejects malformed responses and shows a readable network error", async ({ 
 test("pending requests disable duplicate submissions; a failed refresh keeps creation success distinct", async ({
   page,
 }) => {
+  await installSupabaseSession(page);
   let release: () => void = () => {};
   const gate = new Promise<void>((resolve) => {
     release = resolve;

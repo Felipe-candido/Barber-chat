@@ -68,6 +68,7 @@ export async function createService(input: CreateServiceInput): Promise<Service>
   // Explicit mapping prevents tenant, category and active fields from leaking into the request.
   const payload = await requestJSON("/api/v1/admin/services", {
     method: "POST",
+    authenticated: true,
     body: {
       name,
       description: input.description,

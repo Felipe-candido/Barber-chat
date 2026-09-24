@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  AlertCircle,
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
@@ -12,6 +13,7 @@ import {
   Eye,
   EyeOff,
   KeyRound,
+  LoaderCircle,
   LockKeyhole,
   Mail,
   Scissors,
@@ -19,6 +21,7 @@ import {
 } from "lucide-react";
 import { Brand, Modal } from "./ui";
 import { useFeedback } from "./feedback-provider";
+import { signInWithPassword } from "@/lib/supabase/auth";
 
 export function LoginPage() {
   const router = useRouter();
@@ -26,6 +29,8 @@ export function LoginPage() {
   const [visible, setVisible] = useState(false);
   const [help, setHelp] = useState<"recovery" | "invitation" | null>(null);
   const [recoveryPreview, setRecoveryPreview] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState("");
   function closeHelp() {
     setHelp(null);
     setRecoveryPreview(false);
@@ -129,16 +134,35 @@ export function LoginPage() {
             </p>
             <div className="login-demo-label">
               <span />
-              Prévia da interface · acesso demonstrativo
+              Acesso protegido pelo Supabase Auth
             </div>
             <form
               className="login-form"
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
-                e.currentTarget.reset();
-                setVisible(false);
-                notify("Interface aberta sem autenticação. O catálogo usa a API local.");
-                router.push("/admin");
+                if (submitting) return;
+                const form = e.currentTarget;
+                const values = new FormData(form);
+                setLoginError("");
+                setSubmitting(true);
+                try {
+                  await signInWithPassword(
+                    String(values.get("email")),
+                    String(values.get("password")),
+                  );
+                  form.reset();
+                  setVisible(false);
+                  notify("Acesso confirmado pelo Supabase.");
+                  router.replace("/admin");
+                } catch (error) {
+                  setLoginError(
+                    error instanceof Error
+                      ? error.message
+                      : "Não foi possível entrar. Tente novamente.",
+                  );
+                } finally {
+                  setSubmitting(false);
+                }
               }}
             >
               <label htmlFor="login-email">E-mail</label>
@@ -152,6 +176,7 @@ export function LoginPage() {
                   placeholder="voce@barbearia.com"
                   required
                   maxLength={254}
+                  disabled={submitting}
                 />
               </div>
               <div className="login-password-label">
@@ -170,19 +195,27 @@ export function LoginPage() {
                   placeholder="Sua senha"
                   required
                   maxLength={128}
+                  disabled={submitting}
                 />
                 <button
                   type="button"
                   onClick={() => setVisible(!visible)}
                   aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
                   aria-pressed={visible}
+                  disabled={submitting}
                 >
                   {visible ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
               </div>
-              <button className="button button-primary login-submit">
-                Entrar no painel
-                <ArrowRight size={17} />
+              {loginError && (
+                <div className="form-error login-form-error" role="alert">
+                  <AlertCircle size={17} />
+                  {loginError}
+                </div>
+              )}
+              <button className="button button-primary login-submit" disabled={submitting}>
+                {submitting ? "Entrando…" : "Entrar no painel"}
+                {submitting ? <LoaderCircle size={17} /> : <ArrowRight size={17} />}
               </button>
             </form>
             <div className="login-divider">
@@ -205,9 +238,8 @@ export function LoginPage() {
           </div>
           <p className="login-demo-footer">
             <LockKeyhole size={13} />
-            Esta prévia não valida nem armazena e-mail ou senha.
-            <br />
-            Use dados fictícios para experimentar.
+            Sua senha é enviada diretamente ao Supabase e nunca à API Go.
+            <br />A sessão fornece um token curto para as chamadas administrativas.
           </p>
         </section>
       </main>

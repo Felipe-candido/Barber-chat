@@ -99,7 +99,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
             <span className="avatar">BC</span>
             <div>
               <strong>Barber-chat</strong>
-              <small>Autenticação pendente</small>
+              <small>Login via Supabase</small>
             </div>
             <span className="profile-dot" />
           </div>

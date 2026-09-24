@@ -338,6 +338,20 @@
   min-height: 45px;
   font-size: 12px;
 }
+.login-form-error {
+  margin-top: 16px;
+}
+.login-submit svg {
+  flex-shrink: 0;
+}
+.login-submit:disabled svg {
+  animation: login-spin 0.9s linear infinite;
+}
+@keyframes login-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .login-divider {
   display: flex;
   align-items: center;

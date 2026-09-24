@@ -1,6 +1,6 @@
 # Barber-chat — frontend
 
-Next.js, React, TypeScript e Tailwind. O catálogo está integrado à API Go; agenda e autenticação ainda aguardam seus contratos.
+Next.js, React, TypeScript e Tailwind. O catálogo está integrado à API Go e o login usa Supabase Auth no navegador; a validação e autorização do token no backend ainda não estão implementadas.
 
 ## Rodar
 
@@ -13,9 +13,13 @@ npm.cmd install
 npm.cmd run dev
 ```
 
-Configure NEXT_PUBLIC_API_BASE_URL com a URL HTTP da API e NEXT_PUBLIC_SHOP_SLUG com a barbearia local. No backend, habilite DEV_SHOP_SLUG e DEV_FRONTEND_ORIGIN=http://127.0.0.1:3000. Slugs do frontend e backend devem corresponder para o cadastro local.
+Configure NEXT_PUBLIC_API_BASE_URL com a URL HTTP da API, NEXT_PUBLIC_SHOP_SLUG com a barbearia local, NEXT_PUBLIC_SUPABASE_URL com a URL do projeto Supabase e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY com a chave pública/publishable. No backend, habilite DEV_SHOP_SLUG e DEV_FRONTEND_ORIGIN=http://127.0.0.1:3000. Slugs do frontend e backend devem corresponder para o cadastro local.
 
-Abra [Serviços](http://127.0.0.1:3000/admin/servicos) ou o catálogo público em /b/{slug}. /chat usa o slug do ambiente. /admin mostra a estrutura da agenda sem dados inventados. /login continua uma prévia sem sessão, validação ou armazenamento de credenciais; acessar o painel não significa autenticar.
+Abra [Login](http://127.0.0.1:3000/login), [Serviços](http://127.0.0.1:3000/admin/servicos) ou o catálogo público em /b/{slug}. /chat usa o slug do ambiente. O formulário de login envia e-mail/senha diretamente ao Supabase, que persiste e renova a sessão no navegador. O frontend anexa apenas o access token às escritas administrativas; nunca envia a senha à API Go.
+
+Variáveis `NEXT_PUBLIC_*` são incorporadas ao JavaScript do navegador. A URL e a chave publishable do Supabase são públicas por design; nunca coloque `service_role`, chave `sb_secret_*`, `DATABASE_URL` ou senha de banco no frontend. Reinicie `npm.cmd run dev` depois de alterar `.env.local`.
+
+O backend atual ainda não valida JWT e seu CORS local ainda não permite `Authorization`. Por isso, o login Supabase funciona, mas uma escrita administrativa autenticada só funcionará ponta a ponta depois da implementação correspondente no Go. O catálogo público continua sem token.
 
 ## Integração
 
@@ -25,6 +29,7 @@ Abra [Serviços](http://127.0.0.1:3000/admin/servicos) ou o catálogo público e
 - Consome o slug da rota pública.
 - Não usa serviços/agendamentos simulados, nem fallback em localStorage.
 - Não permite editar/excluir/ativar serviços ou reservar horários sem rotas disponíveis.
+- Autentica e-mail/senha com `@supabase/supabase-js`, mantém a sessão e prepara Bearer token somente para chamadas administrativas.
 
 [API-INTEGRATION.md](API-INTEGRATION.md) contém contratos, erros, configuração local, arquivos, limites e requisitos dos endpoints futuros. [Proposta de autenticação](../backend-chat/docs/authentication-proposal.md) descreve o desenho futuro, ainda não implementado.
 

@@ -20,13 +20,19 @@ const messages: Record<string, string> = {
   invalid_service: "Revise o nome, a duração e o preço do serviço.",
   temporarily_unavailable: "A API está temporariamente indisponível. Tente novamente em instantes.",
   internal_error: "A API não conseguiu concluir a operação.",
+  authentication_required: "Entre novamente para concluir esta operação.",
 };
 export function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Não foi possível concluir a operação.";
 }
 export async function requestJSON(
   path: string,
-  options: { method?: "GET" | "POST"; body?: unknown; signal?: AbortSignal } = {},
+  options: {
+    method?: "GET" | "POST";
+    body?: unknown;
+    signal?: AbortSignal;
+    authenticated?: boolean;
+  } = {},
 ): Promise<unknown> {
   const method = options.method ?? "GET";
   let base: string;
@@ -44,13 +50,28 @@ export async function requestJSON(
     ? AbortSignal.any([options.signal, timeout.signal])
     : timeout.signal;
   try {
+    const headers: Record<string, string> = {};
+    if (body) headers["Content-Type"] = "application/json";
+    if (options.authenticated) {
+      let accessToken: string | null;
+      try {
+        const auth = await import("../supabase/auth");
+        accessToken = await auth.currentAccessToken();
+      } catch (error) {
+        throw new ApiError("authentication_unavailable", errorMessage(error), 401);
+      }
+      if (!accessToken) {
+        throw new ApiError("authentication_required", messages.authentication_required, 401);
+      }
+      headers.Authorization = "Bearer " + accessToken;
+    }
     const response = await fetch(base + path, {
       method,
       body,
       signal,
       cache: "no-store",
       credentials: "omit",
-      headers: body ? { "Content-Type": "application/json" } : undefined,
+      headers: Object.keys(headers).length ? headers : undefined,
     });
     let payload: unknown;
     try {

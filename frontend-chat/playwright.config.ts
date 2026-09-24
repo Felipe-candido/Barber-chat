@@ -19,6 +19,8 @@ export default defineConfig({
     env: {
       NEXT_PUBLIC_API_BASE_URL: "http://127.0.0.1:8080",
       NEXT_PUBLIC_SHOP_SLUG: "barbearia-do-felipe",
+      NEXT_PUBLIC_SUPABASE_URL: "https://test-project.supabase.co",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test_key",
     },
     timeout: 60000,
   },
