@@ -1,5 +1,7 @@
 # Migrations
 
+`00004_create_identity_tables.sql` cria users e shop_memberships sem papéis. No Supabase é obrigatório aplicar depois `../supabase/migrations`, com a tabela Goose separada `public.goose_supabase_version`, para ligar users.id a auth.users.id. O PostgreSQL puro do Compose recebe somente a sequência comum. Veja a ordem de execução e o provisionamento manual no [guia de autenticação](../../docs/authentication-proposal.md). Não há login/autorização Go implementados por estas migrations.
+
 Goose v3.28.0, migrations SQL versionadas e transacionais por padrão. Os comandos estão no README principal. Executar a partir da raiz, com `DATABASE_URL` carregada.
 
 `00001_enable_btree_gist.sql` prepara a extensão para a futura restrição de sobreposição. `00002_create_catalog_tables.sql` cria shops/services. `00003_service_currency.sql` adiciona moeda BRL ao catálogo, inclusive aos registros existentes. O Goose mantém sua própria tabela de versões. O usuário de migrations precisa de permissão para instalar a extensão; em um banco gerenciado, o operador pode precisar provisioná-la antes.

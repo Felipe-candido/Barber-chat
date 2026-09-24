@@ -1,165 +1,137 @@
-# Proposta de autenticação e acesso por barbearia
+# Autenticação: Supabase Auth e acesso por barbearia
 
-Status: **proposta para discussão, não implementada no backend**. Data: 22/09/2026.
+Atualizado em 23/09/2026. **Preparado: migrations e procedimento manual. Não implementado: login real, validação JWT, autorização Go e CRUD de contas.** As migrations não são aplicadas no boot. O frontend /login ainda é uma demonstração e o POST de serviços continua dependendo do modo local DEV_SHOP_SLUG.
 
-A tela /login do frontend é uma demonstração. Ela não autentica, não cria sessão, não salva credenciais e não protege o painel. Este documento descreve a arquitetura recomendada para a implementação futura. Não foram criadas tabelas, migrations, endpoints ou dependências de autenticação.
+## Decisão para o primeiro incremento
 
-## Recomendação
+A proposta de contas criadas manualmente é adequada para as primeiras barbearias. Cada pessoa deve ter uma conta própria, mesmo sem diferenciação de papéis. O Supabase cuida de credenciais e sessão; nossa aplicação guarda o perfil e as unidades que a pessoa pode administrar. Não há conta/senha compartilhada por empresa.
 
-Começar com um único sistema e banco compartilhado entre barbearias, com isolamento por shop_id. Cadastrar as primeiras barbearias manualmente é viável, desde que o cadastro da empresa seja separado das contas das pessoas.
-
-Usar **Supabase Auth para identidade, senha, recuperação e sessão** e **Go para autorização e regras do negócio**. Como o banco já está no Supabase, essa opção evita construir um sistema próprio de senhas e tokens. Ela também introduz dependência operacional do provedor: disponibilidade, configuração de e-mail, limites de uso e custos devem ser considerados antes de comercializar.
-
-Não criar uma senha compartilhada por barbearia. Felipe pode ser proprietário de duas unidades e Rafael pode trabalhar em uma delas. Cada um faz login com seu próprio e-mail; o vínculo com cada barbearia define as permissões. Isso permite revogar um funcionário sem afetar o proprietário e identificar quem realizou uma alteração.
-
-| Opção | Quando faz sentido | Avaliação para este projeto |
-| --- | --- | --- |
-| Supabase Auth + autorização em Go | Entregar login com um provedor já presente no projeto | Recomendada |
-| Autenticação própria em Go | Requisito específico de controle ou estudo aprofundado de identidade | Mais trabalho: hashes, sessões, revogação, recuperação, proteção contra abuso e operação |
-| Outro provedor gerenciado | Recursos comerciais ou integração que o Supabase não ofereça | Possível, sem necessidade concreta agora |
-| Uma credencial compartilhada por barbearia | Protótipo descartável | Inadequada para funcionários, auditoria e múltiplas unidades |
-
-[Supabase Auth](https://supabase.com/docs/guides/auth) fornece os mecanismos de autenticação. A autorização específica do sistema continua sendo nossa responsabilidade.
-
-## Conceitos e dados propostos
-
-| Entidade | Dono | Campos essenciais |
-| --- | --- | --- |
-| shops, já existente | shops | id, name, slug único, timezone IANA, active |
-| users, proposta | identity | id local UUID, auth_issuer, auth_subject, display_name, active |
-| shop_memberships, proposta | identity | shop_id, user_id, role, active, created_at |
-| Registro de provisionamento, quando automatizado | caso de uso administrativo | chave idempotente, andamento, identidades/IDs relacionados, erro sanitizado |
-
-A identidade externa é reconhecida pelo par issuer + subject, com unicidade. O subject vem de um token verificado, nunca de um campo enviado pelo formulário. E-mail é contato/login gerenciado pelo provedor; não deve ser a chave estável de autorização. Se houver cópia local para exibição, ela não substitui a identidade verificada.
-
-shop_memberships tem unicidade em (shop_id, user_id) e referências a shops/users. Serviços, agendamentos e outros dados de negócio permanecem vinculados à barbearia. Restrições compostas devem impedir associações entre registros de tenants diferentes nas futuras tabelas relacionadas.
-
-**Não adicionar password ou password_hash a shops/users.** Com Supabase Auth, as credenciais são responsabilidade do provedor. Não inserir senhas diretamente em auth.users nem criar manualmente hashes desse schema.
-
-Um profissional do catálogo não é necessariamente usuário do painel. Um cliente que agenda também não é uma conta administrativa. Essas relações só devem ser criadas quando necessárias.
-
-## Papéis iniciais
-
-Dois papéis bastam para o primeiro incremento; não precisamos de um editor genérico de permissões.
-
-| Ação | owner | staff |
-| --- | --- | --- |
-| Ver agenda e serviços da unidade | Sim | Sim |
-| Criar/editar/cancelar agendamento | Sim | Sim |
-| Gerenciar catálogo | Sim | Não inicialmente |
-| Convidar/remover equipe | Sim | Não |
-| Alterar dados da barbearia | Sim | Não |
-
-Essa matriz é uma proposta de produto. Se funcionários só puderem gerenciar seus próprios atendimentos, isso exige uma regra adicional de vínculo com profissional, além do papel.
-
-Impedir remoção/rebaixamento do último proprietário ativo da unidade. Revogação de membership afeta somente aquela unidade. Desativar usuário afeta suas unidades; desativar shop afeta todos os acessos à unidade.
-
-Você, como operador do SaaS, não é automaticamente owner de todas as barbearias. Começar com provisionamento administrativo restrito, fora do painel dos clientes. Um futuro painel da plataforma terá permissões e auditoria próprias. Evitar um superadmin universal no frontend.
-
-## Criação das primeiras contas
-
-1. Você recebe os dados da barbearia e o e-mail do proprietário. Pode inserir os dados de negócio por SQL controlado no início.
-2. Cria/convida a identidade pela área administrativa ou API administrativa do Supabase Auth. O proprietário define sua senha pelo fluxo do provedor; você não precisa conhecer essa senha.
-3. Obtém o identificador verificado dessa identidade e grava a barbearia e seu primeiro membership de owner em uma transação local. Se o usuário local já existe, reutiliza-o.
-4. O proprietário conclui o convite/verificação e faz login. Só usuários elegíveis e memberships ativos recebem acesso.
-5. Um fluxo posterior permite que o owner convide funcionários para a sua unidade.
-
-As operações externas no Auth e a transação PostgreSQL não são uma única transação distribuída. Se o convite ocorrer e a escrita local falhar, o usuário pode existir no Auth **sem acesso a nenhuma barbearia**. Registrar o andamento e repetir o passo local de forma idempotente, sem duplicar usuário/shop/membership. Nunca conceder acesso por e-mail informado pelo cliente como fallback.
-
-No começo essa recuperação pode ser operacional, com procedimento documentado. Quando houver um comando de provisionamento, ele deve tratar usuário já existente, slug duplicado e falhas parciais explicitamente. Não chamar APIs externas dentro de uma transação longa de banco.
-
-O cadastro público deve ser desabilitado na configuração do provedor durante a fase de convites. Esconder um botão no frontend não desabilita o cadastro. Mesmo uma identidade válida sem membership não tem acesso ao painel. Consulte [configuração do Auth](https://supabase.com/docs/guides/auth/general-configuration) e [API administrativa](https://supabase.com/docs/reference/javascript/auth-admin-createuser). Chaves administrativas ficam somente no ambiente do servidor/operador, nunca em NEXT_PUBLIC_*.
-
-## Fluxo de login e seleção da unidade
-
-1. A pessoa informa e-mail e senha no frontend.
-2. O Supabase Auth verifica as credenciais e gerencia a sessão.
-3. O frontend envia o access token na chamada à API Go.
-4. O backend verifica o token e identifica o usuário local.
-5. A API consulta os memberships ativos. Uma unidade: abre automaticamente. Várias: apresenta seleção. Nenhuma: informa ausência de acesso.
-6. Em cada operação, o backend verifica novamente usuário, barbearia, membership e permissão.
-
-O slug é um endereço público amigável, por exemplo /b/palma. Não é senha nem prova de autorização. A seleção de uma unidade no frontend é apenas uma solicitação; o backend só aceita a unidade se o usuário tiver o vínculo necessário.
-
-O login pode ser central, sem pedir slug. Se futuramente houver uma página de login com marca por slug, ela poderá personalizar a aparência a partir de dados públicos, mas isso não muda a autorização.
+Esta versão substitui a proposta anterior de owner/staff e de um ID local separado com issuer/subject. Teremos um único projeto Supabase confiável, o mesmo UUID no Auth e em users, e vínculos sem role. Todos os membros ativos terão as mesmas permissões de negócio dentro da unidade. Criar contas/vínculos permanece uma operação do operador, fora do painel.
 
 ```mermaid
-flowchart LR
-  Person[Pessoa: e-mail e senha] --> Auth[Supabase Auth]
-  Auth --> Session[Sessão no frontend]
-  Session -->|Access token| Verify[Go: verificar identidade]
-  Verify --> Membership[Usuário + membership + permissão]
-  Membership -->|Escopo autorizado da barbearia| UseCase[Catálogo ou agendamento]
-  UseCase -->|Consulta sempre com shop_id| DB[(PostgreSQL)]
+erDiagram
+    AUTH_USERS ||--o| USERS : "mesmo UUID"
+    USERS ||--o{ SHOP_MEMBERSHIPS : possui
+    SHOPS ||--o{ SHOP_MEMBERSHIPS : possui
+    USERS {
+        uuid id PK,FK
+        string display_name
+        boolean active
+        timestamptz created_at
+    }
+    SHOP_MEMBERSHIPS {
+        uuid user_id PK,FK
+        uuid shop_id PK,FK
+        boolean active
+        timestamptz created_at
+    }
 ```
 
-## Sessão e segurança da API
+- `auth.users`: identidade gerenciada pelo provedor; login, senha, confirmação e recuperação pertencem ao Supabase.
+- `public.users`: perfil administrativo. `id` copia o UUID do Auth, sem default que gere outro ID. Não duplicamos senha, hash ou e-mail.
+- `public.shop_memberships`: ligação com `public.shops`, única por (user_id, shop_id). Sem papel. Um usuário pode ter várias unidades; uma unidade pode ter vários usuários.
+- Profissionais e clientes continuam conceitos separados. Clientes do chat público não precisam de conta.
 
-Proposta para a primeira integração: seguir o cliente oficial para Next.js com cookies de sessão/renovação e enviar access tokens como Bearer para a API Go. O login não escreverá um booleano isLoggedIn ou credenciais em localStorage. Cookies do fluxo SSR padrão não devem ser presumidos HttpOnly: a integração pode precisar compartilhá-los com o cliente do navegador. Se houver requisito de manter todos os tokens inacessíveis ao JavaScript, avaliar um BFF separado antes de implementar, sem misturar os dois modelos.
+Membership evita duplicar uma pessoa ou mover seu shop_id quando ela administrar uma segunda unidade. Limitar uma unidade por pessoa poderá ser uma regra futura explícita; não é uma restrição deste modelo.
 
-A renderização do Next e seus redirecionamentos melhoram a experiência; não protegem a API. Usar o mecanismo de verificação recomendado pelo SDK para decisões no servidor, sem confiar apenas no conteúdo local da sessão. A [documentação SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client) é a referência para criação do cliente, renovação e cookies. Respostas autenticadas não devem ser compartilhadas por cache público.
+## Arquivos e ordem de aplicação
 
-No Go, validar assinatura, algoritmo permitido, issuer configurado, audience esperada, expiração e subject. Usar chaves públicas do endpoint JWKS configurado do projeto, com cache/rotação e timeouts; não buscar URLs arbitrárias indicadas pelo token. Preferir chaves assimétricas no projeto. Decodificar JWT sem verificar assinatura não autentica.
+1. `db/migrations/00004_create_identity_tables.sql`: cria users/memberships, constraints, índice por shop_id e RLS sem policies de browser. Segue as migrations 00001–00003.
+2. `db/supabase/migrations/00001_link_auth_users.sql`: adiciona a FK `public.users.id -> auth.users.id ON DELETE CASCADE` e revoga privilégios diretos de anon/authenticated nas duas tabelas.
+3. `db/supabase/provision_membership.sql`: procedimento manual, não é migration nem seed automático. Insere perfil/vínculo sem duplicação e recusa reativar acessos suspensos.
 
-Não confundir role=authenticated do Supabase com owner/staff da aplicação. Não conceder permissões a partir de metadados que o próprio usuário possa editar. Inicialmente consultar os vínculos atuais no banco a cada operação administrativa facilita revogação imediata do acesso de negócio.
+O PostgreSQL do Compose não possui auth.users. Por isso a ligação específica do provedor tem uma sequência separada e uma tabela de versões própria. **No Supabase, as duas sequências são obrigatórias.** Se auth.users não existir, a segunda falha em vez de deixar a FK ausente silenciosamente. Não criar auth.users falsa no banco da aplicação.
 
-Logout encerra/renova o estado de sessão conforme o provedor, mas um access token já emitido pode continuar válido até expirar. Expiração, renovação, logout e bloqueio do usuário precisam de testes separados. Definir duração da sessão na implementação.
+Em PowerShell, no diretório backend-chat, confira antes se DATABASE_URL aponta para o projeto pretendido. Para migrations no Supabase use conexão direta ou Session pooler, conforme o guia de banco existente. Goose já está instalado neste ambiente:
 
-Produção: HTTPS, origens CORS explícitas, erros de credenciais genéricos, limitação de tentativas, proteção dos fluxos de recuperação e redirects permitidos. Operações autenticadas por cookies no Next exigem proteção contra CSRF/origem. O Go proposto usa Bearer explícito e não deve aceitar implicitamente qualquer cookie como sessão. Não registrar senhas, tokens ou corpos de login.
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
+. .\scripts\Load-Env.ps1
+$env:GOOSE_DRIVER = 'postgres'
+$env:GOOSE_DBSTRING = $env:DATABASE_URL
 
-Fonte: [JWTs e validação no Supabase](https://supabase.com/docs/guides/auth/jwts).
+goose -dir db/migrations validate
+goose -dir db/migrations status
+goose -dir db/migrations up
+if ($LASTEXITCODE -ne 0) { throw 'Falha nas migrations comuns' }
 
-## Isolamento no PostgreSQL
+# Histórico SEPARADO: não omitir -table nem misturar as pastas.
+goose -dir db/supabase/migrations -table public.goose_supabase_version validate
+goose -dir db/supabase/migrations -table public.goose_supabase_version up
+if ($LASTEXITCODE -ne 0) { throw 'Falha na ligação com Supabase Auth' }
 
-A aplicação usa pgx com conexão PostgreSQL direta. O token do Supabase enviado ao Go **não configura automaticamente auth.uid() nem aplica políticas RLS para aquele usuário nessa conexão**. Papéis privilegiados podem ainda ignorar RLS.
+goose -dir db/migrations status
+goose -dir db/supabase/migrations -table public.goose_supabase_version status
+```
 
-Cada repositório precisa receber o tenant já autorizado e filtrar leitura/escrita por ele. Não aceitar um shop_id arbitrário do corpo para autorizar. Manter FKs/constraints e testes de isolamento como parte do contrato.
+Rollback, somente em banco descartável ou após revisão: desfazer primeiro a sequência Supabase e depois a comum. Não remover a FK de um ambiente ativo para resolver erro de provisionamento. Um Down da sequência comum remove as tabelas e seus registros; não executá-lo para corrigir cadastro.
 
-Tabelas expostas pela Data API do Supabase precisam de políticas e grants apropriados, mesmo quando nossa aplicação usa Go. Para este desenho, preferir que o navegador acesse dados de negócio somente pela API Go. RLS pode ser defesa adicional com um desenho explícito de papéis/claims/transações; não habilitá-la e presumir que substitui os checks do backend.
+## Criar uma conta e ligá-la à barbearia
 
-Referência: [RLS do Supabase](https://supabase.com/docs/guides/database/postgres/row-level-security).
+1. No Dashboard Supabase, configure login por e-mail/senha e desabilite cadastro público na configuração do Auth. Esconder o botão de signup não desabilita o provedor.
+2. Em Authentication → Users, crie a conta pela interface do provedor e copie seu UUID. Não faça INSERT em auth.users pelo SQL Editor nem invente hashes. Convites/recuperação exigem URLs permitidas e telas de retorno; essas telas ainda precisam ser integradas. Para uso real com envio de e-mail, configurar SMTP é outra etapa.
+3. Confira a barbearia no SQL Editor:
 
-## Pacotes e responsabilidades propostos
+   ```sql
+   SELECT id, name, slug, active FROM public.shops ORDER BY name;
+   ```
 
-| Local | Responsabilidade futura |
-| --- | --- |
-| identity/domain | User, Membership, Role, permissões e invariantes |
-| identity/application | ResolveStaffIdentity, ListMyShops, AuthorizeShopAction, GrantMembership, RevokeMembership |
-| identity/infra/postgres | Consultas de usuários e vínculos com sqlc, usando o pool compartilhado |
-| identity/infra/http | Middleware que recebe o token e entrega identidade/escopo verificados; handlers de acesso |
-| identity/infra/auth | Adaptador concreto de verificação do provedor, somente quando implementado |
-| shops | Nome, slug, timezone e atividade da barbearia |
-| cmd/api | Composição dos adaptadores, pool e rotas |
-| Next.js | Formulários, sessão do provedor, seleção da barbearia e apresentação de erros |
+   Ela deve existir e estar ativa. O seed de desenvolvimento existente cria barbearia-do-felipe; não executar esse seed para cadastrar outras empresas reais.
+4. Abra `db/supabase/provision_membership.sql`. Substitua `target_user_id`, `target_shop_slug` e `target_display_name` e execute no SQL Editor. Use o UUID do passo 2 e o slug do passo 3. Se a transação abortar, execute ROLLBACK antes de tentar de novo na mesma sessão SQL.
+5. Confira a associação:
 
-O middleware verifica identidade; a aplicação autoriza a ação para a unidade. Casos de uso de catálogo/agendamento recebem um escopo confiável, sem importar SDK do Supabase. A criação do primeiro owner coordena shops e identity na mesma transação local.
+   ```sql
+   SELECT u.id, u.display_name, u.active AS user_active,
+          s.slug, s.active AS shop_active, m.active AS membership_active
+   FROM public.users u
+   JOIN public.shop_memberships m ON m.user_id = u.id
+   JOIN public.shops s ON s.id = m.shop_id
+   ORDER BY s.slug, u.display_name;
+   ```
 
-Não criar agora diretórios vazios, interfaces genéricas ou um microsserviço de autenticação. RabbitMQ e worker não participam do login.
+Não há trigger de criação automática. Criar a conta no Auth, sozinho, não cria acesso ao negócio. Se o SQL falhar, corrija e repita: o script reutiliza usuário/vínculo ativos sem sobrescrever perfil nem duplicar associação. Não reativa acessos suspensos. Cada unidade adicional usa o mesmo UUID com outro slug.
 
-Bibliotecas a avaliar **na implementação**, sem instalação nesta proposta:
-- Frontend: @supabase/supabase-js e o adaptador SSR oficial compatível com a versão então adotada.
-- Go: net/http, Chi, context, pgx e sqlc já existentes; uma biblioteca de JWT/JWKS, por exemplo [lestrrat-go/jwx/v3](https://pkg.go.dev/github.com/lestrrat-go/jwx/v3/jwt), para validação criptográfica e chaves. Verificar e fixar versão quando escolhida.
-- Nenhuma biblioteca própria de hash de senha será necessária com Auth gerenciado.
+Suspender users.active afeta todas as unidades; suspender shop_memberships.active afeta somente o vínculo. Excluir no Auth elimina perfil/vínculos por cascata, sem excluir barbearia/serviços. Essas flags e ausências **só bloquearão requisições quando o Go implementar as verificações abaixo**. A estrutura de banco não representa proteção já ativa na API.
 
-## Primeira fatia a implementar
+## Como o login e o Go funcionarão depois
 
-1. Configurar o provedor: login por e-mail, convite, verificação, recuperação, URLs permitidas e política de sessão.
-2. Criar novas migrations para users/memberships; preservar as migrations já aplicadas.
-3. Implementar verificação de token, resolução de identidade e autorização por tenant no Go.
-4. Propor GET /api/v1/me e GET /api/v1/me/shops para o frontend. Essas rotas ainda não existem e não foram adicionadas ao OpenAPI executável.
-5. Substituir DEV_SHOP_SLUG nas rotas administrativas pelo escopo de membership verificado. O modo local atual não pode servir de bypass na publicação.
-6. Integrar login, recuperação, aceite de convite, logout, renovação e seleção de unidade no frontend.
-7. Validar isolamento e papéis antes de habilitar acesso de clientes reais.
+1. Next.js autentica no Supabase, que entrega sessão e access token. Bibliotecas previstas: @supabase/supabase-js e @supabase/ssr; não instaladas nesta etapa.
+2. O frontend envia `Authorization: Bearer <access_token>` ao Go. Nunca envia senha ao catálogo.
+3. O Go valida assinatura, algoritmo permitido, issuer do projeto, audience esperada, expiração e subject. Para chaves assimétricas, usa JWKS do projeto com cache, rotação e timeout. Decodificar o payload não autentica. Escolheremos uma biblioteca JWT/JWKS ao implementar; não escrever criptografia própria.
+4. O sub validado identifica users.id. Consultar usuário ativo, membership ativo e barbearia ativa em cada operação administrativa. O cliente pode solicitar uma unidade, mas não conceder seu próprio acesso.
+5. Uma unidade elegível pode ser selecionada automaticamente; várias exigem seleção; nenhuma resulta em acesso negado. Não escolher o primeiro vínculo arbitrariamente. Não autorizar por e-mail, slug, user_metadata ou role=authenticated do Supabase.
+6. Os casos de uso recebem o shop_id autorizado. O catálogo/agendamento filtra por esse tenant, inclusive em buscas por ID. Sem papéis, a decisão inicial é identidade válida + vínculo elegível.
 
-Testes essenciais: token ausente/expirado/assinatura ou issuer incorretos; usuário sem membership; troca maliciosa de shop_id/slug; owner vs staff; revogação; último owner; dados de outra unidade em listas e por ID; usuário com duas unidades; convite repetido; falha parcial de provisionamento; sessão expirada; recuperação sem revelar existência de conta. Isolamento SQL e constraints precisam de PostgreSQL real.
+Token ausente/inválido deverá resultar em 401; identidade válida sem acesso elegível, em 403 (podendo ocultar recursos conforme contrato futuro). Ainda não há rotas de sessão/me nem middleware JWT. A integração futura precisa substituir DEV_SHOP_SLUG nas rotas administrativas e permitir Authorization no CORS; o modo local não pode ser bypass em produção. O catálogo público por slug continua sem login.
 
-Para convites e recuperação de clientes reais, configurar SMTP próprio/serviço de envio: o SMTP padrão do Supabase tem restrições e não é destinado à produção. Nenhum fornecedor foi escolhido ou contratado. Consulte [SMTP do Supabase](https://supabase.com/docs/guides/auth/auth-smtp).
+Logout/revogação não tornam todo JWT já emitido imediatamente inválido. Consultar o estado local por requisição permitirá bloquear acesso de negócio ao suspender usuário/vínculo. Sessões, renovação, recuperação e expiração serão tratadas na implementação, sem flags de login no localStorage.
 
-## Decisões de produto ainda abertas
+Responsabilidades: identity/infra valida token e consulta PostgreSQL; identity/application resolve identidade e autoriza unidade; domain guarda invariantes; cmd/api compõe dependências; o frontend administra a experiência de sessão. RabbitMQ não participa do login. Nenhum código Go de produção foi implementado nesta etapa.
 
-- Funcionário poderá alterar catálogo ou apenas agenda?
-- Funcionário verá todos os atendimentos ou só os próprios?
-- Uma pessoa poderá administrar várias unidades desde o primeiro lançamento? A modelagem proposta suporta isso.
-- A marca de cada barbearia será personalizada? Palma continua sendo apenas a identidade da demonstração.
-- Quando entrarão faturamento, suspensão por assinatura e painel do operador? Autenticação não substitui essas regras comerciais.
+## RLS e conexão PostgreSQL
 
+As tabelas novas ficam com RLS e sem policies para browser; a etapa Supabase também remove grants de anon/authenticated. Não permitir ao usuário inserir seu próprio membership. O frontend consumirá dados de negócio pelo Go, sem CRUD direto via Data API.
+
+O JWT recebido pelo Go **não configura auth.uid() na conexão pgx**. Proprietários/papéis com bypass podem ignorar RLS. A autorização por membership precisa existir no Go; seu usuário de banco deverá receber privilégios mínimos explícitos na implementação. Esta migration não altera a exposição de shops/services pela Data API: a configuração existente precisa continuar sendo gerenciada separadamente.
+
+Nunca colocar DATABASE_URL, chave secret/service_role ou senha no frontend. Futuramente, NEXT_PUBLIC_SUPABASE_URL e chave publishable serão configuração pública do SDK; ainda não são necessárias para aplicar migrations ou cadastrar vínculos manualmente.
+
+## Validação e próximos passos
+
+Testar em PostgreSQL: unicidade de vínculo, FKs, cascata limitada a perfil/vínculos, bloqueio por anon/authenticated e repetição do provisionamento. Uma fixture mínima de auth.users permite testar integridade SQL, mas não comprova login no Supabase.
+
+O teste `TestIdentityMigrations`, em tests/integration/identity_migrations_test.go, usa **IDENTITY_TEST_DATABASE_URL**, nunca DATABASE_URL implicitamente. Exige um banco vazio e descartável e uma conexão administrativa capaz de criar roles/schema. Recusa bases com shops/users ou auth.users existentes. Dentro de uma transação revertida, testa a sequência comum, a falha quando Auth está ausente, a FK com fixture mínima, constraints, RLS, provisionamento repetido, suspensão, cascata e Down/Up. Não use o projeto Supabase como destino deste teste.
+
+```powershell
+# Exemplo apenas para um PostgreSQL de testes separado, com credenciais locais:
+$env:IDENTITY_TEST_DATABASE_URL = 'postgres://postgres:identity_test_only@127.0.0.1:55433/identity_migrations_test?sslmode=disable'
+go test -tags=integration -run '^TestIdentityMigrations$' -count=1 ./tests/integration/...
+```
+
+Sem essa variável o teste é pulado, não aprovado. Os testes de catálogo existentes continuam usando DATABASE_URL e não validam login.
+
+Depois: integrar sessão no Next; verificar JWT e autorizar unidade no Go; testar tokens inválidos, troca maliciosa de tenant, revogação e usuários com duas unidades. Só então habilitar acesso administrativo remoto. CRUD, papéis e painel do operador podem esperar.
+
+Fontes oficiais: [vínculo com auth.users](https://supabase.com/docs/guides/auth/managing-user-data), [cadastro](https://supabase.com/docs/guides/auth/general-configuration), [verificação JWT](https://supabase.com/docs/guides/auth/jwts), [chaves/JWKS](https://supabase.com/docs/guides/auth/signing-keys), [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [Next.js/SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client).
+
+Decisão registrada no [ADR 0009](adr/0009-supabase-identity-without-roles.md).

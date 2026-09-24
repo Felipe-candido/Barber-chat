@@ -1,5 +1,7 @@
 # Barber-chat
 
+**Estrutura inicial de autenticação:** migrations de users/memberships sem papéis e ligação específica com Supabase Auth preparadas. Contas e vínculos serão provisionados manualmente; o Go e o frontend ainda não autenticam. Veja [o guia de configuração e provisionamento](docs/authentication-proposal.md) e [a decisão de arquitetura](docs/adr/0009-supabase-identity-without-roles.md).
+
 Fundação de um SaaS de agendamentos para barbearias e projeto de estudo de Go, Chi e mensageria. Uma aplicação modular, um módulo Go e dois executáveis: API e worker. PostgreSQL guarda os dados; RabbitMQ será o transporte das notificações.
 
 **Implementado:** configuração por ambiente/.env, HTTP com Chi, health/readiness, logs JSON, graceful shutdown, pool PostgreSQL, conexão AMQP, ciclo de vida do worker, Compose, migrations e testes. O catálogo agora cria serviços em modo local explícito e lista serviços ativos por slug. **Ainda não existe:** edição/ativação de serviços, autenticação administrativa, agendamento, scheduler/outbox, consumer de negócio, envio de mensagens ou relatórios. O frontend está em [`../frontend-chat`](../frontend-chat/README.md), com criação/listagem de serviços integrada à API. Veja [configuração do acesso local pelo navegador](../frontend-chat/API-INTEGRATION.md). O worker verifica dependências e aguarda encerramento; não envia notificações.
