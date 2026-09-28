@@ -1,13 +1,9 @@
-package http
+package http_test
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/Felipe-candido/Barber-chat/internal/modules/catalog/application"
-	"github.com/Felipe-candido/Barber-chat/internal/modules/catalog/domain"
-	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
 	"io"
 	"log/slog"
 	"net/http"
@@ -15,6 +11,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Felipe-candido/Barber-chat/internal/modules/catalog/application"
+	"github.com/Felipe-candido/Barber-chat/internal/modules/catalog/domain"
+	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 type testStore struct {
@@ -36,9 +38,9 @@ func (s *testStore) ListActiveByShop(context.Context, uuid.UUID) ([]domain.Servi
 	return nil, s.err
 }
 func testRouter(store *testStore, slug string) http.Handler {
-	h := NewHandler(application.NewCreateService(store, store), application.NewListServices(store, store), slug, time.Second, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := cataloghttp.NewHandler(application.NewCreateService(store, store), application.NewListServices(store, store), slug, time.Second, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	router := chi.NewRouter()
-	RegisterRoutes(router, h)
+	cataloghttp.RegisterRoutes(router, h)
 	return router
 }
 
@@ -63,7 +65,7 @@ func TestCreateHTTP(t *testing.T) {
 		{"missing price", `{"name":"Corte","duration_minutes":30}`, "configured-shop", "127.0.0.1:1234", "127.0.0.1:8080", "", "application/json", 422},
 		{"invalid duration", strings.Replace(validBody, ":30", ":0", 1), "configured-shop", "127.0.0.1:1234", "127.0.0.1:8080", "", "application/json", 422},
 		{"wrong content type", validBody, "configured-shop", "127.0.0.1:1234", "127.0.0.1:8080", "", "text/plain", 415},
-		{"large body", `{"name":"` + strings.Repeat("x", maxBodyBytes) + `"}`, "configured-shop", "127.0.0.1:1234", "127.0.0.1:8080", "", "application/json", 413},
+		{"large body", `{"name":"` + strings.Repeat("x", (64<<10)) + `"}`, "configured-shop", "127.0.0.1:1234", "127.0.0.1:8080", "", "application/json", 413},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := &testStore{shop: uuid.New()}
@@ -81,7 +83,11 @@ func TestCreateHTTP(t *testing.T) {
 				t.Fatal("response is not JSON")
 			}
 			if tc.want == 201 {
-				var response serviceResponse
+				var response struct {
+					ID       string `json:"id"`
+					Name     string `json:"name"`
+					Currency string `json:"currency"`
+				}
 				if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
 					t.Fatal(err)
 				}

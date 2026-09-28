@@ -134,6 +134,13 @@ Timezone da barbearia será dado de negócio (`America/Sao_Paulo` inicialmente),
 
 ## Validação
 
+Os testes ficam em pastas `tests`, separados dos arquivos de produção. Nos módulos,
+`internal/modules/<modulo>/tests/` contém subpastas por camada (`application`,
+`domain`, `infra/http`). Configuração, servidor e worker têm suas próprias pastas
+`tests`. Os testes de integração ficam em `tests/integration`. `go test ./...`
+descobre todas essas suítes; veja os comandos por módulo e de cobertura no
+[guia de testes](docs/catalog-testing.md#testes-automatizados).
+
 ```powershell
 gofmt -w cmd internal tests
 go mod tidy

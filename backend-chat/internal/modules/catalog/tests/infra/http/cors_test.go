@@ -1,4 +1,4 @@
-package http
+package http_test
 
 import (
 	"io"
@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Felipe-candido/Barber-chat/internal/modules/catalog/application"
+	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 )
@@ -33,9 +34,9 @@ func TestLocalBrowserAccess(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := &testStore{shop: uuid.New()}
-			handler := NewHandler(application.NewCreateService(store, store), application.NewListServices(store, store), "shop", time.Second, slog.New(slog.NewTextHandler(io.Discard, nil)), origin)
+			handler := cataloghttp.NewHandler(application.NewCreateService(store, store), application.NewListServices(store, store), "shop", time.Second, slog.New(slog.NewTextHandler(io.Discard, nil)), origin)
 			router := chi.NewRouter()
-			RegisterRoutes(router, handler)
+			cataloghttp.RegisterRoutes(router, handler)
 			request := httptest.NewRequest(tc.method, tc.path, strings.NewReader(validBody))
 			request.RemoteAddr = tc.remote
 			request.Host = tc.host

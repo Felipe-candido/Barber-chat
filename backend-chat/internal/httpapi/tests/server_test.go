@@ -1,4 +1,4 @@
-package httpapi
+package httpapi_test
 
 import (
 	"context"
@@ -10,12 +10,14 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/Felipe-candido/Barber-chat/internal/httpapi"
 )
 
 func testLogger() *slog.Logger { return slog.New(slog.NewJSONHandler(io.Discard, nil)) }
 
 func TestHealthDoesNotDependOnDatabase(t *testing.T) {
-	h := NewHandler(func(context.Context) error { t.Fatal("liveness must not query database"); return nil }, nil, time.Second, testLogger())
+	h := httpapi.NewHandler(func(context.Context) error { t.Fatal("liveness must not query database"); return nil }, nil, time.Second, testLogger())
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/health", nil))
 	if w.Code != 200 || w.Body.String() != "{\"status\":\"ok\"}\n" {
@@ -28,7 +30,7 @@ func TestHealthDoesNotDependOnDatabase(t *testing.T) {
 
 func TestReadiness(t *testing.T) {
 	for _, available := range []bool{true, false} {
-		h := NewHandler(func(ctx context.Context) error {
+		h := httpapi.NewHandler(func(ctx context.Context) error {
 			if _, ok := ctx.Deadline(); !ok {
 				t.Error("missing readiness deadline")
 			}
@@ -53,7 +55,7 @@ func TestReadiness(t *testing.T) {
 }
 
 func TestRoutes(t *testing.T) {
-	h := NewHandler(func(context.Context) error { return nil }, nil, time.Second, testLogger())
+	h := httpapi.NewHandler(func(context.Context) error { return nil }, nil, time.Second, testLogger())
 	for _, test := range []struct {
 		method, path string
 		status       int
@@ -83,7 +85,7 @@ func TestGracefulShutdownDrainsRequest(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 	done := make(chan error, 1)
-	go func() { done <- Serve(ctx, listener, h, 2*time.Second, testLogger()) }()
+	go func() { done <- httpapi.Serve(ctx, listener, h, 2*time.Second, testLogger()) }()
 	response := make(chan error, 1)
 	go func() {
 		client := &http.Client{Timeout: 3 * time.Second}

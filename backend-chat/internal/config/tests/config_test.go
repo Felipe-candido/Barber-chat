@@ -1,10 +1,12 @@
-package config
+package config_test
 
 import (
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/Felipe-candido/Barber-chat/internal/config"
 )
 
 func TestLoadEnvFile(t *testing.T) {
@@ -46,7 +48,7 @@ func TestLoadEnvFile(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
-			for _, key := range []string{"HTTP_ADDR", "DATABASE_URL", "RABBITMQ_URL", "LOG_LEVEL", "DB_TIMEOUT", "SHUTDOWN_TIMEOUT", "WORKER_INTERVAL", "DEV_SHOP_SLUG"} {
+			for _, key := range []string{"HTTP_ADDR", "DATABASE_URL", "RABBITMQ_URL", "LOG_LEVEL", "DB_TIMEOUT", "SHUTDOWN_TIMEOUT", "WORKER_INTERVAL", "DEV_SHOP_SLUG", "DEV_FRONTEND_ORIGIN"} {
 				// Register restoration before unsetting inherited configuration.
 				t.Setenv(key, "")
 				if err := os.Unsetenv(key); err != nil {
@@ -65,7 +67,7 @@ func TestLoadEnvFile(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-			cfg, err := Load()
+			cfg, err := config.Load()
 			if test.wantError != "" {
 				if err == nil || !strings.Contains(err.Error(), test.wantError) {
 					t.Fatalf("expected %q, got %v", test.wantError, err)
@@ -94,7 +96,7 @@ func TestLoadEnvFile(t *testing.T) {
 }
 
 func TestDefaults(t *testing.T) {
-	cfg, err := load(func(key string) string {
+	cfg, err := loadConfig(t, func(key string) string {
 		if key == "DATABASE_URL" {
 			return "postgres://localhost/barber"
 		}
@@ -124,7 +126,7 @@ func TestInvalidConfiguration(t *testing.T) {
 	} {
 		t.Run(test.key+"/"+test.value, func(t *testing.T) {
 			values := map[string]string{"DATABASE_URL": "postgres://localhost/barber", test.key: test.value}
-			_, err := load(func(key string) string { return values[key] })
+			_, err := loadConfig(t, func(key string) string { return values[key] })
 			if err == nil || !strings.Contains(err.Error(), test.key) {
 				t.Fatalf("expected error for %s, got %v", test.key, err)
 			}
@@ -133,4 +135,18 @@ func TestInvalidConfiguration(t *testing.T) {
 			}
 		})
 	}
+}
+
+// loadConfig exercises the public loader with an isolated environment and no .env file.
+func loadConfig(t *testing.T, getenv func(string) string) (config.Config, error) {
+	t.Helper()
+	t.Chdir(t.TempDir())
+	for _, key := range []string{
+		"HTTP_ADDR", "DATABASE_URL", "RABBITMQ_URL", "LOG_LEVEL",
+		"DB_TIMEOUT", "SHUTDOWN_TIMEOUT", "WORKER_INTERVAL",
+		"DEV_SHOP_SLUG", "DEV_FRONTEND_ORIGIN",
+	} {
+		t.Setenv(key, getenv(key))
+	}
+	return config.Load()
 }

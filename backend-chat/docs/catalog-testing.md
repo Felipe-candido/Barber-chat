@@ -85,9 +85,25 @@ POST retorna 201 com id, nome normalizado, descrição, duração, price_cents=3
 
 ## Testes automatizados
 
+Os testes dos módulos ficam em `internal/modules/<modulo>/tests`, organizados
+por camada: `application`, `domain` e `infra/http` (quando há testes dessa camada).
+Cada suíte importa a API pública do pacote que testa. Configuração, servidor e
+worker seguem o mesmo padrão em `internal/config/tests`, `internal/httpapi/tests`
+e `internal/worker/tests`. Os testes de integração ficam em `tests/integration`.
+
+Execute os comandos abaixo na pasta `backend-chat`:
+
 ```powershell
 go test ./...
 go vet ./...
+# Apenas os casos de uso:
+go test ./internal/modules/catalog/tests/application ./internal/modules/identity/tests/application
+# Todas as camadas dos módulos:
+go test ./internal/modules/catalog/tests/... ./internal/modules/identity/tests/...
+# Cobertura: incluir os pacotes de produção e de testes no filtro.
+# As aspas preservam o argumento completo no PowerShell.
+go test '-coverpkg=./internal/modules/catalog/...' ./internal/modules/catalog/tests/...
+go test '-coverpkg=./internal/modules/identity/...' ./internal/modules/identity/tests/...
 # Banco com migrations aplicadas; DATABASE_URL disponível na sessão:
 go test -tags=integration -run TestCatalog -count=1 ./tests/integration/...
 # A suíte completa também requer RABBITMQ_URL e RabbitMQ:

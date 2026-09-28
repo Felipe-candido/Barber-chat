@@ -55,11 +55,11 @@ Diagrama do alvo, não do código completo entregue. Hoje a API oferece health/r
 ```text
 cmd/api/main.go                 composição da API
 cmd/worker/main.go              composição do worker
-internal/config/                ambiente validado e testes
+internal/config/                ambiente validado; testes em tests/
 internal/httpapi/               Chi, health/readiness e encerramento HTTP
 internal/platform/postgres/     pool pgx em UTC
 internal/platform/rabbitmq/     conexão AMQP com timeout e heartbeat
-internal/worker/                ciclo de vida e testes
+internal/worker/                ciclo de vida; testes em tests/
 db/migrations/                 SQL Goose e orientação operacional
 tests/integration/             conexões reais, publish/confirm/ACK
 scripts/Load-Env.ps1            importação segura de KEY=VALUE no PowerShell

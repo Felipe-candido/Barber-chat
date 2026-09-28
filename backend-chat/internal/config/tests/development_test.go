@@ -1,4 +1,4 @@
-package config
+package config_test
 
 import (
 	"strings"
@@ -8,7 +8,7 @@ import (
 func TestDevelopmentWritesRequireLoopbackListener(t *testing.T) {
 	for _, address := range []string{"127.0.0.1:8080", "[::1]:8080", "0.0.0.0:8080", ":8080", "192.0.2.1:8080", "localhost:8080"} {
 		t.Run(address, func(t *testing.T) {
-			cfg, err := load(func(key string) string {
+			cfg, err := loadConfig(t, func(key string) string {
 				return map[string]string{"DATABASE_URL": "postgres://localhost/test", "HTTP_ADDR": address, "DEV_SHOP_SLUG": " test-shop "}[key]
 			})
 			allowed := address == "127.0.0.1:8080" || address == "[::1]:8080"

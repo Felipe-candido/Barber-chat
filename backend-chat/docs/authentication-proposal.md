@@ -1,6 +1,6 @@
 # Autenticação: Supabase Auth e acesso por barbearia
 
-Atualizado em 23/09/2026. **Preparado: migrations e procedimento manual. Não implementado: login real, validação JWT, autorização Go e CRUD de contas.** As migrations não são aplicadas no boot. O frontend /login ainda é uma demonstração e o POST de serviços continua dependendo do modo local DEV_SHOP_SLUG.
+Backend atualizado em 27/09/2026. **Implementados: domínio de identity, casos de uso Authenticate/AuthorizeShopAction, queries sqlc e repositório PostgreSQL de leitura. Pendentes: adapter de validação JWT, integração da autenticação/autorização nas rotas e CRUD de contas.** As migrations não são aplicadas no boot. O POST de serviços continua dependendo do modo local DEV_SHOP_SLUG.
 
 ## Decisão para o primeiro incremento
 
@@ -91,7 +91,7 @@ Rollback, somente em banco descartável ou após revisão: desfazer primeiro a s
 
 Não há trigger de criação automática. Criar a conta no Auth, sozinho, não cria acesso ao negócio. Se o SQL falhar, corrija e repita: o script reutiliza usuário/vínculo ativos sem sobrescrever perfil nem duplicar associação. Não reativa acessos suspensos. Cada unidade adicional usa o mesmo UUID com outro slug.
 
-Suspender users.active afeta todas as unidades; suspender shop_memberships.active afeta somente o vínculo. Excluir no Auth elimina perfil/vínculos por cascata, sem excluir barbearia/serviços. Essas flags e ausências **só bloquearão requisições quando o Go implementar as verificações abaixo**. A estrutura de banco não representa proteção já ativa na API.
+Suspender users.active afeta todas as unidades; suspender shop_memberships.active afeta somente o vínculo. Excluir no Auth elimina perfil/vínculos por cascata, sem excluir barbearia/serviços. Os casos de uso Go já verificam essas flags, mas **só bloquearão requisições quando forem integrados às rotas**. A estrutura de banco não representa proteção já ativa na API.
 
 ## Como o login e o Go funcionarão depois
 
@@ -106,7 +106,31 @@ Token ausente/inválido deverá resultar em 401; identidade válida sem acesso e
 
 Logout/revogação não tornam todo JWT já emitido imediatamente inválido. Consultar o estado local por requisição permitirá bloquear acesso de negócio ao suspender usuário/vínculo. Sessões, renovação, recuperação e expiração serão tratadas na implementação, sem flags de login no localStorage.
 
-Responsabilidades: identity/infra valida token e consulta PostgreSQL; identity/application resolve identidade e autoriza unidade; domain guarda invariantes; cmd/api compõe dependências; o frontend administra a experiência de sessão. RabbitMQ não participa do login. Nenhum código Go de produção foi implementado nesta etapa.
+Responsabilidades: identity/infra valida token e consulta PostgreSQL; identity/application resolve identidade e autoriza unidade; domain guarda invariantes; cmd/api compõe dependências; o frontend administra a experiência de sessão. RabbitMQ não participa do login. A leitura PostgreSQL e os casos de uso estão implementados; a validação concreta do token e a composição nas rotas ainda estão pendentes.
+
+## Contrato do repositório de identity
+
+`identity/infra/postgres.Repository` recebe `*db.Queries` ligado ao pool compartilhado
+ou a uma transação do chamador. Não abre conexões nem decide acesso à barbearia.
+`FindUserByID` e `FindMembership` retornam `(valor, found, erro)`: ausência significa
+`found=false, erro=nil`; falha de consulta continua sendo erro. Registros inativos
+retornam `found=true` e `Active=false` para a aplicação decidir o acesso.
+`ListMembershipsByUser` retorna uma lista vazia não-nil quando não existem vínculos.
+O mapeamento preserva IDs e flags; não utiliza construtores que ativariam registros.
+
+Os testes em `internal/modules/identity/tests/infra/postgres` exercitam o adapter e
+as queries geradas com um substituto da conexão. Cobrem ausência, falhas,
+cancelamento, parâmetros, leitura de inativos, lista vazia e fechamento de resultados.
+Não comprovam execução SQL real. Para executar:
+
+```powershell
+go test ./internal/modules/identity/tests/infra/postgres
+```
+
+O subteste `TestIdentityMigrations/repository` usa PostgreSQL real, as migrations e
+as fixtures de provisionamento para verificar mapeamento, vínculos de dois usuários,
+isolamento, ordenação e estados inativos. Roda junto com o teste de migrations abaixo;
+exige a mesma base descartável e reverte suas alterações por savepoint/transação.
 
 ## RLS e conexão PostgreSQL
 

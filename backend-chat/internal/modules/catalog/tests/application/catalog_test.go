@@ -1,11 +1,13 @@
-package application
+package application_test
 
 import (
 	"context"
 	"errors"
+	"testing"
+
+	"github.com/Felipe-candido/Barber-chat/internal/modules/catalog/application"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/catalog/domain"
 	"github.com/google/uuid"
-	"testing"
 )
 
 type fakeShops struct {
@@ -39,7 +41,7 @@ func (f *fakeRepository) ListActiveByShop(_ context.Context, id uuid.UUID) ([]do
 func TestCreateUsesResolvedShop(t *testing.T) {
 	shops := &fakeShops{id: uuid.New(), found: true}
 	repo := &fakeRepository{}
-	output, err := NewCreateService(repo, shops).Execute(context.Background(), CreateServiceInput{ShopSlug: "trusted-shop", Name: " Corte ", DurationMinutes: 30, PriceCents: 3500})
+	output, err := application.NewCreateService(repo, shops).Execute(context.Background(), application.CreateServiceInput{ShopSlug: "trusted-shop", Name: " Corte ", DurationMinutes: 30, PriceCents: 3500})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,14 +57,14 @@ func TestCreateDoesNotPersistRejectedInput(t *testing.T) {
 		title       string
 		want        error
 	}{
-		{"unknown shop", false, nil, "Corte", ErrShopNotFound},
+		{"unknown shop", false, nil, "Corte", application.ErrShopNotFound},
 		{"resolver failure", false, context.DeadlineExceeded, "Corte", context.DeadlineExceeded},
 		{"invalid service", true, nil, " ", domain.ErrInvalidName},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &fakeRepository{}
 			shops := &fakeShops{id: uuid.New(), found: tc.found, err: tc.resolverErr}
-			_, err := NewCreateService(repo, shops).Execute(context.Background(), CreateServiceInput{ShopSlug: "shop", Name: tc.title, DurationMinutes: 30})
+			_, err := application.NewCreateService(repo, shops).Execute(context.Background(), application.CreateServiceInput{ShopSlug: "shop", Name: tc.title, DurationMinutes: 30})
 			if !errors.Is(err, tc.want) || len(repo.created) != 0 {
 				t.Fatalf("error=%v, writes=%d", err, len(repo.created))
 			}
@@ -72,12 +74,12 @@ func TestCreateDoesNotPersistRejectedInput(t *testing.T) {
 func TestListScopesRepositoryAndReturnsEmptySlice(t *testing.T) {
 	shops := &fakeShops{id: uuid.New(), found: true}
 	repo := &fakeRepository{}
-	result, err := NewListServices(repo, shops).Execute(context.Background(), "shop")
+	result, err := application.NewListServices(repo, shops).Execute(context.Background(), "shop")
 	if err != nil || result == nil || len(result) != 0 || repo.listedShop != shops.id {
 		t.Fatal("list scope or empty result is incorrect", err)
 	}
 	shops.found = false
-	if _, err := NewListServices(repo, shops).Execute(context.Background(), "missing"); !errors.Is(err, ErrShopNotFound) {
+	if _, err := application.NewListServices(repo, shops).Execute(context.Background(), "missing"); !errors.Is(err, application.ErrShopNotFound) {
 		t.Fatal(err)
 	}
 }
@@ -85,11 +87,11 @@ func TestRepositoryFailureIsPreserved(t *testing.T) {
 	sentinel := errors.New("storage failure")
 	shops := &fakeShops{id: uuid.New(), found: true}
 	repo := &fakeRepository{err: sentinel}
-	_, err := NewCreateService(repo, shops).Execute(context.Background(), CreateServiceInput{ShopSlug: "shop", Name: "Corte", DurationMinutes: 30})
+	_, err := application.NewCreateService(repo, shops).Execute(context.Background(), application.CreateServiceInput{ShopSlug: "shop", Name: "Corte", DurationMinutes: 30})
 	if !errors.Is(err, sentinel) {
 		t.Fatal(err)
 	}
-	if _, err := NewListServices(repo, shops).Execute(context.Background(), "shop"); !errors.Is(err, sentinel) {
+	if _, err := application.NewListServices(repo, shops).Execute(context.Background(), "shop"); !errors.Is(err, sentinel) {
 		t.Fatal(err)
 	}
 }

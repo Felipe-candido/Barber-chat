@@ -99,6 +99,9 @@ func TestIdentityMigrations(t *testing.T) {
 	exec(provision)
 	exec(provision)
 	exec(strings.Replace(provision, "identity-test-one", "identity-test-two", 1))
+	t.Run("repository", func(t *testing.T) {
+		testIdentityRepository(t, ctx, tx)
+	})
 	exec(`DO $$ BEGIN
 		IF (SELECT count(*) FROM public.users) <> 1 OR (SELECT count(*) FROM public.shop_memberships) <> 2 THEN
 			RAISE EXCEPTION 'Provisioning is not repeatable or does not support multiple shops';

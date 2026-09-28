@@ -32,3 +32,17 @@ type Shop struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
+
+type ShopMembership struct {
+	UserID    uuid.UUID          `json:"user_id"`
+	ShopID    uuid.UUID          `json:"shop_id"`
+	Active    bool               `json:"active"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type User struct {
+	ID          uuid.UUID          `json:"id"`
+	DisplayName string             `json:"display_name"`
+	Active      bool               `json:"active"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}

@@ -571,9 +571,9 @@ Não crie um `domain` genérico na raiz do repositório. Cada domínio pertence 
 
 Depois deste guia, a sequência mais útil é:
 
-1. Ler [config.go](../internal/config/config.go) junto com [config_test.go](../internal/config/config_test.go), para ver a injeção de `getenv` em testes.
-2. Ler [server.go](../internal/httpapi/server.go) junto com [server_test.go](../internal/httpapi/server_test.go), para ver `httptest`, handlers e graceful shutdown.
-3. Ler [worker.go](../internal/worker/worker.go) junto com [worker_test.go](../internal/worker/worker_test.go), para ver canais e cancelamento sem RabbitMQ real.
+1. Ler [config.go](../internal/config/config.go) junto com [config_test.go](../internal/config/tests/config_test.go), para ver testes de `config.Load` com ambiente e diretório temporário isolados.
+2. Ler [server.go](../internal/httpapi/server.go) junto com [server_test.go](../internal/httpapi/tests/server_test.go), para ver `httptest`, handlers e graceful shutdown.
+3. Ler [worker.go](../internal/worker/worker.go) junto com [worker_test.go](../internal/worker/tests/worker_test.go), para ver canais e cancelamento sem RabbitMQ real.
 4. Ler [architecture.md](architecture.md) e os `doc.go` de `booking`, `customers` e `notifications` antes de implementar `CreateAppointment`.
 
 Esse próximo caso de uso será o primeiro que conectará as três camadas de um módulo: regras em `domain`, coordenação em `application` e transação/HTTP em `infra`.

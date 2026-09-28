@@ -10,6 +10,7 @@
 // Supabase Auth is selected. The initial database model has users and memberships
 // without roles; all eligible members will have equal access within their shop.
 // A user's ID is the provider UUID. See migrations and ADR 0009.
-// This package documents the boundary only; token verification, active-state
-// checks, sessions and administrative identity endpoints are not implemented.
+// User and Membership model the initial identifier and active-state invariants.
+// Persistence is implemented in infra/postgres. Token verification, sessions
+// and administrative identity endpoints are outside this package and pending.
 package domain
