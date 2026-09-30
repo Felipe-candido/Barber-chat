@@ -8,8 +8,8 @@
 // Planned workflows, not implemented yet:
 //   - ListMyShops: list eligible shops without choosing an arbitrary one.
 //
-// Authentication integration and session handling will be adapters around an
-// explicit Supabase Auth integration. Do not introduce a home-grown password or JWT
+// Token verification is an adapter around Supabase Auth; HTTP session handling
+// is still pending. Do not introduce a home-grown password or JWT
 // system merely to fill this package. Token verification must precede identity
 // resolution, and authorization remains enforced in the backend.
 //
@@ -17,7 +17,8 @@
 // for the first increment. Profile and membership provisioning is transactional.
 // Other modules receive a validated actor/tenant scope, not provider SDK types.
 // A PostgreSQL read adapter implements IdentityRepository. Concrete token
-// verification and administrative authentication routes are not implemented.
+// verification is implemented in infra/supabase; administrative authentication
+// routes are not implemented.
 //
 // Transport adapters should map ErrInvalidAccessToken/ErrInvalidStaffIdentity to
 // unauthenticated access and ErrUserNotProvisioned/ErrUserInactive/

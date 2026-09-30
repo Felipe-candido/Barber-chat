@@ -11,6 +11,7 @@
 // without roles; all eligible members will have equal access within their shop.
 // A user's ID is the provider UUID. See migrations and ADR 0009.
 // User and Membership model the initial identifier and active-state invariants.
-// Persistence is implemented in infra/postgres. Token verification, sessions
-// and administrative identity endpoints are outside this package and pending.
+// Persistence is implemented in infra/postgres and token verification in
+// infra/supabase. Sessions and administrative identity endpoints remain pending
+// and belong outside this package.
 package domain

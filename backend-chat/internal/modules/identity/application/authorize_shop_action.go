@@ -67,5 +67,9 @@ func (uc *AuthorizeShopAction) Execute(ctx context.Context, input AuthorizeShopA
 		return AuthorizedShopScope{}, ErrShopAccessDenied
 	}
 
-	return AuthorizedShopScope{UserID: user.ID, ShopID: shopID}, nil
+	return AuthorizedShopScope{
+		UserID: user.ID, 
+		ShopID: shopID,
+		
+	}, nil
 }

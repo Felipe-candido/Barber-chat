@@ -1,8 +1,8 @@
 // Package infra is the boundary for administrative identity adapters.
 //
-// The postgres package reads local users and memberships through sqlc. Planned
-// adapters include verified identity-provider integration and session/HTTP
-// handling. Supabase Auth is selected; the
+// The postgres package reads local users and memberships through sqlc. The
+// supabase package verifies ES256 access tokens using the project's public JWKS.
+// HTTP authentication wiring is still pending. Supabase Auth is selected; the
 // provider-specific migration links public.users.id to auth.users.id. It is
 // separate from portable migrations because plain PostgreSQL has no Auth schema.
 //
