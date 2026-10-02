@@ -4,21 +4,21 @@
 //
 // Catalog owns service definitions and, in future increments, professionals and
 // professional-service assignments. Shops owns tenant identity and slug lookup;
-// identity will own administrative membership; booking owns appointment snapshots
+// identity owns administrative membership; booking owns appointment snapshots
 // and availability. Editing a future service must not rewrite booking history.
 //
 // # Request flow
 //
 // cmd/api creates one PostgreSQL pool, db.Queries, the catalog repository and the
 // shops resolver. It injects these adapters into NewCreateService and
-// NewListServices, then injects the use cases into the HTTP handler.
+// NewListServices and NewListAuthorizedServices, then injects the use cases into the HTTP handler.
 // internal/httpapi registers the handler routes alongside health and readiness.
 //
-// A POST to /api/v1/admin/services follows this sequence:
-//  1. The HTTP adapter checks that explicit local development access is enabled.
+// A POST to /api/v1/admin/shops/{slug}/services follows this sequence:
+//  1. Shared middleware authenticates the Bearer token and authorizes the exact shop.
 //  2. It accepts one bounded JSON object and rejects unknown fields, including
-//     shop_id and shop_slug. It takes the shop slug from server configuration.
-//  3. CreateService resolves the active shop through its ShopResolver port.
+//     shop_id and shop_slug. The handler requires matching identity/scope values.
+//  3. CreateService receives the authorized ShopID explicitly.
 //  4. domain.NewService normalizes and validates the service and creates its ID.
 //  5. ServiceRepository.Create persists it through the PostgreSQL adapter and
 //     sqlc. The INSERT also checks that the shop is still active.
@@ -29,15 +29,15 @@
 // repository returns only active services belonging to an active shop. An
 // unknown or inactive shop returns 404; an active shop with no services returns [].
 //
-// # Tenant and development access
+// # Tenant and administrative access
 //
 // Resolving a slug identifies a tenant; it does not authenticate a user.
-// Until membership is implemented, writes require DEV_SHOP_SLUG configured by
-// the operator and a loopback HTTP_ADDR. The handler also checks the peer and
-// Host and rejects browser-origin writes. An absent DEV_SHOP_SLUG denies writes.
-// This is a local test facility, not production authorization. Do not publish
-// it through tunnels or reverse proxies. Public reads need no administrative
-// identity. No client-provided ID selects the target of a write.
+// Every administrative read and write requires a verified active user and an active
+// membership in the active shop. GET /api/v1/admin/shops/{slug}/services passes the
+// authorized ShopID to ListAuthorizedServices without resolving the slug again.
+// There is no fixed-shop administrative endpoint or setting.
+// Public reads need no administrative identity. No client-provided ID selects
+// the target of a write. Request context is an HTTP boundary, not business state.
 //
 // # Boundaries
 //
@@ -58,6 +58,6 @@
 // inactive records and isolation between two shops.
 //
 // Creating/listing services is implemented. Editing, activation endpoints,
-// administrative membership, professionals and assignments remain future work.
+// professionals and assignments remain future work.
 // RabbitMQ, notifications and the worker do not participate in these requests.
 package infra

@@ -2,28 +2,34 @@
 //
 // # CreateService
 //
-// NewCreateService receives ServiceRepository and ShopResolver implementations.
-// Execute takes a trusted ShopSlug and service input, resolves an active shop,
-// calls domain.NewService, persists the result, and returns ServiceOutput.
-// The slug must be selected by the administrative boundary. In local testing
-// it comes from DEV_SHOP_SLUG; future production access must derive it or its
-// tenant scope from authenticated membership, never arbitrary request JSON.
+// NewCreateService receives a ServiceRepository implementation. Execute takes
+// a ShopID from successful authorization and service input, calls domain.NewService,
+// persists the result, and returns ServiceOutput. It does not read HTTP context
+// values or resolve the tenant again. The caller must never trust request JSON
+// as proof of shop access; the HTTP boundary supplies the authorized scope.
 //
-// A missing/inactive shop returns ErrShopNotFound. Invalid domain input returns
+// Persistence rechecks shop activity and can return ErrShopNotFound. Invalid input returns
 // a sentinel validation error without calling Create. Persistence failures
 // propagate to the HTTP adapter, which sanitizes them before responding.
-// The context carries cancellation/deadlines into lookup and persistence.
+// The context carries cancellation/deadlines into persistence.
 //
 // # ListServices
 //
-// NewListServices receives the same two ports. Execute resolves the public slug
+// NewListServices receives ServiceRepository and ShopResolver. Execute resolves the public slug
 // and calls ListActiveByShop with the resulting ID. Only public catalog fields
 // are mapped to ServiceOutput. Empty results are non-nil slices so HTTP can
 // encode an empty JSON array. Unknown/inactive shops differ from empty catalogs.
 //
+// # ListAuthorizedServices
+//
+// Execute receives a non-empty ShopID from successful authorization and queries
+// ServiceRepository directly. Unlike public ListServices, it does not resolve a
+// client slug again. HTTP must authenticate and authorize before invoking it.
+// It currently lists active services only; inactive management is future work.
+//
 // # Ports and output
 //
-// ServiceRepository is the persistence capability used by these two workflows.
+// ServiceRepository is the persistence capability used by these workflows.
 // ShopResolver is a consumer-owned read port implemented in shops/infra/postgres;
 // its found flag distinguishes absence from a storage error without importing
 // another module's domain or a driver error. Resolution is not authorization.

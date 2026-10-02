@@ -2,7 +2,8 @@
 //
 // The postgres package reads local users and memberships through sqlc. The
 // supabase package verifies ES256 access tokens using the project's public JWKS.
-// HTTP authentication wiring is still pending. Supabase Auth is selected; the
+// The http package returns the authenticated local identity. Shared middleware
+// invokes the use cases; cmd/api composes a single cached verifier. The
 // provider-specific migration links public.users.id to auth.users.id. It is
 // separate from portable migrations because plain PostgreSQL has no Auth schema.
 //

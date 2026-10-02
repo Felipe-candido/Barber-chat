@@ -18,6 +18,23 @@ type StaffIdentityOutput struct {
 	DisplayName string
 }
 
+// ListMyShopsInput identifies the authenticated user whose accessible shops
+// should be listed. UserID must come from successful authentication, never
+// from a client-supplied body, query parameter or header.
+type ListMyShopsInput struct {
+	UserID uuid.UUID
+}
+
+// AccessibleShopOutput is a read-only summary for administrative shop selection,
+// not the shop domain model. Shop data remains owned by the shops module.
+// Listing a shop does not authorize later operations; each operation must
+// recheck the user's access to the requested shop.
+type AccessibleShopOutput struct {
+	ShopID uuid.UUID
+	Name   string
+	Slug   string
+}
+
 // AuthorizeShopActionInput identifies the authenticated user and the shop the
 // client wants to access. ShopSlug is a request, not proof of authorization.
 // UserID must come from successful authentication, never from client input.

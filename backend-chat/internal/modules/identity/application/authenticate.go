@@ -10,7 +10,7 @@ import (
 )
 
 type Authenticate struct {
-	verifier AccessTokenVerifier
+	verifier   AccessTokenVerifier
 	repository IdentityRepository
 }
 
@@ -19,7 +19,7 @@ func NewAuthenticate(
 	repository IdentityRepository,
 ) *Authenticate {
 	return &Authenticate{
-		verifier: verifier,
+		verifier:   verifier,
 		repository: repository,
 	}
 }

@@ -1,5 +1,115 @@
 # Registro de validações
 
+## Script de provisionamento de barbearia e usuário — 02/10/2026
+
+Criado db/supabase/provision_shop_and_user.sql para execução manual no SQL Editor
+do Supabase após as duas sequências de migrations. Usa uma conta Auth existente
+para criar perfil, barbearia e vínculo numa única transação. Não cria credenciais,
+não altera nomes existentes e não reativa acessos suspensos.
+
+| Verificação desta etapa | Resultado |
+| --- | --- |
+| gofmt, go mod tidy, go vet ./... e go test ./... | PASS |
+| go build ./cmd/api ./cmd/worker | PASS |
+| Compilação dos testes com tag integration | PASS |
+| TestIdentityMigrations em PostgreSQL real | PASS; suíte anterior e 22 novos cenários do script |
+| Compose config e goose validate | PASS |
+| Execução no Supabase real do usuário | NÃO EXECUTADA; o cadastro permanece manual |
+
+Os novos cenários verificam criação e repetição, UUID do provedor preservado,
+ID independente da barbearia, múltiplas unidades/usuários, preservação do perfil,
+nomes com apóstrofo, validação de entradas, rejeição de acessos suspensos,
+ausência de registros órfãos, colisão de slug e exigência de Auth/FK existentes.
+A fixture mínima de auth.users valida integridade SQL, não login no provedor.
+
+Foi utilizado exclusivamente o banco vazio e descartável
+codex_provision_20261002_01a0c16e no PostgreSQL local do Compose. Sua ausência foi
+conferida antes da criação; ele foi removido ao final e a remoção foi confirmada.
+Nenhum dado de aplicação, projeto Supabase, conta real, .env ou volume foi
+alterado. Não houve commit/push, dependência nova ou mudança de endpoint.
+
+## Seleção de unidades e integração frontend/backend — 02/10/2026
+
+Fluxo implementado: login no Supabase, validação da identidade local em /admin/me,
+consulta das unidades ativas em /admin/shops, escolha explícita e painel por slug.
+GET e POST administrativos de serviços revalidam usuário, unidade e membership.
+A rota POST /admin/services e a configuração de slug fixo foram removidas.
+Usuários, unidades e vínculos continuam provisionados manualmente.
+
+| Verificação desta etapa | Resultado |
+| --- | --- |
+| gofmt, go mod tidy, go vet ./... e go test ./... | PASS |
+| go build ./cmd/api ./cmd/worker | PASS |
+| sqlc compile | PASS |
+| docker compose --env-file .env.example config --quiet | PASS |
+| goose -dir db/migrations validate | PASS |
+| Integração PostgreSQL: migrations e repositório identity | PASS; inclui 15 cenários de leitura de unidades elegíveis, provisionamento e constraints |
+| Integração PostgreSQL: catálogo, persistência e isolamento | PASS; leitura administrativa, criação, vínculo revogado e isolamento entre unidades |
+| go test -tags=integration ./tests/integration -run '^$' | PASS somente de compilação |
+| Frontend: npm run typecheck e npm run build | PASS; build normal de produção concluído |
+| Frontend: Playwright | PASS; 26 testes em build de produção isolado, com HTTP do Supabase e da API simulado |
+| Frontend: Prettier nos arquivos da tarefa | PASS; src, tests, README, API-INTEGRATION, configurações Next/Playwright e tsconfig |
+| Frontend: npm run format:check global | FAIL; seis arquivos preexistentes fora desta tarefa, listados abaixo |
+| git diff --check | PASS |
+| Login real em um projeto Supabase | NÃO EXECUTADO; requer conta e configuração reais compatíveis |
+| Integração RabbitMQ nesta etapa | NÃO EXECUTADA; autenticação não depende do broker e a porta local já era usada por outro projeto |
+| Race e validação especializada do schema OpenAPI | NÃO EXECUTADOS |
+
+O PostgreSQL 18.6 foi iniciado pelo Compose do projeto na porta local 55432 e
+permanece disponível. Os testes reais usaram exclusivamente o banco temporário
+codex_auth_20261001_01a0c16e, criado vazio depois de verificar sua ausência. As
+migrations foram aplicadas somente nesse banco, removido ao final e cuja ausência
+foi confirmada. Nenhum volume, banco de aplicação ou container de outro projeto
+foi removido. O provisionamento de Auth nos testes de migrations é uma fixture
+transacional local, não a criação de uma conta no Supabase real.
+
+Os testes HTTP Go verificam JWT ES256 e JWKS com TLS local. Os testes Playwright
+cobrem login, ordem /me → /shops, seleção/troca de unidade, restauração de sessão,
+logout, lista vazia, token ausente/inválido, perfil sem acesso, slug desconhecido,
+contratos inválidos, respostas atrasadas, timeout ao restaurar sessão, catálogo
+público sem Bearer e layouts móveis. Não comprovam um login real no provedor.
+As tentativas iniciais de navegador tiveram falhas de tempo de compilação e
+seletores; após os ajustes, a execução completa final passou nos 26 testes.
+
+O format:check global ainda aponta .prettierrc.json, AGENTS.md, BRANDING.md,
+CLAUDE.md, package.json e postcss.config.mjs. Esses arquivos não foram
+reformatados por serem alterações preexistentes fora do escopo. O contrato
+OpenAPI foi revisado junto às rotas, mas não foi instalado um validador adicional.
+
+Não foram alterados .env/.env.local reais, credenciais, contas ou vínculos de
+aplicação. Não houve commit/push nem dependência nova. Agendamentos, papéis de
+permissão e revogação imediata de JWT pelo provedor continuam fora desta etapa.
+Os registros abaixo são históricos e não descrevem o estado atual das rotas.
+
+## Autenticação e autorização HTTP — 30/09/2026
+
+Bootstrap com verifier compartilhado, middleware Bearer, identidade em /admin/me
+e criação de serviços com membership por unidade. A rota legada continua exigindo
+os mesmos checks. O .env real, contas, credenciais, migrations e banco configurado
+não foram alterados. Sem commit/push ou dependência nova.
+
+| Verificação desta etapa | Resultado |
+| --- | --- |
+| gofmt nos arquivos alterados e go mod tidy | PASS |
+| go vet ./... | PASS |
+| go test ./... | PASS; JWT/JWKS via TLS local, identidade esperada, headers malformados, isolamento de unidades, inativos, CORS, timeout e guards de contexto |
+| go build ./cmd/api ./cmd/worker | PASS |
+| go test -tags=integration -run '^$' ./tests/integration/... | PASS somente de compilação; nenhum teste de integração executado |
+| docker compose --env-file .env.example config --quiet | PASS |
+| goose -dir db/migrations validate | PASS somente da estrutura dos arquivos; nenhuma migration aplicada |
+| git diff --check | PASS |
+| Docker/integração PostgreSQL e RabbitMQ reais | INDISPONÍVEL; pipe dockerDesktopLinuxEngine ausente |
+| Sessão/login real no projeto Supabase | NÃO EXECUTADO; testes usam tokens ES256 e JWKS locais |
+
+A suíte HTTP usa o verifier, os casos de uso e os handlers reais, substituindo
+somente a persistência. Não comprova integridade PostgreSQL nem configura o Auth
+real. Os testes de catálogo com tag integration foram adaptados para verificar
+membership com repositório real; executar quando o banco de desenvolvimento
+estiver disponível e com migrations aplicadas. OpenAPI/contrato foram atualizados;
+não houve validação completa do schema OpenAPI com ferramenta especializada.
+Race continua recomendado em CI com toolchain C compatível; não foi executado
+nesta etapa. Os registros abaixo são históricos.
+
 ## Catálogo de serviços — 22/09/2026
 
 Implementados criação local explícita, listagem pública por slug, resolução de tenant via shops, validação e moeda BRL, com documentação nos doc.go. Nenhum commit/push foi feito. O .env e o Supabase não foram alterados.

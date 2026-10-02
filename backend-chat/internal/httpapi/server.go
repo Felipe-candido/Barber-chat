@@ -9,37 +9,68 @@ import (
 	"net/http"
 	"time"
 
+	accessmiddleware "github.com/Felipe-candido/Barber-chat/internal/httpapi/middleware"
 	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
+	identityapp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/application"
+	identityhttp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func NewHandler(
-	checkDB func(context.Context) error,
-	catalogHandler *cataloghttp.Handler,
-	timeout time.Duration,
-	logger *slog.Logger,
-) http.Handler {
+type HandlerConfig struct {
+	CheckDB        func(context.Context) error
+	Catalog        *cataloghttp.Handler
+	Authenticate   *identityapp.Authenticate
+	AuthorizeShop  *identityapp.AuthorizeShopAction
+	ListMyShops    *identityapp.ListMyShops
+	RequestTimeout time.Duration
+	DBTimeout      time.Duration
+	Logger         *slog.Logger
+	FrontendOrigin string
+}
 
+func NewHandler(cfg HandlerConfig) http.Handler {
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
+	}
+	if cfg.RequestTimeout <= 0 {
+		cfg.RequestTimeout = 10 * time.Second
+	}
+	if cfg.DBTimeout <= 0 {
+		cfg.DBTimeout = 3 * time.Second
+	}
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(middleware.Recoverer)
+	router.Use(accessmiddleware.CORS(cfg.FrontendOrigin))
+	router.Use(accessmiddleware.RequestTimeout(cfg.RequestTimeout))
 	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		writeStatus(w, http.StatusOK, "ok")
 	})
 	router.Get("/ready", func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), timeout)
+		ctx, cancel := context.WithTimeout(r.Context(), cfg.DBTimeout)
 		defer cancel()
-		if err := checkDB(ctx); err != nil {
-			logger.WarnContext(ctx, "readiness check failed", "dependency", "postgres")
+		if cfg.CheckDB == nil || cfg.CheckDB(ctx) != nil {
+			cfg.Logger.WarnContext(ctx, "readiness check failed", "dependency", "postgres")
 			writeStatus(w, http.StatusServiceUnavailable, "unavailable")
 			return
 		}
 		writeStatus(w, http.StatusOK, "ready")
 	})
-	if catalogHandler != nil {
-		cataloghttp.RegisterRoutes(router, catalogHandler)
+	router.Options("/api/v1/admin/me", accessmiddleware.Preflight(http.MethodGet))
+	router.Options("/api/v1/admin/shops", accessmiddleware.Preflight(http.MethodGet))
+	authenticate := accessmiddleware.Authentication(cfg.Authenticate, cfg.Logger)
+	router.With(authenticate).Get("/api/v1/admin/me", identityhttp.Me)
+	router.With(authenticate).Get("/api/v1/admin/shops", identityhttp.ListShops(cfg.ListMyShops, cfg.DBTimeout, cfg.Logger))
+	if cfg.Catalog != nil {
+		cataloghttp.RegisterPublicRoutes(router, cfg.Catalog)
+		router.Options("/api/v1/public/shops/{slug}/services", accessmiddleware.Preflight(http.MethodGet))
+		router.Options("/api/v1/admin/shops/{slug}/services", accessmiddleware.Preflight(http.MethodGet, http.MethodPost))
+		router.With(authenticate, accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)).
+			Get("/api/v1/admin/shops/{slug}/services", cfg.Catalog.ListShopServices)
+		router.With(authenticate, accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)).
+			Post("/api/v1/admin/shops/{slug}/services", cfg.Catalog.CreateService)
 	}
 	return router
 }

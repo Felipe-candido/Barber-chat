@@ -14,6 +14,7 @@ import (
 type Repository struct{ queries *db.Queries }
 
 var _ application.IdentityRepository = (*Repository)(nil)
+var _ application.AccessibleShopReader = (*Repository)(nil)
 
 func NewRepository(queries *db.Queries) *Repository {
 	return &Repository{queries: queries}
@@ -88,4 +89,25 @@ func (r *Repository) ListMembershipsByUser(
 	}
 
 	return memberships, nil
+}
+
+func (r *Repository) ListActiveShopsByUser(
+	ctx context.Context,
+	userID uuid.UUID,
+) ([]application.AccessibleShopOutput, error) {
+	rows, err := r.queries.ListActiveShopsByUser(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	shops := make([]application.AccessibleShopOutput, 0, len(rows))
+	for _, row := range rows {
+		shops = append(shops, application.AccessibleShopOutput{
+			ShopID: row.ShopID,
+			Name:   row.Name,
+			Slug:   row.Slug,
+		})
+	}
+
+	return shops, nil
 }

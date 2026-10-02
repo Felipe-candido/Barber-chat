@@ -5,11 +5,12 @@
 // AuthorizeShopAction rechecks the active user, resolves an active shop and
 // requires an active membership matching both IDs before returning a shop scope.
 //
-// Planned workflows, not implemented yet:
-//   - ListMyShops: list eligible shops without choosing an arbitrary one.
+// ListMyShops rechecks the local user and requests eligible shop summaries through
+// AccessibleShopReader without choosing a shop or granting lasting authorization.
+// GET /api/v1/admin/shops supplies its UserID from the authenticated request context.
 //
-// Token verification is an adapter around Supabase Auth; HTTP session handling
-// is still pending. Do not introduce a home-grown password or JWT
+// Token verification is an adapter around Supabase Auth. The HTTP boundary
+// authenticates Bearer requests; the frontend owns login and refresh. Do not introduce a home-grown password or JWT
 // system merely to fill this package. Token verification must precede identity
 // resolution, and authorization remains enforced in the backend.
 //
@@ -17,8 +18,8 @@
 // for the first increment. Profile and membership provisioning is transactional.
 // Other modules receive a validated actor/tenant scope, not provider SDK types.
 // A PostgreSQL read adapter implements IdentityRepository. Concrete token
-// verification is implemented in infra/supabase; administrative authentication
-// routes are not implemented.
+// verification is implemented in infra/supabase. Shared HTTP middleware invokes
+// these use cases before administrative identity and catalog handlers.
 //
 // Transport adapters should map ErrInvalidAccessToken/ErrInvalidStaffIdentity to
 // unauthenticated access and ErrUserNotProvisioned/ErrUserInactive/

@@ -48,7 +48,7 @@ func TestLoadEnvFile(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
-			for _, key := range []string{"HTTP_ADDR", "DATABASE_URL", "RABBITMQ_URL", "LOG_LEVEL", "DB_TIMEOUT", "SHUTDOWN_TIMEOUT", "WORKER_INTERVAL", "DEV_SHOP_SLUG", "DEV_FRONTEND_ORIGIN"} {
+			for _, key := range []string{"HTTP_ADDR", "DATABASE_URL", "RABBITMQ_URL", "LOG_LEVEL", "DB_TIMEOUT", "SHUTDOWN_TIMEOUT", "WORKER_INTERVAL", "DEV_SHOP_SLUG", "DEV_FRONTEND_ORIGIN", "SUPABASE_URL", "FRONTEND_ORIGIN", "HTTP_TIMEOUT"} {
 				// Register restoration before unsetting inherited configuration.
 				t.Setenv(key, "")
 				if err := os.Unsetenv(key); err != nil {
@@ -105,7 +105,7 @@ func TestDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.HTTPAddr != "127.0.0.1:8080" || cfg.DBTimeout != 3*time.Second || cfg.RabbitMQURL != "" {
+	if cfg.HTTPAddr != "127.0.0.1:8080" || cfg.DBTimeout != 3*time.Second || cfg.HTTPTimeout != 10*time.Second || cfg.RabbitMQURL != "" {
 		t.Fatalf("unexpected defaults: %+v", cfg)
 	}
 }
@@ -120,6 +120,7 @@ func TestInvalidConfiguration(t *testing.T) {
 		{"HTTP_ADDR", "localhost:0"},
 		{"HTTP_ADDR", "localhost:65536"},
 		{"DB_TIMEOUT", "0s"},
+		{"HTTP_TIMEOUT", "0s"},
 		{"SHUTDOWN_TIMEOUT", "-1s"},
 		{"WORKER_INTERVAL", "oops"},
 		{"LOG_LEVEL", "oops"},
@@ -145,6 +146,7 @@ func loadConfig(t *testing.T, getenv func(string) string) (config.Config, error)
 		"HTTP_ADDR", "DATABASE_URL", "RABBITMQ_URL", "LOG_LEVEL",
 		"DB_TIMEOUT", "SHUTDOWN_TIMEOUT", "WORKER_INTERVAL",
 		"DEV_SHOP_SLUG", "DEV_FRONTEND_ORIGIN",
+		"SUPABASE_URL", "FRONTEND_ORIGIN", "HTTP_TIMEOUT",
 	} {
 		t.Setenv(key, getenv(key))
 	}

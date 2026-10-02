@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
 	"os"
@@ -15,6 +16,9 @@ import (
 	catalogapp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/application"
 	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
 	catalogpostgres "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/postgres"
+	identityapp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/application"
+	identitypostgres "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/postgres"
+	"github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/supabase"
 	shopspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/shops/infra/postgres"
 
 	"github.com/Felipe-candido/Barber-chat/internal/platform/postgres"
@@ -43,6 +47,11 @@ func run(
 	cfg config.Config,
 	logger *slog.Logger,
 ) error {
+	// Construct one shared verifier. Invalid Auth configuration prevents startup.
+	verifier, err := supabase.NewVerifier(cfg.SupabaseURL, nil)
+	if err != nil {
+		return fmt.Errorf("configure SUPABASE_URL: %w", err)
+	}
 	// Create one shared PostgreSQL pool.
 	pool, err := postgres.Open(
 		ctx,
@@ -60,21 +69,29 @@ func run(
 	catalogRepository := catalogpostgres.NewRepository(queries)
 	shopResolver := shopspostgres.NewResolver(queries)
 
-	createService := catalogapp.NewCreateService(catalogRepository, shopResolver)
-	listServices := catalogapp.NewListServices(catalogRepository, shopResolver)
+	identityRepository := identitypostgres.NewRepository(queries)
+	authenticate := identityapp.NewAuthenticate(verifier, identityRepository)
+	authorizeShop := identityapp.NewAuthorizeShopAction(identityRepository, shopResolver)
+	listMyShops := identityapp.NewListMyShops(identityRepository, identityRepository)
 
-	catalogHandler := cataloghttp.NewHandler(createService, listServices, cfg.DevShopSlug, cfg.DBTimeout, logger, cfg.DevFrontendOrigin)
-	if cfg.DevShopSlug != "" {
-		logger.Warn("local catalog writes enabled; do not expose this listener through a proxy")
-	}
+	createService := catalogapp.NewCreateService(catalogRepository)
+	listServices := catalogapp.NewListServices(catalogRepository, shopResolver)
+	listAuthorizedServices := catalogapp.NewListAuthorizedServices(catalogRepository)
+
+	catalogHandler := cataloghttp.NewHandler(createService, listServices, listAuthorizedServices, cfg.DBTimeout, logger)
 
 	// Register HTTP adapters and dependency probes.
-	handler := httpapi.NewHandler(
-		pool.Ping,
-		catalogHandler,
-		cfg.DBTimeout,
-		logger,
-	)
+	handler := httpapi.NewHandler(httpapi.HandlerConfig{
+		CheckDB:        pool.Ping,
+		Catalog:        catalogHandler,
+		Authenticate:   authenticate,
+		AuthorizeShop:  authorizeShop,
+		ListMyShops:    listMyShops,
+		RequestTimeout: cfg.HTTPTimeout,
+		DBTimeout:      cfg.DBTimeout,
+		Logger:         logger,
+		FrontendOrigin: cfg.FrontendOrigin,
+	})
 
 	// Open the HTTP listener.
 	listener, err := net.Listen("tcp", cfg.HTTPAddr)

@@ -36,7 +36,7 @@ var _ application.AccessTokenVerifier = (*Verifier)(nil)
 type accessClaims struct {
 	jwt.RegisteredClaims
 
-	Role string `json:"role"`
+	Role        string `json:"role"`
 	IsAnonymous bool   `json:"is_anonymous"`
 }
 
@@ -86,8 +86,8 @@ func NewVerifier(supabaseURL string, client *http.Client) (*Verifier, error) {
 
 	return &Verifier{
 		jwksURL: issuer + "/.well-known/jwks.json",
-		client: &httpClient,
-		keys: keyCache{gate: make(chan struct{}, 1)},
+		client:  &httpClient,
+		keys:    keyCache{gate: make(chan struct{}, 1)},
 		parser: jwt.NewParser(
 			jwt.WithValidMethods([]string{"ES256"}),
 			jwt.WithIssuer(issuer),

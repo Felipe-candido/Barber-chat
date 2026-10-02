@@ -15,12 +15,14 @@ import (
 	"time"
 
 	db "github.com/Felipe-candido/Barber-chat/internal/database/sqlc"
+	"github.com/Felipe-candido/Barber-chat/internal/httpapi"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/catalog/application"
 	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
 	catalogpostgres "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/postgres"
+	identityapp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/application"
+	identitypostgres "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/postgres"
 	shopspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/shops/infra/postgres"
 	"github.com/Felipe-candido/Barber-chat/internal/platform/postgres"
-	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
@@ -59,6 +61,19 @@ func insertTestShop(t *testing.T, ctx context.Context, tx pgx.Tx) (uuid.UUID, st
 	return id, slug
 }
 
+// JWT cryptography is covered by the HTTP access tests. This fixture exercises
+// the real database and membership checks, without an external Supabase project.
+// Use plain development PostgreSQL with the portable migrations, not a hosted
+// database whose users table requires real auth.users identities.
+type catalogTokenVerifier struct{ userID uuid.UUID }
+
+func (v catalogTokenVerifier) VerifyAccessToken(_ context.Context, token string) (uuid.UUID, error) {
+	if token != "integration-token" {
+		return uuid.Nil, identityapp.ErrInvalidAccessToken
+	}
+	return v.userID, nil
+}
+
 func TestCatalogHTTPPersistenceAndIsolation(t *testing.T) {
 	ctx, tx := catalogTransaction(t)
 	shopA, slugA := insertTestShop(t, ctx, tx)
@@ -66,16 +81,30 @@ func TestCatalogHTTPPersistenceAndIsolation(t *testing.T) {
 	queries := db.New(tx)
 	repo := catalogpostgres.NewRepository(queries)
 	resolver := shopspostgres.NewResolver(queries)
-	create := application.NewCreateService(repo, resolver)
+	create := application.NewCreateService(repo)
 	list := application.NewListServices(repo, resolver)
-	handler := cataloghttp.NewHandler(create, list, slugA, 3*time.Second, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	router := chi.NewRouter()
-	cataloghttp.RegisterRoutes(router, handler)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	handler := cataloghttp.NewHandler(create, list, application.NewListAuthorizedServices(repo), 3*time.Second, logger)
+	userID := uuid.New()
+	if _, err := tx.Exec(ctx, "INSERT INTO public.users (id,display_name) VALUES ($1,'HTTP integration test')", userID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := tx.Exec(ctx, "INSERT INTO public.shop_memberships (user_id,shop_id) VALUES ($1,$2)", userID, shopA); err != nil {
+		t.Fatal(err)
+	}
+	identityRepo := identitypostgres.NewRepository(queries)
+	router := httpapi.NewHandler(httpapi.HandlerConfig{
+		Catalog: handler, Authenticate: identityapp.NewAuthenticate(catalogTokenVerifier{userID}, identityRepo),
+		AuthorizeShop: identityapp.NewAuthorizeShopAction(identityRepo, resolver), Logger: logger,
+		ListMyShops:    identityapp.NewListMyShops(identityRepo, identityRepo),
+		RequestTimeout: 3 * time.Second,
+	})
 
-	request := httptest.NewRequest("POST", "http://127.0.0.1:8080/api/v1/admin/services",
+	request := httptest.NewRequest("POST", "http://127.0.0.1:8080/api/v1/admin/shops/"+slugA+"/services",
 		strings.NewReader(`{"name":" Corte ","description":" Tesoura ","duration_minutes":30,"price_cents":3500}`))
 	request.RemoteAddr = "127.0.0.1:1234"
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Authorization", "Bearer integration-token")
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, request)
 	if response.Code != http.StatusCreated {
@@ -98,11 +127,24 @@ func TestCatalogHTTPPersistenceAndIsolation(t *testing.T) {
 		t.Fatal("persisted values differ from the expected tenant/service")
 	}
 
-	_, err := create.Execute(ctx, application.CreateServiceInput{ShopSlug: slugB, Name: "Other shop service", DurationMinutes: 45, PriceCents: 5000})
+	denied := httptest.NewRequest("POST", "/api/v1/admin/shops/"+slugB+"/services", strings.NewReader(`{"name":"Forbidden","duration_minutes":30,"price_cents":3500}`))
+	denied.Header.Set("Authorization", "Bearer integration-token")
+	denied.Header.Set("Content-Type", "application/json")
+	deniedResponse := httptest.NewRecorder()
+	router.ServeHTTP(deniedResponse, denied)
+	if deniedResponse.Code != http.StatusForbidden {
+		t.Fatal("another shop's membership was accepted")
+	}
+	var deniedWrites int
+	if err := tx.QueryRow(ctx, "SELECT count(*) FROM services WHERE shop_id=$1", shopB).Scan(&deniedWrites); err != nil || deniedWrites != 0 {
+		t.Fatal("unauthorized request wrote data", err)
+	}
+
+	_, err := create.Execute(ctx, application.CreateServiceInput{ShopID: shopB, Name: "Other shop service", DurationMinutes: 45, PriceCents: 5000})
 	if err != nil {
 		t.Fatal(err)
 	}
-	hidden, err := create.Execute(ctx, application.CreateServiceInput{ShopSlug: slugA, Name: "Inactive service", DurationMinutes: 30})
+	hidden, err := create.Execute(ctx, application.CreateServiceInput{ShopID: shopA, Name: "Inactive service", DurationMinutes: 30})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,13 +163,48 @@ func TestCatalogHTTPPersistenceAndIsolation(t *testing.T) {
 		t.Fatal("list leaked another tenant or an inactive service")
 	}
 
+	for _, tc := range []struct {
+		path string
+		want int
+	}{
+		{"/api/v1/admin/shops/" + slugA + "/services", 200},
+		{"/api/v1/admin/shops/" + slugB + "/services", 403},
+		{"/api/v1/admin/shops", 200},
+	} {
+		r := httptest.NewRequest("GET", tc.path, nil)
+		r.Header.Set("Authorization", "Bearer integration-token")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, r)
+		if w.Code != tc.want {
+			t.Fatalf("%s returned %d: %s", tc.path, w.Code, w.Body)
+		}
+		if tc.want == 200 && strings.Contains(w.Body.String(), slugB) {
+			t.Fatal("accessible shops leaked another user's unit")
+		}
+		if tc.path == "/api/v1/admin/shops/"+slugA+"/services" {
+			if err := json.Unmarshal(w.Body.Bytes(), &services); err != nil || len(services) != 1 || services[0].ID != created.ID {
+				t.Fatal("administrative list crossed tenant or activity boundaries", err)
+			}
+		}
+	}
+	if _, err := tx.Exec(ctx, "UPDATE shop_memberships SET active=false WHERE user_id=$1 AND shop_id=$2", userID, shopA); err != nil {
+		t.Fatal(err)
+	}
+	revoked := httptest.NewRequest("GET", "/api/v1/admin/shops/"+slugA+"/services", nil)
+	revoked.Header.Set("Authorization", "Bearer integration-token")
+	revokedResponse := httptest.NewRecorder()
+	router.ServeHTTP(revokedResponse, revoked)
+	if revokedResponse.Code != 403 {
+		t.Fatal("revoked database membership remained authorized")
+	}
+
 	if _, err := tx.Exec(ctx, "UPDATE shops SET active=false WHERE id=$1", shopB); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := list.Execute(ctx, slugB); !errors.Is(err, application.ErrShopNotFound) {
 		t.Fatal("inactive shop remained public", err)
 	}
-	if _, err := create.Execute(ctx, application.CreateServiceInput{ShopSlug: slugB, Name: "Blocked", DurationMinutes: 30}); !errors.Is(err, application.ErrShopNotFound) {
+	if _, err := create.Execute(ctx, application.CreateServiceInput{ShopID: shopB, Name: "Blocked", DurationMinutes: 30}); !errors.Is(err, application.ErrShopNotFound) {
 		t.Fatal("inactive shop accepted creation", err)
 	}
 	if _, err := list.Execute(ctx, "missing-"+uuid.NewString()); !errors.Is(err, application.ErrShopNotFound) {
@@ -138,7 +215,7 @@ func TestCatalogHTTPPersistenceAndIsolation(t *testing.T) {
 	if err := tx.QueryRow(ctx, "SELECT count(*) FROM services WHERE shop_id=$1", shopA).Scan(&before); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := create.Execute(ctx, application.CreateServiceInput{ShopSlug: slugA, Name: " ", DurationMinutes: 30}); err == nil {
+	if _, err := create.Execute(ctx, application.CreateServiceInput{ShopID: shopA, Name: " ", DurationMinutes: 30}); err == nil {
 		t.Fatal("invalid service accepted")
 	}
 	var after int

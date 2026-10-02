@@ -16,8 +16,12 @@ import (
 
 func testLogger() *slog.Logger { return slog.New(slog.NewJSONHandler(io.Discard, nil)) }
 
+func serverHandler(checkDB func(context.Context) error) http.Handler {
+	return httpapi.NewHandler(httpapi.HandlerConfig{CheckDB: checkDB, DBTimeout: time.Second, Logger: testLogger()})
+}
+
 func TestHealthDoesNotDependOnDatabase(t *testing.T) {
-	h := httpapi.NewHandler(func(context.Context) error { t.Fatal("liveness must not query database"); return nil }, nil, time.Second, testLogger())
+	h := serverHandler(func(context.Context) error { t.Fatal("liveness must not query database"); return nil })
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/health", nil))
 	if w.Code != 200 || w.Body.String() != "{\"status\":\"ok\"}\n" {
@@ -30,7 +34,7 @@ func TestHealthDoesNotDependOnDatabase(t *testing.T) {
 
 func TestReadiness(t *testing.T) {
 	for _, available := range []bool{true, false} {
-		h := httpapi.NewHandler(func(ctx context.Context) error {
+		h := serverHandler(func(ctx context.Context) error {
 			if _, ok := ctx.Deadline(); !ok {
 				t.Error("missing readiness deadline")
 			}
@@ -38,7 +42,7 @@ func TestReadiness(t *testing.T) {
 				return errors.New("postgres://secret@host")
 			}
 			return nil
-		}, nil, time.Second, testLogger())
+		})
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/ready", nil))
 		want := 200
@@ -55,7 +59,7 @@ func TestReadiness(t *testing.T) {
 }
 
 func TestRoutes(t *testing.T) {
-	h := httpapi.NewHandler(func(context.Context) error { return nil }, nil, time.Second, testLogger())
+	h := serverHandler(func(context.Context) error { return nil })
 	for _, test := range []struct {
 		method, path string
 		status       int

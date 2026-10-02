@@ -2,13 +2,13 @@ package application
 
 import (
 	"context"
-	
 	"github.com/Felipe-candido/Barber-chat/internal/modules/catalog/domain"
+	"github.com/google/uuid"
 )
 
 type CreateServiceInput struct {
-	// ShopSlug must come from a trusted administrative scope, not the request body.
-	ShopSlug        string
+	// ShopID must come from successful authorization, never from request JSON.
+	ShopID          uuid.UUID
 	Name            string
 	Description     string
 	DurationMinutes int
@@ -16,22 +16,14 @@ type CreateServiceInput struct {
 }
 type CreateService struct {
 	repository ServiceRepository
-	shops      ShopResolver
 }
 
-func NewCreateService(repository ServiceRepository, shops ShopResolver) *CreateService {
-	return &CreateService{repository: repository, shops: shops}
+func NewCreateService(repository ServiceRepository) *CreateService {
+	return &CreateService{repository: repository}
 }
 
 func (uc *CreateService) Execute(ctx context.Context, input CreateServiceInput) (ServiceOutput, error) {
-	shopID, found, err := uc.shops.LookupActiveShop(ctx, input.ShopSlug)
-	if err != nil {
-		return ServiceOutput{}, err
-	}
-	if !found {
-		return ServiceOutput{}, ErrShopNotFound
-	}
-	service, err := domain.NewService(shopID, input.Name, input.Description, input.DurationMinutes, input.PriceCents)
+	service, err := domain.NewService(input.ShopID, input.Name, input.Description, input.DurationMinutes, input.PriceCents)
 	if err != nil {
 		return ServiceOutput{}, err
 	}

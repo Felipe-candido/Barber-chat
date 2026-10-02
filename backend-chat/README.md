@@ -1,12 +1,12 @@
 # Barber-chat
 
-**Estrutura inicial de autenticação:** migrations de users/memberships sem papéis e ligação específica com Supabase Auth preparadas. Contas e vínculos serão provisionados manualmente; o Go e o frontend ainda não autenticam. Veja [o guia de configuração e provisionamento](docs/authentication-proposal.md) e [a decisão de arquitetura](docs/adr/0009-supabase-identity-without-roles.md).
+**Autenticação administrativa:** Bearer Supabase ES256, usuário local ativo, `/api/v1/admin/me` e criação de serviços autorizada por unidade estão implementados. Contas e vínculos são provisionados manualmente, sem papéis. Veja [configuração e provisionamento](docs/authentication-proposal.md) e [a decisão de arquitetura](docs/adr/0009-supabase-identity-without-roles.md).
 
 Fundação de um SaaS de agendamentos para barbearias e projeto de estudo de Go, Chi e mensageria. Uma aplicação modular, um módulo Go e dois executáveis: API e worker. PostgreSQL guarda os dados; RabbitMQ será o transporte das notificações.
 
-**Implementado:** configuração por ambiente/.env, HTTP com Chi, health/readiness, logs JSON, graceful shutdown, pool PostgreSQL, conexão AMQP, ciclo de vida do worker, Compose, migrations e testes. O catálogo agora cria serviços em modo local explícito e lista serviços ativos por slug. **Ainda não existe:** edição/ativação de serviços, autenticação administrativa, agendamento, scheduler/outbox, consumer de negócio, envio de mensagens ou relatórios. O frontend está em [`../frontend-chat`](../frontend-chat/README.md), com criação/listagem de serviços integrada à API. Veja [configuração do acesso local pelo navegador](../frontend-chat/API-INTEGRATION.md). O worker verifica dependências e aguarda encerramento; não envia notificações.
+**Implementado:** configuração por ambiente/.env, HTTP com Chi, health/readiness, logs JSON, graceful shutdown, pool PostgreSQL, conexão AMQP, ciclo de vida do worker, Compose, migrations e testes. O catálogo cria serviços com autenticação/membership e lista serviços ativos publicamente por slug. **Ainda não existe:** edição/ativação de serviços, CRUD de contas, agendamento, scheduler/outbox, consumer de negócio, envio de mensagens ou relatórios. O frontend está em [`../frontend-chat`](../frontend-chat/README.md), com sessão Supabase e criação/listagem integrada à API. O worker verifica dependências e aguarda encerramento; não envia notificações.
 
-**Estrutura de negócio:** sete módulos em `internal/modules`, cada um com `domain`, `application` e `infra`. Catálogo implementa criar/listar serviços; shops fornece resolução de slug ativo. Os demais fluxos continuam planejados. Os `doc.go` do catálogo explicam o fluxo completo, cada camada, os adaptadores e a fronteira de acesso local. Veja [como testar serviços](docs/catalog-testing.md) e o [ADR 0007](docs/adr/0007-catalog-services-and-local-tenant.md).
+**Estrutura de negócio:** sete módulos em `internal/modules`, cada um com `domain`, `application` e `infra`. Catálogo implementa criar/listar serviços; shops resolve slug ativo; identity autentica usuário, lista suas unidades elegíveis e autoriza cada operação por unidade. O frontend chama /me e /admin/shops após login e usa o slug escolhido no painel. Os demais fluxos continuam planejados. Os `doc.go` explicam as camadas e a fronteira HTTP. Veja [como testar serviços](docs/catalog-testing.md) e o [ADR 0007](docs/adr/0007-catalog-services-and-local-tenant.md).
 
 Os comandos deste documento são executados dentro de `backend-chat`: na raiz do repositório, execute `cd backend-chat` antes de começar.
 
@@ -120,11 +120,14 @@ go build -o bin/worker.exe ./cmd/worker
 | Variável | Padrão / obrigação | Uso |
 | --- | --- | --- |
 | `HTTP_ADDR` | `127.0.0.1:8080` | Interface/porta HTTP |
-| `DEV_SHOP_SLUG` | Vazio (escrita desabilitada) | Slug para testes de criação; exige listener loopback; não é autenticação |
+| `SUPABASE_URL` | Obrigatória para API, não para worker | Origem HTTPS do projeto confiável; validação ES256/JWKS; não é chave nem URL do banco |
+| `FRONTEND_ORIGIN` | Vazio (browser não permitido) | Origem exata HTTPS ou HTTP loopback, sem barra final; permite Authorization/Content-Type |
+| `DEV_FRONTEND_ORIGIN` | Vazio | Alias local antigo de FRONTEND_ORIGIN; se ambos definidos, devem coincidir |
 | `DATABASE_URL` | Obrigatória | PostgreSQL; pool de até 5 conexões por processo, sessão UTC |
 | `RABBITMQ_URL` | Obrigatória só para worker | AMQP/AMQPS |
 | `LOG_LEVEL` | `INFO` | Nível slog (`DEBUG`, `INFO`, `WARN`, `ERROR`) |
 | `DB_TIMEOUT` | `3s` | Timeout de probes PostgreSQL e conexão inicial PostgreSQL/AMQP |
+| `HTTP_TIMEOUT` | `10s` | Deadline compartilhado pela autenticação, autorização e operação HTTP |
 | `SHUTDOWN_TIMEOUT` | `10s` | Drain HTTP e limite de fechamento AMQP |
 | `WORKER_INTERVAL` | `30s` | Intervalo da verificação PostgreSQL do worker |
 
@@ -178,6 +181,6 @@ Não remover volumes para resolver erros de configuração. O resultado das vali
 - [Contrato proposto para frontend](docs/api-contract.md) e [OpenAPI atual](docs/openapi.yaml).
 - [AGENTS.md](AGENTS.md): instruções persistentes para próximas tarefas.
 
-Próximo passo do catálogo: edição e ativação/desativação, listagem administrativa e autorização por membership antes de publicação. Depois profissionais/associações e a fatia de agendamento com proteção de sobreposição, seguida de outbox/worker. Definir regras de lembrete, cancelamento, seleção de profissional e canal/provedor antes das funcionalidades correspondentes.
+Próximo passo: testar o login com uma conta real provisionada e implementar edição/ativação de serviços. Seleção de unidades e listagem administrativa de serviços ativos já estão integradas. Depois profissionais/associações e agendamento com proteção de sobreposição, seguido de outbox/worker. Definir regras de lembrete, cancelamento e canal/provedor antes das funcionalidades correspondentes.
 
-Para o navegador local consumir o catálogo, configure `DEV_FRONTEND_ORIGIN=http://127.0.0.1:3000` (sem barra final) além de `DEV_SHOP_SLUG` para escrita. O listener continua restrito a loopback; isso não é autenticação de produção.
+Para o navegador consumir a API, configure `FRONTEND_ORIGIN` com a origem exata (por exemplo `http://127.0.0.1:3000`) e `SUPABASE_URL` com o projeto que emitiu a sessão. Não há slug fixo no backend ou frontend; a rota de serviços recebe o slug da unidade escolhida. CORS não concede acesso: token e membership são verificados em cada operação administrativa. Contas e vínculos continuam manuais. Não envie credenciais por HTTP fora de loopback; deploy exige HTTPS e configuração de infraestrutura apropriada.

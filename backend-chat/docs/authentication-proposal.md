@@ -1,6 +1,6 @@
 # Autenticação: Supabase Auth e acesso por barbearia
 
-Backend atualizado em 27/09/2026. **Implementados: domínio de identity, casos de uso Authenticate/AuthorizeShopAction, queries sqlc e repositório PostgreSQL de leitura. Pendentes: adapter de validação JWT, integração da autenticação/autorização nas rotas e CRUD de contas.** As migrations não são aplicadas no boot. O POST de serviços continua dependendo do modo local DEV_SHOP_SLUG.
+Backend/frontend atualizados em 01/10/2026. **Implementados: domínio de identity, Authenticate/AuthorizeShopAction/ListMyShops, queries/repositório, verifier ES256/JWKS, middleware, `/admin/me`, `/admin/shops`, seleção de unidade e leitura/criação administrativa de serviços.** Pendentes: CRUD de contas e outros fluxos administrativos. As migrations não são aplicadas no boot; contas e vínculos continuam manuais.
 
 ## Decisão para o primeiro incremento
 
@@ -38,7 +38,8 @@ Membership evita duplicar uma pessoa ou mover seu shop_id quando ela administrar
 
 1. `db/migrations/00004_create_identity_tables.sql`: cria users/memberships, constraints, índice por shop_id e RLS sem policies de browser. Segue as migrations 00001–00003.
 2. `db/supabase/migrations/00001_link_auth_users.sql`: adiciona a FK `public.users.id -> auth.users.id ON DELETE CASCADE` e revoga privilégios diretos de anon/authenticated nas duas tabelas.
-3. `db/supabase/provision_membership.sql`: procedimento manual, não é migration nem seed automático. Insere perfil/vínculo sem duplicação e recusa reativar acessos suspensos.
+3. `db/supabase/provision_shop_and_user.sql`: procedimento manual para criar barbearia, perfil e vínculo a partir de um UUID existente no Auth. Não é migration nem seed automático.
+4. `db/supabase/provision_membership.sql`: procedimento manual para vincular uma conta a uma barbearia já existente. Insere perfil/vínculo sem duplicação e recusa reativar acessos suspensos.
 
 O PostgreSQL do Compose não possui auth.users. Por isso a ligação específica do provedor tem uma sequência separada e uma tabela de versões própria. **No Supabase, as duas sequências são obrigatórias.** Se auth.users não existir, a segunda falha em vez de deixar a FK ausente silenciosamente. Não criar auth.users falsa no banco da aplicação.
 
@@ -69,6 +70,7 @@ Rollback, somente em banco descartável ou após revisão: desfazer primeiro a s
 ## Criar uma conta e ligá-la à barbearia
 
 1. No Dashboard Supabase, configure login por e-mail/senha e desabilite cadastro público na configuração do Auth. Esconder o botão de signup não desabilita o provedor.
+   O verifier atual aceita somente JWTs ES256. Confira a signing key do projeto e use um access token emitido por essa chave; não há fallback para HS256 nem uso de JWT secret no Go. Configure SUPABASE_URL com a origem HTTPS desse mesmo projeto.
 2. Em Authentication → Users, crie a conta pela interface do provedor e copie seu UUID. Não faça INSERT em auth.users pelo SQL Editor nem invente hashes. Convites/recuperação exigem URLs permitidas e telas de retorno; essas telas ainda precisam ser integradas. Para uso real com envio de e-mail, configurar SMTP é outra etapa.
 3. Confira a barbearia no SQL Editor:
 
@@ -91,22 +93,83 @@ Rollback, somente em banco descartável ou após revisão: desfazer primeiro a s
 
 Não há trigger de criação automática. Criar a conta no Auth, sozinho, não cria acesso ao negócio. Se o SQL falhar, corrija e repita: o script reutiliza usuário/vínculo ativos sem sobrescrever perfil nem duplicar associação. Não reativa acessos suspensos. Cada unidade adicional usa o mesmo UUID com outro slug.
 
-Suspender users.active afeta todas as unidades; suspender shop_memberships.active afeta somente o vínculo. Excluir no Auth elimina perfil/vínculos por cascata, sem excluir barbearia/serviços. Os casos de uso Go já verificam essas flags, mas **só bloquearão requisições quando forem integrados às rotas**. A estrutura de banco não representa proteção já ativa na API.
+Suspender users.active afeta todas as unidades; suspender shop_memberships.active afeta somente o vínculo. Excluir no Auth elimina perfil/vínculos por cascata, sem excluir barbearia/serviços. As rotas administrativas verificam essas flags no banco por requisição, sem cache de permissões. /me identifica o usuário ativo, mesmo sem vínculo; criar serviços exige o vínculo da unidade solicitada.
 
-## Como o login e o Go funcionarão depois
+### Criar a barbearia e o perfil em uma execução
 
-1. Next.js autentica no Supabase, que entrega sessão e access token. Bibliotecas previstas: @supabase/supabase-js e @supabase/ssr; não instaladas nesta etapa.
+Depois de aplicar as duas sequências de migrations, abra
+`db/supabase/provision_shop_and_user.sql` e copie seu conteúdo inteiro para o SQL
+Editor **do mesmo projeto usado por SUPABASE_URL e DATABASE_URL no backend**.
+Execute como operador administrativo, nunca pelo frontend ou por uma policy
+que permita ao usuário criar o próprio vínculo.
+
+Altere somente os cinco valores no início de DECLARE:
+
+```sql
+target_user_id UUID := '00000000-0000-0000-0000-000000000000'; -- Troque pelo UUID real.
+target_display_name TEXT := 'Felipe';
+target_shop_name TEXT := 'Barbearia do Felipe';
+target_shop_slug TEXT := 'barbearia-do-felipe';
+target_shop_timezone TEXT := 'America/Sao_Paulo';
+```
+
+O UUID precisa existir em Authentication → Users nesse projeto. O script não cria
+conta, senha nem e-mail no Auth: cria somente public.users, public.shops e
+public.shop_memberships. O ID da barbearia é gerado separadamente. Não execute
+esse script no PostgreSQL puro do Compose, que não possui auth.users.
+
+O slug aceita letras minúsculas sem acentos, números e hífens simples entre
+palavras, até 100 caracteres. O nome da barbearia aceita até 150 caracteres e o
+nome do usuário até 100. O fuso deve ser reconhecido pelo PostgreSQL. Em textos
+SQL com apóstrofo, duplique-o: `'Barbearia O''Neil'`.
+
+A transação cria todos os registros ou nenhum deles. Repetir os mesmos dados
+ativos reutiliza a barbearia e o vínculo sem duplicar. Um perfil ativo existente
+é reutilizado sem alterar seu nome; um slug existente só é aceito se nome e fuso
+forem iguais aos informados. Usuário, barbearia ou vínculo suspenso geram erro,
+sem reativação automática. Para ligar alguém a uma unidade já existente sem
+repetir seus dados, use provision_membership.sql.
+
+Ao concluir, a consulta do script retorna o perfil, a barbearia e as três flags
+active. Faça login no frontend e a unidade aparecerá na seleção. Se já estiver
+logado, use a opção de atualizar a lista de barbearias. Se ocorrer erro, execute
+`ROLLBACK;` antes de corrigir e repetir na mesma sessão SQL.
+
+## Fluxo implementado
+
+1. Next.js autentica no Supabase, que entrega sessão e access token. Login e renovação pertencem ao frontend/provedor, não ao catálogo Go.
 2. O frontend envia `Authorization: Bearer <access_token>` ao Go. Nunca envia senha ao catálogo.
-3. O Go valida assinatura, algoritmo permitido, issuer do projeto, audience esperada, expiração e subject. Para chaves assimétricas, usa JWKS do projeto com cache, rotação e timeout. Decodificar o payload não autentica. Escolheremos uma biblioteca JWT/JWKS ao implementar; não escrever criptografia própria.
-4. O sub validado identifica users.id. Consultar usuário ativo, membership ativo e barbearia ativa em cada operação administrativa. O cliente pode solicitar uma unidade, mas não conceder seu próprio acesso.
-5. Uma unidade elegível pode ser selecionada automaticamente; várias exigem seleção; nenhuma resulta em acesso negado. Não escolher o primeiro vínculo arbitrariamente. Não autorizar por e-mail, slug, user_metadata ou role=authenticated do Supabase.
-6. Os casos de uso recebem o shop_id autorizado. O catálogo/agendamento filtra por esse tenant, inclusive em buscas por ID. Sem papéis, a decisão inicial é identidade válida + vínculo elegível.
+3. Uma única instância de Verifier no bootstrap valida ES256, issuer de SUPABASE_URL/auth/v1, audience authenticated, expiração, assinatura e subject UUID não vazio. JWKS vem de uma URL fixa do projeto, com cache, controle de atualização e timeout. JWT usa golang-jwt; JWK usa go-jose. Tokens anônimos, service_role e chaves de API não são sessões administrativas válidas.
+4. Authenticate usa o sub verificado para consultar users.id e exige usuário local ativo. O middleware armazena StaffIdentityOutput no contexto; GET /api/v1/admin/me retorna somente user_id/display_name. O UUID é o do Auth, não outro ID gerado.
+5. Depois de /me, GET /api/v1/admin/shops chama ListMyShops com o usuário do contexto: relê o perfil e lista somente vínculos/unidades ativos, retornando shop_id/name/slug (ou []). O frontend mostra essas unidades em /admin, sem escolher automaticamente, e abre /admin/{slug}/servicos após a escolha.
+6. GET e POST /api/v1/admin/shops/{slug}/services usam ShopAccess: AuthorizeShopAction relê o usuário, resolve a unidade ativa e verifica exatamente (user_id, shop_id), com membership ativo. A URL solicita uma unidade; não concede acesso. Outra unidade só é aceita se houver seu próprio vínculo. Não se escolhe o primeiro vínculo, nem se autoriza por metadata.
+7. O middleware armazena AuthorizedShopScope no contexto derivado. O handler exige identidade/escopo consistentes, valida JSON no POST e passa ShopID explicitamente ao CreateService ou ListAuthorizedServices. Application/domain não leem valores HTTP do contexto. O INSERT ainda revalida que a barbearia está ativa; não há operação de agendamento nesta etapa.
 
-Token ausente/inválido deverá resultar em 401; identidade válida sem acesso elegível, em 403 (podendo ocultar recursos conforme contrato futuro). Ainda não há rotas de sessão/me nem middleware JWT. A integração futura precisa substituir DEV_SHOP_SLUG nas rotas administrativas e permitir Authorization no CORS; o modo local não pode ser bypass em produção. O catálogo público por slug continua sem login.
+Token ausente/inválido retorna 401 com WWW-Authenticate; usuário não provisionado/inativo ou unidade/vínculo inelegível retorna 403 genérico. Falha JWKS/deadline retorna 503; inconsistência de identidade/erro inesperado de repositório retorna 500 sanitizado. Não se registram tokens, credenciais ou erros brutos do provedor. RequestID acompanha logs operacionais. HTTP_TIMEOUT cobre toda a cadeia, inclusive auth; DB_TIMEOUT limita a operação do catálogo.
 
-Logout/revogação não tornam todo JWT já emitido imediatamente inválido. Consultar o estado local por requisição permitirá bloquear acesso de negócio ao suspender usuário/vínculo. Sessões, renovação, recuperação e expiração serão tratadas na implementação, sem flags de login no localStorage.
+FRONTEND_ORIGIN permite uma origem exata HTTPS (ou HTTP loopback em desenvolvimento). DEV_FRONTEND_ORIGIN é alias local compatível. CORS permite Authorization/Content-Type, e OPTIONS ocorre antes de autenticar: preflight nunca substitui a proteção da requisição real. A rota antiga POST /api/v1/admin/services e os slugs fixos de ambiente foram removidos. As rotas por unidade usam sempre o slug da escolha, mantendo Bearer/membership obrigatório. O catálogo público continua sem login.
 
-Responsabilidades: identity/infra valida token e consulta PostgreSQL; identity/application resolve identidade e autoriza unidade; domain guarda invariantes; cmd/api compõe dependências; o frontend administra a experiência de sessão. RabbitMQ não participa do login. A leitura PostgreSQL e os casos de uso estão implementados; a validação concreta do token e a composição nas rotas ainda estão pendentes.
+Logout/revogação não tornam todo JWT já emitido imediatamente inválido. O verifier valida o JWT localmente e não consulta o estado da sessão no Supabase a cada requisição. Consultar o estado local permite negar as próximas verificações de acesso após suspender usuário/vínculo; requisições já autorizadas podem estar em andamento. Renovação e recuperação pertencem à sessão no frontend. Não use flags de login como prova de identidade.
+
+Responsabilidades: identity/infra valida token e consulta PostgreSQL; identity/application resolve identidade/autoriza unidade; domain guarda invariantes; cmd/api compõe dependências; internal/httpapi adapta headers, erros e contexto; frontend administra a sessão. requestctx é compartilhado entre middleware e handlers, não pertence aos casos de uso. Um único pool/queries atende os repositórios. RabbitMQ não participa do login.
+
+## Sessão e contexto no frontend
+
+O AdminAccessProvider mantém em memória somente a identidade local e os resumos
+de unidades obtidos no Go. O SDK Supabase persiste/renova a sessão; o token não é
+duplicado no contexto React. Um listener síncrono de mudanças de conta/logout
+cancela leituras pendentes e limpa dados antigos. Não chamar APIs de autenticação
+dentro desse listener: chamadas aninhadas podem disputar o lock do SDK.
+
+AdminAccessGuard aguarda a validação antes de montar páginas administrativas.
+ShopPanel verifica o slug contra a lista para a navegação e fornece a unidade
+selecionada aos componentes. Trocar de slug remonta os componentes e cancela
+consultas antigas. Essas proteções são experiência/isolamento visual, não a
+autoridade de segurança: o Go verifica o vínculo em cada GET/POST administrativo.
+O logout usa scope local e limpa a sessão deste navegador; não encerra todos os
+dispositivos nem torna imediatamente inválido um JWT copiado anteriormente.
+A sessão fica no armazenamento do SDK, portanto prevenir XSS é indispensável;
+SSR com cookies não foi implementado neste incremento.
 
 ## Contrato do repositório de identity
 
@@ -138,7 +201,7 @@ As tabelas novas ficam com RLS e sem policies para browser; a etapa Supabase tam
 
 O JWT recebido pelo Go **não configura auth.uid() na conexão pgx**. Proprietários/papéis com bypass podem ignorar RLS. A autorização por membership precisa existir no Go; seu usuário de banco deverá receber privilégios mínimos explícitos na implementação. Esta migration não altera a exposição de shops/services pela Data API: a configuração existente precisa continuar sendo gerenciada separadamente.
 
-Nunca colocar DATABASE_URL, chave secret/service_role ou senha no frontend. Futuramente, NEXT_PUBLIC_SUPABASE_URL e chave publishable serão configuração pública do SDK; ainda não são necessárias para aplicar migrations ou cadastrar vínculos manualmente.
+Nunca colocar DATABASE_URL, chave secret/service_role ou senha no frontend. NEXT_PUBLIC_SUPABASE_URL e chave publishable são configuração pública do SDK. O Go só precisa de SUPABASE_URL e da conexão de banco apropriada; valida o token com chaves públicas, sem secret/service_role.
 
 ## Validação e próximos passos
 
@@ -152,9 +215,9 @@ $env:IDENTITY_TEST_DATABASE_URL = 'postgres://postgres:identity_test_only@127.0.
 go test -tags=integration -run '^TestIdentityMigrations$' -count=1 ./tests/integration/...
 ```
 
-Sem essa variável o teste é pulado, não aprovado. Os testes de catálogo existentes continuam usando DATABASE_URL e não validam login.
+Sem essa variável o teste é pulado, não aprovado. Os testes de catálogo usam DATABASE_URL e verificam autorização com repositório real e verifier substituído. internal/httpapi/tests/access_test.go percorre JWT/JWKS reais, casos de uso e handlers, com persistência substituída. Nenhum desses testes comprova login em um projeto Supabase de verdade.
 
-Depois: integrar sessão no Next; verificar JWT e autorizar unidade no Go; testar tokens inválidos, troca maliciosa de tenant, revogação e usuários com duas unidades. Só então habilitar acesso administrativo remoto. CRUD, papéis e painel do operador podem esperar.
+Depois: testar manualmente a sessão real do projeto e o provisionamento local; implementar edição/ativação de serviços e os fluxos de profissionais/agendamentos. Antes de deploy, garantir HTTPS, banco com privilégios mínimos, política de sessões/expiração e observabilidade. CRUD de contas, papéis e painel do operador podem esperar.
 
 Fontes oficiais: [vínculo com auth.users](https://supabase.com/docs/guides/auth/managing-user-data), [cadastro](https://supabase.com/docs/guides/auth/general-configuration), [verificação JWT](https://supabase.com/docs/guides/auth/jwts), [chaves/JWKS](https://supabase.com/docs/guides/auth/signing-keys), [RLS](https://supabase.com/docs/guides/database/postgres/row-level-security), [Next.js/SSR](https://supabase.com/docs/guides/auth/server-side/creating-a-client).
 

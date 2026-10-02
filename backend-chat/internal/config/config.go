@@ -18,11 +18,13 @@ type Config struct {
 	HTTPAddr          string
 	DatabaseURL       string
 	RabbitMQURL       string
+	SupabaseURL       string
+	FrontendOrigin    string
+	HTTPTimeout       time.Duration
 	LogLevel          slog.Level
 	DBTimeout         time.Duration
 	ShutdownTimeout   time.Duration
 	WorkerInterval    time.Duration
-	DevShopSlug       string
 	DevFrontendOrigin string
 }
 
@@ -53,18 +55,40 @@ func load(getenv func(string) string) (Config, error) {
 		HTTPAddr:          value("HTTP_ADDR", "127.0.0.1:8080"),
 		DatabaseURL:       getenv("DATABASE_URL"),
 		RabbitMQURL:       getenv("RABBITMQ_URL"),
-		DevShopSlug:       strings.TrimSpace(getenv("DEV_SHOP_SLUG")),
+		SupabaseURL:       strings.TrimSpace(getenv("SUPABASE_URL")),
+		FrontendOrigin:    strings.TrimSpace(getenv("FRONTEND_ORIGIN")),
 		DevFrontendOrigin: strings.TrimSpace(getenv("DEV_FRONTEND_ORIGIN")),
+	}
+	if c.FrontendOrigin == "" {
+		c.FrontendOrigin = c.DevFrontendOrigin
+	} else if c.DevFrontendOrigin != "" && c.FrontendOrigin != c.DevFrontendOrigin {
+		return Config{}, errors.New("FRONTEND_ORIGIN and DEV_FRONTEND_ORIGIN must match when both are set")
+	}
+	if c.FrontendOrigin != "" {
+		u, err := url.Parse(c.FrontendOrigin)
+		if err != nil || u.Hostname() == "" || u.User != nil || u.Path != "" || u.ForceQuery || u.RawQuery != "" || strings.Contains(c.FrontendOrigin, "#") ||
+			(u.Scheme != "https" && (u.Scheme != "http" || (u.Hostname() != "localhost" && !net.ParseIP(u.Hostname()).IsLoopback()))) {
+			return Config{}, errors.New("FRONTEND_ORIGIN must be an exact HTTPS origin or an HTTP loopback origin")
+		}
+		if strings.HasSuffix(u.Host, ":") {
+			return Config{}, errors.New("FRONTEND_ORIGIN has an invalid port")
+		}
+		if port := u.Port(); port != "" {
+			n, err := strconv.Atoi(port)
+			if err != nil || n < 1 || n > 65535 {
+				return Config{}, errors.New("FRONTEND_ORIGIN has an invalid port")
+			}
+		}
 	}
 	_, port, err := net.SplitHostPort(c.HTTPAddr)
 	n, portErr := strconv.Atoi(port)
 	if err != nil || portErr != nil || n < 1 || n > 65535 {
 		return Config{}, fmt.Errorf("HTTP_ADDR must contain a host and port between 1 and 65535")
 	}
-	if c.DevShopSlug != "" || c.DevFrontendOrigin != "" {
+	if c.DevFrontendOrigin != "" {
 		host, _, _ := net.SplitHostPort(c.HTTPAddr)
 		if !net.ParseIP(host).IsLoopback() {
-			return Config{}, fmt.Errorf("DEV_SHOP_SLUG and DEV_FRONTEND_ORIGIN require a loopback IP in HTTP_ADDR")
+			return Config{}, fmt.Errorf("DEV_FRONTEND_ORIGIN requires a loopback IP in HTTP_ADDR")
 		}
 	}
 	if c.DevFrontendOrigin != "" {
@@ -96,6 +120,7 @@ func load(getenv func(string) string) (Config, error) {
 		target   *time.Duration
 	}{
 		{"DB_TIMEOUT", "3s", &c.DBTimeout},
+		{"HTTP_TIMEOUT", "10s", &c.HTTPTimeout},
 		{"SHUTDOWN_TIMEOUT", "10s", &c.ShutdownTimeout},
 		{"WORKER_INTERVAL", "30s", &c.WorkerInterval},
 	} {

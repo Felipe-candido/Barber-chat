@@ -85,6 +85,9 @@ func TestIdentityMigrations(t *testing.T) {
 		END $$;
 		GRANT ALL ON public.users, public.shop_memberships TO anon, authenticated;`)
 	migrate(provider, true)
+	t.Run("shop provisioning", func(t *testing.T) {
+		testShopProvisioning(t, ctx, tx)
+	})
 	exec(`INSERT INTO public.shops (id, name, slug) VALUES
 		('10000000-0000-4000-8000-000000000001', 'One', 'identity-test-one'),
 		('10000000-0000-4000-8000-000000000002', 'Two', 'identity-test-two');

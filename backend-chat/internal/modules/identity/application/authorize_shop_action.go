@@ -68,8 +68,7 @@ func (uc *AuthorizeShopAction) Execute(ctx context.Context, input AuthorizeShopA
 	}
 
 	return AuthorizedShopScope{
-		UserID: user.ID, 
+		UserID: user.ID,
 		ShopID: shopID,
-		
 	}, nil
 }

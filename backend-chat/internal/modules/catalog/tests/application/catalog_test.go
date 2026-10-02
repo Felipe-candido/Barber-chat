@@ -38,33 +38,30 @@ func (f *fakeRepository) ListActiveByShop(_ context.Context, id uuid.UUID) ([]do
 	return f.services, f.err
 }
 
-func TestCreateUsesResolvedShop(t *testing.T) {
-	shops := &fakeShops{id: uuid.New(), found: true}
+func TestCreateUsesAuthorizedShop(t *testing.T) {
+	shopID := uuid.New()
 	repo := &fakeRepository{}
-	output, err := application.NewCreateService(repo, shops).Execute(context.Background(), application.CreateServiceInput{ShopSlug: "trusted-shop", Name: " Corte ", DurationMinutes: 30, PriceCents: 3500})
+	output, err := application.NewCreateService(repo).Execute(context.Background(), application.CreateServiceInput{ShopID: shopID, Name: " Corte ", DurationMinutes: 30, PriceCents: 3500})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if shops.slug != "trusted-shop" || len(repo.created) != 1 || repo.created[0].ShopID != shops.id || output.Name != "Corte" || output.Currency != "BRL" {
-		t.Fatal("resolved tenant or normalized service was not preserved")
+	if len(repo.created) != 1 || repo.created[0].ShopID != shopID || output.Name != "Corte" || output.Currency != "BRL" {
+		t.Fatal("authorized tenant or normalized service was not preserved")
 	}
 }
 func TestCreateDoesNotPersistRejectedInput(t *testing.T) {
 	for _, tc := range []struct {
-		name        string
-		found       bool
-		resolverErr error
-		title       string
-		want        error
+		name   string
+		shopID uuid.UUID
+		title  string
+		want   error
 	}{
-		{"unknown shop", false, nil, "Corte", application.ErrShopNotFound},
-		{"resolver failure", false, context.DeadlineExceeded, "Corte", context.DeadlineExceeded},
-		{"invalid service", true, nil, " ", domain.ErrInvalidName},
+		{"missing authorized shop", uuid.Nil, "Corte", domain.ErrInvalidShopID},
+		{"invalid service", uuid.New(), " ", domain.ErrInvalidName},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			repo := &fakeRepository{}
-			shops := &fakeShops{id: uuid.New(), found: tc.found, err: tc.resolverErr}
-			_, err := application.NewCreateService(repo, shops).Execute(context.Background(), application.CreateServiceInput{ShopSlug: "shop", Name: tc.title, DurationMinutes: 30})
+			_, err := application.NewCreateService(repo).Execute(context.Background(), application.CreateServiceInput{ShopID: tc.shopID, Name: tc.title, DurationMinutes: 30})
 			if !errors.Is(err, tc.want) || len(repo.created) != 0 {
 				t.Fatalf("error=%v, writes=%d", err, len(repo.created))
 			}
@@ -87,11 +84,37 @@ func TestRepositoryFailureIsPreserved(t *testing.T) {
 	sentinel := errors.New("storage failure")
 	shops := &fakeShops{id: uuid.New(), found: true}
 	repo := &fakeRepository{err: sentinel}
-	_, err := application.NewCreateService(repo, shops).Execute(context.Background(), application.CreateServiceInput{ShopSlug: "shop", Name: "Corte", DurationMinutes: 30})
+	_, err := application.NewCreateService(repo).Execute(context.Background(), application.CreateServiceInput{ShopID: shops.id, Name: "Corte", DurationMinutes: 30})
 	if !errors.Is(err, sentinel) {
 		t.Fatal(err)
 	}
 	if _, err := application.NewListServices(repo, shops).Execute(context.Background(), "shop"); !errors.Is(err, sentinel) {
 		t.Fatal(err)
+	}
+}
+
+func TestAuthorizedListScopesRepository(t *testing.T) {
+	shopID := uuid.New()
+	repo := &fakeRepository{}
+	uc := application.NewListAuthorizedServices(repo)
+	if _, err := uc.Execute(context.Background(), uuid.Nil); !errors.Is(err, domain.ErrInvalidShopID) || repo.listedShop != uuid.Nil {
+		t.Fatal("missing scope reached persistence", err)
+	}
+	result, err := uc.Execute(context.Background(), shopID)
+	if err != nil || result == nil || len(result) != 0 || repo.listedShop != shopID {
+		t.Fatal("authorized scope or empty result is incorrect", err)
+	}
+	service, err := domain.NewService(shopID, "Corte", "", 30, 3500)
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.services = []domain.Service{service}
+	result, err = uc.Execute(context.Background(), shopID)
+	if err != nil || len(result) != 1 || result[0].ID != service.ID || result[0].Name != service.Name {
+		t.Fatal("service projection is incorrect", err)
+	}
+	repo.err = errors.New("storage unavailable")
+	if _, err := uc.Execute(context.Background(), shopID); !errors.Is(err, repo.err) {
+		t.Fatal("repository failure was not preserved", err)
 	}
 }

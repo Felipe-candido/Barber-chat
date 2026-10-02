@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Barber-chat API
-  version: 0.2.0
-  description: Health/readiness and service catalog. Administrative creation is a local development facility, not production authentication.
+  version: 0.4.0
+  description: Health/readiness, administrative identity and service catalog. Administrative routes require a Supabase ES256 access token and an active local user; shop reads and writes also require an active shop membership. Browser requests require the exact FRONTEND_ORIGIN. Tokens are accepted only in Authorization, never in URL parameters.
 servers:
   - url: http://127.0.0.1:8080
 paths:
@@ -22,6 +22,8 @@ paths:
                   status:
                     type: string
                     const: ok
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /ready:
     get:
       operationId: ready
@@ -49,66 +51,142 @@ paths:
                   status:
                     type: string
                     const: unavailable
-  /api/v1/admin/services:
-    post:
-      operationId: createService
-      summary: Create a service for the server-configured development shop
-      description: Requires DEV_SHOP_SLUG, a loopback listener, local peer/Host and either no Origin or the exact configured DEV_FRONTEND_ORIGIN. Local browser access requires opt-in CORS; this remains unauthenticated development access. The server resolves the active shop; tenant fields are not accepted in JSON. Maximum body size is 64 KiB. Do not expose this development route through a proxy.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateServiceRequest'
-            example:
-              name: Corte masculino
-              description: Corte com máquina e tesoura
-              duration_minutes: 30
-              price_cents: 3500
-      responses:
-        '201':
-          description: Service created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Service'
-        '400':
-          $ref: '#/components/responses/InvalidBody'
         '403':
-          description: Local creation is disabled or the request is not local
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/admin/me:
+    get:
+      operationId: getMyIdentity
+      summary: Return the verified active local identity
+      description: No shop membership is required for this identity-only endpoint. Responses are not cached.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active local identity
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          $ref: '#/components/responses/ShopNotFound'
-        '413':
-          description: Body exceeds 64 KiB
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '415':
-          description: Content-Type must be application/json
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '422':
-          description: Invalid service input or missing price
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/StaffIdentity'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
+    options:
+      operationId: preflightMyIdentity
+      summary: Browser preflight for GET with Authorization
+      responses:
+        '204':
+          $ref: '#/components/responses/Preflight'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/admin/shops:
+    get:
+      operationId: listMyShops
+      summary: List active shops linked to the verified local user
+      description: Only active users, memberships and shops qualify. Returns ID, name and slug ordered by name then ID, including an empty array when no membership qualifies. Does not choose a shop or grant lasting authorization. Identity is derived from the Bearer token, never a client user ID. Responses are not cached.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Eligible shop summaries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccessibleShop'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    options:
+      operationId: preflightMyShops
+      summary: Browser preflight for GET with Authorization
+      responses:
+        '204':
+          $ref: '#/components/responses/Preflight'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/v1/admin/shops/{slug}/services:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      operationId: listShopServices
+      summary: List active services in the authorized shop
+      description: Requires the same current active user/shop membership checks as creation. The query receives only the ShopID from authorization. Returns an empty array when the authorized active shop has no active services. Inactive service management and pagination are not implemented.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Active services in the authorized unit
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Service'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    post:
+      operationId: createShopService
+      summary: Create a service in an authorized shop
+      description: Resolves the active path slug and checks the exact active user/shop membership before decoding the body. Unknown/inactive shops and missing/inactive memberships all return 403. Tenant and user identifiers are not accepted in JSON. Maximum body size is 64 KiB. All active members have the same permissions in this increment.
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: '#/components/requestBodies/CreateService'
+      responses:
+        '201':
+          $ref: '#/components/responses/ServiceCreated'
+        '400':
+          $ref: '#/components/responses/InvalidBody'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/ShopNotFound'
+        '413':
+          $ref: '#/components/responses/BodyTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMedia'
+        '422':
+          $ref: '#/components/responses/InvalidService'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+    options:
+      operationId: preflightShopServices
+      summary: Browser preflight for GET or POST with Authorization
+      responses:
+        '204':
+          $ref: '#/components/responses/Preflight'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /api/v1/public/shops/{slug}/services:
     get:
       operationId: listPublicServices
       summary: List active services of an active shop
-      description: Ordered by name then ID. Returns an empty array for an active shop with no active services. Public reads do not require DEV_SHOP_SLUG.
+      description: Ordered by name then ID. Returns an empty array for an active shop with no active services. Public reads do not require authentication.
       parameters:
         - name: slug
           in: path
@@ -124,14 +202,64 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Service'
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/ShopNotFound'
         '500':
           $ref: '#/components/responses/InternalError'
         '503':
           $ref: '#/components/responses/Unavailable'
+    options:
+      operationId: preflightListPublicServices
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          $ref: '#/components/responses/Preflight'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Supabase ES256 authenticated non-anonymous access token from the configured project; not a publishable, anon, secret or service_role API key.
+  requestBodies:
+    CreateService:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CreateServiceRequest'
   schemas:
+    StaffIdentity:
+      type: object
+      additionalProperties: false
+      required: [user_id, display_name]
+      properties:
+        user_id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+    AccessibleShop:
+      type: object
+      additionalProperties: false
+      required: [shop_id, name, slug]
+      properties:
+        shop_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
     CreateServiceRequest:
       type: object
       additionalProperties: false
@@ -192,6 +320,59 @@ components:
             message:
               type: string
   responses:
+    Unauthorized:
+      description: Missing, malformed, invalid or expired access token
+      headers:
+        WWW-Authenticate:
+          schema:
+            type: string
+          description: Bearer challenge; invalid credentials also include error="invalid_token".
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: Valid identity without eligible local access, or browser origin/method/headers not allowed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Preflight:
+      description: Exact configured origin allowed. Does not authenticate or grant access to the real request. Allows Authorization and Content-Type; no cookie credentials.
+      headers:
+        Access-Control-Allow-Origin:
+          schema:
+            type: string
+        Access-Control-Allow-Methods:
+          schema:
+            type: string
+        Access-Control-Allow-Headers:
+          schema:
+            type: string
+    ServiceCreated:
+      description: Service created in the authorized shop
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Service'
+    BodyTooLarge:
+      description: Body exceeds 64 KiB
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnsupportedMedia:
+      description: Content-Type must be application/json
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InvalidService:
+      description: Invalid service input or missing price
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     InvalidBody:
       description: Invalid JSON, unknown fields or extra content
       content:
@@ -211,7 +392,7 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
     Unavailable:
-      description: Operation timed out or was canceled
+      description: Operation timed out, was canceled or could not obtain the provider's verification keys
       content:
         application/json:
           schema:

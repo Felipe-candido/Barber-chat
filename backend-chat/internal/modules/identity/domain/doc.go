@@ -12,6 +12,6 @@
 // A user's ID is the provider UUID. See migrations and ADR 0009.
 // User and Membership model the initial identifier and active-state invariants.
 // Persistence is implemented in infra/postgres and token verification in
-// infra/supabase. Sessions and administrative identity endpoints remain pending
-// and belong outside this package.
+// infra/supabase. The HTTP boundary exposes the verified local identity;
+// sessions and HTTP endpoints belong outside this package.
 package domain

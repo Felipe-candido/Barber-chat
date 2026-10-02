@@ -1,11 +1,14 @@
 # Testar criação e listagem de serviços
 
-Os dois endpoints implementados são:
+Endpoints implementados:
 
-- POST /api/v1/admin/services: criação, disponível somente com modo local explícito.
+- GET /api/v1/admin/me: identidade local ativa; exige Bearer Supabase.
+- GET /api/v1/admin/shops: unidades elegíveis vinculadas ao usuário; exige Bearer.
+- GET /api/v1/admin/shops/{slug}/services: serviços ativos; exige o vínculo da unidade.
+- POST /api/v1/admin/shops/{slug}/services: criação; exige usuário/unidade/membership ativos.
 - GET /api/v1/public/shops/{slug}/services: lista pública de serviços ativos.
 
-Editar, ativar/desativar e acesso administrativo com usuário/membership ainda não estão implementados.
+Editar e ativar/desativar serviços ainda não estão implementados.
 
 ## Preparar o banco
 
@@ -24,7 +27,7 @@ $env:GOOSE_DBSTRING = $env:DATABASE_URL
 & $goose -dir db/migrations status
 ```
 
-São três migrations: extensão btree_gist, tabelas shops/services, e currency BRL. Migrations antigas não foram alteradas. O status deve mostrar todas aplicadas.
+São quatro migrations comuns: btree_gist, shops/services, moeda BRL e users/memberships. No Supabase, aplicar também a sequência específica de Auth e provisionar o usuário/vínculo, seguindo [autenticação](authentication-proposal.md). Migrations antigas não foram alteradas.
 
 Depois execute o conteúdo de db/seeds/development.sql no SQL Editor do Supabase, ou via psql no banco local. Ele cria uma barbearia de exemplo com slug barbearia-do-felipe. Se esse slug já existir, preserva o registro. Se estiver inativo, escolha uma barbearia ativa; o seed não reativa registros.
 
@@ -41,19 +44,30 @@ O comando acima é para as credenciais locais de .env.example, não para o Supab
 Na pasta `backend-chat`, em um terminal novo:
 
 ```powershell
-$env:DEV_SHOP_SLUG = 'barbearia-do-felipe'
+# Configure SUPABASE_URL no .env com o projeto que emitiu o access token.
 go run ./cmd/api
 ```
 
-Outra opção é adicionar DEV_SHOP_SLUG=barbearia-do-felipe ao seu .env. HTTP_ADDR precisa ser um IP loopback, por exemplo 127.0.0.1:8080. Se houver uma API antiga nessa porta, encerre-a e inicie a nova versão.
+O browser precisa de FRONTEND_ORIGIN exata, sem barra final, e SUPABASE_URL deve corresponder ao projeto do login. Não há slug fixo na configuração. Reinicie a API após mudanças.
 
-Nenhum shop_id é recebido do cliente. A API usa o slug configurado no servidor, consulta shops e passa o UUID resolvido para o domínio. O slug identifica a barbearia, mas não autentica pessoas. Esse modo não deve ser exposto por túnel/proxy; produção precisa de autorização por membership.
+Nenhum shop_id é recebido do cliente. O slug da URL solicita a unidade; o middleware consulta shops e exige membership do usuário autenticado antes de colocar ShopID no contexto. O handler passa esse UUID autorizado ao caso de uso. Slug, Origin ou IP local não concedem acesso.
 
 ## Fazer o primeiro POST
 
 Em outro terminal:
 
 ```powershell
+$tokenInput = Read-Host 'Access token da sessão Supabase (não use refresh token ou chave de API)' -AsSecureString
+$accessToken = [System.Net.NetworkCredential]::new('', $tokenInput).Password
+$headers = @{ Authorization = "Bearer $accessToken" }
+Invoke-RestMethod -Uri 'http://127.0.0.1:8080/api/v1/admin/me' -Headers $headers
+$shops = @(Invoke-RestMethod -Uri 'http://127.0.0.1:8080/api/v1/admin/shops' -Headers $headers)
+$shops | Format-Table shop_id, name, slug
+$chosenSlug = Read-Host 'Slug de uma unidade da lista'
+if (!($shops | Where-Object slug -eq $chosenSlug)) { throw 'Escolha uma unidade vinculada.' }
+$shopPath = [Uri]::EscapeDataString($chosenSlug)
+$adminServicesURL = 'http://127.0.0.1:8080/api/v1/admin/shops/' + $shopPath + '/services'
+
 $body = @{
     name = 'Corte masculino'
     description = 'Corte com máquina e tesoura'
@@ -61,10 +75,12 @@ $body = @{
     price_cents = 3500
 } | ConvertTo-Json
 
-$service = Invoke-RestMethod -Method Post -Uri 'http://127.0.0.1:8080/api/v1/admin/services' -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($body))
+$service = Invoke-RestMethod -Method Post -Uri $adminServicesURL -Headers $headers -ContentType 'application/json; charset=utf-8' -Body ([Text.Encoding]::UTF8.GetBytes($body))
 $service
 
-Invoke-RestMethod -Uri 'http://127.0.0.1:8080/api/v1/public/shops/barbearia-do-felipe/services'
+Invoke-RestMethod -Uri $adminServicesURL -Headers $headers
+Invoke-RestMethod -Uri ('http://127.0.0.1:8080/api/v1/public/shops/' + $shopPath + '/services')
+Remove-Variable accessToken, tokenInput, headers
 ```
 
 POST retorna 201 com id, nome normalizado, descrição, duração, price_cents=3500, currency=BRL e active=true. A listagem retorna um array. Repetir o POST cria outro serviço: deduplicação por nome ou chave de idempotência não faz parte deste incremento.
@@ -73,13 +89,14 @@ POST retorna 201 com id, nome normalizado, descrição, duração, price_cents=3
 
 | Resposta | Conferir |
 | --- | --- |
-| 403 | DEV_SHOP_SLUG não configurado ou requisição fora da fronteira local |
-| 404 | Slug inexistente ou barbearia inativa |
+| 401 | Token ausente, malformado, expirado ou de outro projeto |
+| 403 | Usuário não provisionado/inativo; unidade/vínculo inelegível; Origin não permitida |
+| 404 | Slug público inexistente/inativo, ou unidade desativada entre autorização e INSERT |
 | 400 | JSON inválido, campo desconhecido, shop_id no corpo ou objetos extras |
 | 413 / 415 | Corpo acima de 64 KiB / Content-Type diferente de application/json |
 | 422 | Nome vazio/acima de 100 caracteres, duração inválida, preço ausente/negativo |
 | 500 | Migrations pendentes ou outro erro interno; a resposta não expõe SQL |
-| 503 | Deadline ou cancelamento da operação |
+| 503 | Falha JWKS, deadline ou cancelamento da operação |
 
 /ready testa conectividade, não a presença das tabelas/coluna currency.
 
@@ -112,12 +129,17 @@ go test -tags=integration -count=1 ./tests/integration/...
 
 Os testes de catálogo criam fixtures em transação e fazem rollback ao final. Exercitam POST, leitura persistida, listagem por tenant, barbearia/serviço inativos, validação sem INSERT, FK, checks de preço/duração/moeda e rejeição de criação após desativação. Não aplicam migrations automaticamente. Execute em banco de desenvolvimento; rollback de fixtures não substitui essa escolha.
 
+Com a fixture de identity, TestCatalog exige PostgreSQL de desenvolvimento puro,
+com as quatro migrations comuns. Não use o projeto Supabase com a FK de auth.users
+para esse teste: os UUIDs temporários não são contas reais do provedor. O login
+real é validado separadamente com uma sessão provisionada e as rotas da API.
+
 ## Onde ler a arquitetura
 
 - internal/modules/catalog/infra/doc.go: fluxo ponta a ponta, composição, limites e tenant.
 - internal/modules/catalog/domain/doc.go: entidade, invariantes e erros.
 - internal/modules/catalog/application/doc.go: casos de uso, portas e DTO.
-- internal/modules/catalog/infra/http/doc.go: rotas, validação, modo local e respostas.
+- internal/modules/catalog/infra/http/doc.go: validação, escopo autorizado e respostas.
 - internal/modules/catalog/infra/postgres/doc.go: SQL, mapeamento e pool/transação.
 - internal/modules/shops/infra/postgres/doc.go: resolução de slug sem assumir autorização.
 

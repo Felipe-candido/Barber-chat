@@ -61,6 +61,47 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (GetUserByIDRow
 	return i, err
 }
 
+const listActiveShopsByUser = `-- name: ListActiveShopsByUser :many
+SELECT
+    s.id AS shop_id,
+    s.name,
+    s.slug
+FROM public.shop_memberships AS m
+JOIN public.users AS u ON u.id = m.user_id
+JOIN public.shops AS s ON s.id = m.shop_id
+WHERE m.user_id = $1
+  AND u.active = TRUE
+  AND m.active = TRUE
+  AND s.active = TRUE
+ORDER BY s.name, s.id
+`
+
+type ListActiveShopsByUserRow struct {
+	ShopID uuid.UUID `json:"shop_id"`
+	Name   string    `json:"name"`
+	Slug   string    `json:"slug"`
+}
+
+func (q *Queries) ListActiveShopsByUser(ctx context.Context, userID uuid.UUID) ([]ListActiveShopsByUserRow, error) {
+	rows, err := q.db.Query(ctx, listActiveShopsByUser, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListActiveShopsByUserRow{}
+	for rows.Next() {
+		var i ListActiveShopsByUserRow
+		if err := rows.Scan(&i.ShopID, &i.Name, &i.Slug); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMembershipsByUser = `-- name: ListMembershipsByUser :many
 SELECT
     user_id,

@@ -10,10 +10,10 @@ import (
 )
 
 var (
-	ErrInvalidShopID = errors.New("shop ID is required")
-	ErrInvalidName = errors.New("service name must contain between 1 and 100 characters")
+	ErrInvalidShopID   = errors.New("shop ID is required")
+	ErrInvalidName     = errors.New("service name must contain between 1 and 100 characters")
 	ErrInvalidDuration = errors.New("duration must be between 1 and 2147483647 minutes")
-	ErrInvalidPrice = errors.New("price cannot be negative")
+	ErrInvalidPrice    = errors.New("price cannot be negative")
 )
 
 type Service struct {

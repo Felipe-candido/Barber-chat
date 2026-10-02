@@ -7,32 +7,35 @@ import (
 	"io"
 	"log/slog"
 	"mime"
-	"net"
 	"net/http"
 	"time"
 
+	"github.com/Felipe-candido/Barber-chat/internal/httpapi/requestctx"
+	"github.com/Felipe-candido/Barber-chat/internal/httpapi/response"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/catalog/application"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/catalog/domain"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 )
 
 const maxBodyBytes = 64 << 10
 
 type Handler struct {
-	createService     *application.CreateService
-	listServices      *application.ListServices
-	devShopSlug       string
-	devFrontendOrigin string
-	timeout           time.Duration
-	logger            *slog.Logger
+	createService          *application.CreateService
+	listServices           *application.ListServices
+	listAuthorizedServices *application.ListAuthorizedServices
+	timeout                time.Duration
+	logger                 *slog.Logger
 }
 
-func NewHandler(create *application.CreateService, list *application.ListServices, devShopSlug string, timeout time.Duration, logger *slog.Logger, frontendOrigin ...string) *Handler {
-	h := &Handler{createService: create, listServices: list, devShopSlug: devShopSlug, timeout: timeout, logger: logger}
-	if len(frontendOrigin) > 0 {
-		h.devFrontendOrigin = frontendOrigin[0]
+func NewHandler(create *application.CreateService, list *application.ListServices, authorizedList *application.ListAuthorizedServices, timeout time.Duration, logger *slog.Logger) *Handler {
+	if timeout <= 0 {
+		timeout = 3 * time.Second
 	}
-	return h
+	if logger == nil {
+		logger = slog.Default()
+	}
+	return &Handler{createService: create, listServices: list, listAuthorizedServices: authorizedList, timeout: timeout, logger: logger}
 }
 
 type createServiceRequest struct {
@@ -57,8 +60,8 @@ func responseOf(s application.ServiceOutput) serviceResponse {
 }
 
 func (h *Handler) CreateService(w http.ResponseWriter, r *http.Request) {
-	if h.devShopSlug == "" || !localRequest(r, h.devFrontendOrigin) {
-		writeError(w, http.StatusForbidden, "admin_access_unavailable", "local catalog writes are disabled or this request is not local")
+	shopID, ok := authorizedShopID(w, r)
+	if !ok {
 		return
 	}
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
@@ -91,7 +94,7 @@ func (h *Handler) CreateService(w http.ResponseWriter, r *http.Request) {
 
 	service, err := h.createService.Execute(
 		ctx, application.CreateServiceInput{
-			ShopSlug:        h.devShopSlug,
+			ShopID:          shopID,
 			Name:            request.Name,
 			Description:     request.Description,
 			DurationMinutes: request.DurationMinutes,
@@ -103,6 +106,44 @@ func (h *Handler) CreateService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusCreated, responseOf(service))
+}
+
+func authorizedShopID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	identity, authenticated := requestctx.StaffIdentityFromContext(r.Context())
+	scope, authorized := requestctx.ShopScopeFromContext(r.Context())
+	if !authenticated || identity.UserID == uuid.Nil {
+		w.Header().Set("WWW-Authenticate", `Bearer realm="barber-chat"`)
+		writeError(w, http.StatusUnauthorized, "authentication_required", "authentication is required")
+		return uuid.Nil, false
+	}
+	if !authorized || scope.ShopID == uuid.Nil || scope.UserID != identity.UserID {
+		writeError(w, http.StatusForbidden, "access_denied", "shop access is required")
+		return uuid.Nil, false
+	}
+	return scope.ShopID, true
+}
+
+func (h *Handler) ListShopServices(w http.ResponseWriter, r *http.Request) {
+	shopID, ok := authorizedShopID(w, r)
+	if !ok {
+		return
+	}
+	if h.listAuthorizedServices == nil {
+		writeError(w, http.StatusServiceUnavailable, "temporarily_unavailable", "catalog is unavailable")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
+	defer cancel()
+	services, err := h.listAuthorizedServices.Execute(ctx, shopID)
+	if err != nil {
+		h.writeOperationError(w, err, "list_authorized")
+		return
+	}
+	items := make([]serviceResponse, 0, len(services))
+	for _, service := range services {
+		items = append(items, responseOf(service))
+	}
+	writeJSON(w, http.StatusOK, items)
 }
 
 func (h *Handler) ListServices(w http.ResponseWriter, r *http.Request) {
@@ -118,25 +159,6 @@ func (h *Handler) ListServices(w http.ResponseWriter, r *http.Request) {
 		response = append(response, responseOf(s))
 	}
 	writeJSON(w, http.StatusOK, response)
-}
-
-// Local development access is not authentication. Never expose it through a proxy.
-func localRequest(r *http.Request, allowedOrigin string) bool {
-	remote, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil || !net.ParseIP(remote).IsLoopback() {
-		return false
-	}
-	host := r.Host
-	if parsed, _, err := net.SplitHostPort(host); err == nil {
-		host = parsed
-	}
-	if host != "localhost" && !net.ParseIP(host).IsLoopback() {
-		return false
-	}
-	if origin := r.Header.Get("Origin"); origin != "" {
-		return allowedOrigin != "" && origin == allowedOrigin
-	}
-	return r.Header.Get("Sec-Fetch-Site") != "cross-site"
 }
 
 func writeDecodeError(w http.ResponseWriter, err error) {
@@ -162,11 +184,8 @@ func (h *Handler) writeOperationError(w http.ResponseWriter, err error, operatio
 	}
 }
 func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, map[string]any{"error": map[string]string{"code": code, "message": message}})
+	response.Error(w, status, code, message)
 }
 func writeJSON(w http.ResponseWriter, status int, value any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(value)
+	response.JSON(w, status, value)
 }
