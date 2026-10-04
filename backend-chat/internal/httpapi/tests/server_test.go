@@ -89,7 +89,7 @@ func TestGracefulShutdownDrainsRequest(t *testing.T) {
 		w.WriteHeader(http.StatusNoContent)
 	})
 	done := make(chan error, 1)
-	go func() { done <- httpapi.Serve(ctx, listener, h, 2*time.Second, testLogger()) }()
+	go func() { done <- httpapi.Serve(ctx, listener, h, 30*time.Second, 2*time.Second, testLogger()) }()
 	response := make(chan error, 1)
 	go func() {
 		client := &http.Client{Timeout: 3 * time.Second}

@@ -1,17 +1,14 @@
-// Package domain defines appointment and calendar rules.
+// Package domain owns appointment snapshots, creation/cancellation rules and
+// calendar calculations. Contacts belong to customers; services/professionals
+// belong to catalog. No transport or persistence dependencies enter this layer.
 //
-// It owns appointments, their state transitions, immutable service snapshots,
-// working hours, breaks, time off and calendar blocks. Availability combines
-// those rules with tenant-scoped catalog data and the shop's IANA timezone.
+// SlotPolicy rounds service duration plus buffer to whole configurable blocks.
+// Calendar resolves civil working windows in the shop's IANA timezone, excludes
+// busy intervals and past starts, and conservatively omits ambiguous/nonexistent
+// DST times. Persisted appointments use UTC instants and half-open [start,end)
+// reservations. A cancelled appointment releases its interval.
 //
-// Customer contact records belong to customers. Service definitions belong to
-// catalog. Delivery attempts belong to notifications. Booking owns the decision
-// that an appointment was created, confirmed, cancelled or completed.
-//
-// The planned states are scheduled, confirmed, cancelled, completed and no_show.
-// Overlap protection is a database invariant as well as a business rule; pure
-// Go validation must never be presented as a double-booking guarantee.
-//
-// This package documents the domain boundary only. The sibling application package
-// will orchestrate real workflows; no appointment behavior is implemented yet.
+// Pure validation improves feedback; PostgreSQL exclusion constraints and shared
+// transactional professional locks provide the concurrent integrity guarantee.
+// Only creation and cancellation are executable transitions in this increment.
 package domain

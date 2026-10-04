@@ -45,13 +45,13 @@ func Preflight(methods ...string) http.HandlerFunc {
 		}
 		for _, header := range strings.Split(r.Header.Get("Access-Control-Request-Headers"), ",") {
 			header = strings.TrimSpace(header)
-			if header != "" && !strings.EqualFold(header, "Authorization") && !strings.EqualFold(header, "Content-Type") {
+			if header != "" && !strings.EqualFold(header, "Authorization") && !strings.EqualFold(header, "Content-Type") && !strings.EqualFold(header, "Idempotency-Key") {
 				response.Error(w, http.StatusForbidden, "origin_not_allowed", "preflight header is not allowed")
 				return
 			}
 		}
 		w.Header().Set("Access-Control-Allow-Methods", strings.Join(methods, ", "))
-		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key")
 		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(http.StatusNoContent)
 	}

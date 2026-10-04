@@ -1,7 +1,17 @@
-export const configuredShopSlug = (process.env.NEXT_PUBLIC_SHOP_SLUG ?? "").trim();
-export const publicBookingPath = configuredShopSlug
-  ? "/b/" + encodeURIComponent(configuredShopSlug)
-  : "/chat";
+export function shopPathSegment(slug: string) {
+  if (!slug || slug !== slug.trim() || /[\/\\\s]/.test(slug) || slug === "." || slug === "..") {
+    throw new Error("Informe o slug válido de uma barbearia.");
+  }
+  return encodeURIComponent(slug);
+}
+
+export function adminShopPath(slug: string) {
+  return "/admin/" + shopPathSegment(slug);
+}
+
+export function publicBookingPath(slug: string) {
+  return "/b/" + shopPathSegment(slug);
+}
 
 export function apiBaseURL() {
   const raw = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8080";

@@ -22,10 +22,12 @@ import {
 import { Brand, Modal } from "./ui";
 import { useFeedback } from "./feedback-provider";
 import { signInWithPassword } from "@/lib/supabase/auth";
+import { useAdminAccess } from "./admin-access-provider";
 
 export function LoginPage() {
   const router = useRouter();
   const { notify } = useFeedback();
+  const { refresh } = useAdminAccess();
   const [visible, setVisible] = useState(false);
   const [help, setHelp] = useState<"recovery" | "invitation" | null>(null);
   const [recoveryPreview, setRecoveryPreview] = useState(false);
@@ -152,7 +154,8 @@ export function LoginPage() {
                   );
                   form.reset();
                   setVisible(false);
-                  notify("Acesso confirmado pelo Supabase.");
+                  await refresh();
+                  notify("Identidade validada. Escolha sua barbearia.");
                   router.replace("/admin");
                 } catch (error) {
                   setLoginError(
@@ -220,18 +223,18 @@ export function LoginPage() {
             </form>
             <div className="login-divider">
               <span />
-              ou conheça o espaço
+              já possui uma sessão?
               <span />
             </div>
             <Link href="/admin" className="button button-secondary login-explore">
-              Explorar interface
+              Continuar com sessão ativa
               <ArrowUpRight size={15} />
             </Link>
             <p className="login-invitation">
               Ainda não recebeu seu acesso?
               <br />
               <button onClick={() => setHelp("invitation")}>
-                Saiba como funciona o convite
+                Como obter acesso
                 <ArrowRight size={13} />
               </button>
             </p>
@@ -253,7 +256,7 @@ export function LoginPage() {
           onClose={closeHelp}
           title={
             help === "invitation"
-              ? "Seu acesso começa com um convite"
+              ? "Como seu acesso é liberado"
               : recoveryPreview
                 ? "Prévia de recuperação"
                 : "Recuperar seu acesso"
@@ -270,21 +273,21 @@ export function LoginPage() {
                 <Mail size={24} />
               </span>
               <p>
-                O acesso administrativo será liberado por convite. A administração cadastra a
-                barbearia e convida o proprietário pelo e-mail dele.
+                Por enquanto, o responsável cria sua conta no Supabase Auth e cadastra seu perfil
+                local, a barbearia e o vínculo no banco de dados.
               </p>
               <p>
-                O proprietário define a própria senha e, depois, poderá convidar a equipe com as
-                permissões adequadas. Não é necessário compartilhar uma senha.
+                Use seu próprio e-mail e senha. Não é necessário compartilhar uma senha: cada pessoa
+                da equipe possui uma conta e os seus vínculos.
               </p>
               <div className="inline-hint">
-                Nesta demonstração, nenhum convite é criado. Você pode conhecer o painel sem uma
-                conta.
+                Não há cadastro automático ou envio de convites nesta tela. Ter uma conta no
+                Supabase não basta: o Go também verifica seu perfil e os vínculos ativos.
               </div>
-              <Link href="/admin" className="button button-primary" onClick={closeHelp}>
-                Explorar interface
+              <button className="button button-primary" onClick={closeHelp}>
+                Voltar ao login
                 <ArrowRight size={16} />
-              </Link>
+              </button>
             </div>
           ) : recoveryPreview ? (
             <div className="login-help">

@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertCircle,
   ArrowUpRight,
@@ -13,7 +13,8 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { configuredShopSlug, publicBookingPath } from "@/lib/api/config";
+import { publicBookingPath } from "@/lib/api/config";
+import { useSelectedShop } from "./shop-panel";
 import { createService, priceToCents } from "@/lib/api/services";
 import { errorMessage } from "@/lib/api/client";
 import { useServices } from "@/hooks/use-services";
@@ -22,7 +23,8 @@ import { useFeedback } from "./feedback-provider";
 import { EmptyState, Modal } from "./ui";
 
 export function ServicesPage() {
-  const { services, loading, error, reload } = useServices(configuredShopSlug);
+  const shop = useSelectedShop();
+  const { services, loading, error, errorStatus, reload } = useServices(shop.slug, "admin");
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
   const filtered = services.filter((s) =>
@@ -36,11 +38,11 @@ export function ServicesPage() {
           <h1>
             Seu catálogo de serviços<span className="heading-dot">.</span>
           </h1>
-          <p>Serviços ativos da barbearia {configuredShopSlug || "a configurar"}.</p>
+          <p>Serviços ativos de {shop.name}.</p>
         </div>
         <button
           className="button button-primary"
-          disabled={!configuredShopSlug}
+          disabled={errorStatus === 401 || errorStatus === 403}
           onClick={() => setCreating(true)}
         >
           <Plus size={18} />
@@ -58,14 +60,14 @@ export function ServicesPage() {
             Os serviços abaixo são consultados na API. Agendamentos ainda não estão disponíveis.
           </p>
         </div>
-        <Link href={publicBookingPath} className="button button-secondary">
+        <Link href={publicBookingPath(shop.slug)} className="button button-secondary">
           Ver como cliente
           <ArrowUpRight size={16} />
         </Link>
       </div>
       <div className="inline-hint integration-note">
         A listagem atual retorna somente serviços ativos. Edição, exclusão, categorias e ativação
-        aguardam suporte do backend. A criação usa a barbearia configurada no servidor.
+        aguardam suporte do backend. Cada leitura e criação valida seu vínculo com esta barbearia.
       </div>
       <div className="catalog-toolbar">
         <button
@@ -99,6 +101,14 @@ export function ServicesPage() {
           <button className="button button-secondary" onClick={() => void reload()}>
             Tentar novamente
           </button>
+          {(errorStatus === 401 || errorStatus === 403) && (
+            <Link
+              className="button button-secondary"
+              href={errorStatus === 401 ? "/login" : "/admin"}
+            >
+              {errorStatus === 401 ? "Entrar novamente" : "Escolher outra barbearia"}
+            </Link>
+          )}
         </div>
       ) : (
         <>
@@ -160,6 +170,7 @@ export function ServicesPage() {
       )}
       {creating && (
         <ServiceForm
+          slug={shop.slug}
           onClose={() => setCreating(false)}
           onCreated={() => {
             setCreating(false);
@@ -170,11 +181,21 @@ export function ServicesPage() {
     </>
   );
 }
-function ServiceForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function ServiceForm({
+  slug,
+  onClose,
+  onCreated,
+}: {
+  slug: string;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
   const { notify } = useFeedback();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const inFlight = useRef(false);
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => () => request.current?.abort(), []);
   return (
     <Modal
       open
@@ -200,14 +221,17 @@ function ServiceForm({ onClose, onCreated }: { onClose: () => void; onCreated: (
             };
             inFlight.current = true;
             setSaving(true);
-            const saved = await createService(input);
+            const controller = new AbortController();
+            request.current = controller;
+            const saved = await createService(slug, input, controller.signal);
+            if (controller.signal.aborted) return;
             notify("Serviço “" + saved.name + "” criado na API.");
             onCreated();
           } catch (error) {
-            setError(errorMessage(error));
+            if (!request.current?.signal.aborted) setError(errorMessage(error));
           } finally {
             inFlight.current = false;
-            setSaving(false);
+            if (!request.current?.signal.aborted) setSaving(false);
           }
         }}
       >

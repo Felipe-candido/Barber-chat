@@ -8,10 +8,17 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/Felipe-candido/Barber-chat/internal/config"
 	db "github.com/Felipe-candido/Barber-chat/internal/database/sqlc"
 	"github.com/Felipe-candido/Barber-chat/internal/httpapi"
+	bookingapp "github.com/Felipe-candido/Barber-chat/internal/modules/booking/application"
+	bookinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/http"
+	bookingpostgres "github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/postgres"
+	"github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/security"
+	customersinfra "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra"
+	customerspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra/postgres"
 
 	catalogapp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/application"
 	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
@@ -79,11 +86,37 @@ func run(
 	listAuthorizedServices := catalogapp.NewListAuthorizedServices(catalogRepository)
 
 	catalogHandler := cataloghttp.NewHandler(createService, listServices, listAuthorizedServices, cfg.DBTimeout, logger)
+	professionalTransactions := catalogpostgres.NewProfessionalTransactor(pool, func(q *db.Queries) catalogapp.ProfessionalTx {
+		return catalogapp.ProfessionalTx{Professionals: catalogpostgres.NewRepository(q), Schedule: bookingpostgres.NewRepository(q)}
+	})
+	professionalHandler := cataloghttp.NewProfessionalHandler(catalogapp.NewCreateProfessional(professionalTransactions),
+		catalogapp.NewListProfessionals(catalogRepository), cfg.OperationTimeout, logger)
+
+	bookingTransactions := bookingpostgres.NewTransactor(pool, func(q *db.Queries) bookingapp.BookingTx {
+		repository := bookingpostgres.NewRepository(q)
+		return bookingapp.BookingTx{
+			Shops: shopspostgres.NewResolver(q), Catalog: catalogpostgres.NewRepository(q),
+			Schedule: repository, Customers: customerspostgres.NewBookingContacts(q),
+			Appointments: repository, Idempotency: repository,
+		}
+	})
+	clock := bookingapp.ClockFunc(time.Now)
+	codes := security.Codes{}
+	bookingHandler := bookinghttp.NewHandler(
+		bookingapp.NewCreateAppointment(bookingTransactions, customersinfra.ContactNormalizer{}, codes, clock),
+		bookingapp.NewListAvailability(bookingTransactions, clock),
+		bookingapp.NewListProfessionals(bookingTransactions, clock),
+		bookingapp.NewManageAppointment(bookingTransactions, codes, clock), cfg.OperationTimeout, logger,
+	)
 
 	// Register HTTP adapters and dependency probes.
+	agendaHandler := bookinghttp.NewAgendaHandler(bookingapp.NewListAgenda(shopResolver, bookingpostgres.NewRepository(queries), clock), cfg.OperationTimeout, logger)
 	handler := httpapi.NewHandler(httpapi.HandlerConfig{
 		CheckDB:        pool.Ping,
 		Catalog:        catalogHandler,
+		Professionals:  professionalHandler,
+		Booking:        bookingHandler,
+		Agenda:         agendaHandler,
 		Authenticate:   authenticate,
 		AuthorizeShop:  authorizeShop,
 		ListMyShops:    listMyShops,
@@ -104,6 +137,8 @@ func run(
 		"HTTP listener opened",
 		"address",
 		listener.Addr().String(),
+		"operation_timeout", cfg.OperationTimeout.String(),
+		"request_timeout", cfg.HTTPTimeout.String(),
 	)
 
 	// Serve requests until shutdown.
@@ -111,6 +146,7 @@ func run(
 		ctx,
 		listener,
 		handler,
+		cfg.HTTPTimeout,
 		cfg.ShutdownTimeout,
 		logger,
 	)

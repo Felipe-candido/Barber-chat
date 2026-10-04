@@ -1,4 +1,4 @@
-import { AgendaPage } from "@/components/agenda-page";
+import { ShopSelectionPage } from "@/components/shop-selection-page";
 export default function Page() {
-  return <AgendaPage />;
+  return <ShopSelectionPage />;
 }

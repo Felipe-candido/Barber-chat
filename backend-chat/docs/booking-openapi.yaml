@@ -1,0 +1,370 @@
+# Referenced by openapi.yaml; this is a contract fragment, not a separate API.
+paths:
+  adminAgenda:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+      - name: month
+        in: query
+        description: YYYY-MM, defaults to the current month in the shop timezone. Years 1900 through 9998. Returns six complete Monday-first weeks including adjacent-month dates.
+        schema: {type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'}
+      - name: after
+        in: query
+        description: Opaque next_cursor from the same month. A pagination position, never an authorization credential. Refresh starts over; concurrent changes are not a snapshot across pages. Unknown, empty and repeated query parameters are rejected.
+        schema: {type: string, maxLength: 160}
+    get:
+      operationId: listAdminAgenda
+      summary: Private appointment agenda for an authorized shop
+      description: Requires active user, shop and membership. Tenant comes exclusively from middleware. Includes all statuses, even inactive professionals and services, using booking snapshots and current local customer contact. No consultation code, hash or internal customer ID. Responses use Cache-Control no-store.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Up to 100 appointments ordered by start and UUID; next_cursor is null on the last page. until_date is exclusive. Group instants using shop_timezone.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [month, today, from_date, until_date, shop_timezone, appointments, next_cursor]
+                properties:
+                  month: {type: string}
+                  today: {type: string, format: date}
+                  from_date: {type: string, format: date}
+                  until_date: {type: string, format: date}
+                  shop_timezone: {type: string}
+                  next_cursor: {type: [string, 'null'], maxLength: 160}
+                  appointments:
+                    type: array
+                    maxItems: 100
+                    items:
+                      allOf:
+                        - $ref: '#/components/schemas/Receipt'
+                        - type: object
+                          required: [customer_name, customer_phone]
+                          properties:
+                            customer_name: {type: string}
+                            customer_phone: {type: string, description: Private E.164 contact; never returned by public receipt endpoints}
+        '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+        '422': {$ref: '#/components/responses/BookingError'}
+        default: {$ref: '#/components/responses/BookingError'}
+    options:
+      operationId: preflightAdminAgenda
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+  professionals:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+      - $ref: '#/components/parameters/ServiceID'
+    get:
+      operationId: listBookableProfessionals
+      summary: Active professionals enabled for this service
+      security: []
+      responses:
+        '200':
+          description: Eligible professionals and shop-local booking date limits
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [shop_name, shop_timezone, today, last_booking_date, professionals]
+                properties:
+                  shop_name: {type: string}
+                  shop_timezone: {type: string}
+                  today: {type: string, format: date}
+                  last_booking_date: {type: string, format: date}
+                  professionals:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name]
+                      properties:
+                        id: {type: string, format: uuid}
+                        name: {type: string}
+        default:
+          $ref: '#/components/responses/BookingError'
+    options:
+      operationId: preflightBookableProfessionals
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+  availability:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+      - $ref: '#/components/parameters/ServiceID'
+      - name: professional_id
+        in: query
+        required: true
+        schema: {type: string, format: uuid}
+      - name: date
+        in: query
+        required: true
+        description: Civil date in the shop timezone, today through 90 days ahead
+        schema: {type: string, format: date}
+    get:
+      operationId: listAvailability
+      summary: Observe available full reservation intervals; does not hold slots
+      security: []
+      responses:
+        '200':
+          description: Availability observation, including an empty slots array
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [shop_timezone, slots]
+                properties:
+                  shop_timezone: {type: string}
+                  slots:
+                    type: array
+                    items:
+                      type: object
+                      required: [starts_at, ends_at]
+                      properties:
+                        starts_at: {type: string, format: date-time}
+                        ends_at: {type: string, format: date-time}
+        default:
+          $ref: '#/components/responses/BookingError'
+    options:
+      operationId: preflightAvailability
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+  appointments:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+    post:
+      operationId: createAppointment
+      summary: Atomically reserve a slot and return its private consultation code
+      description: Same normalized input and key replays the original receipt for 24 hours. Different input or an expired key returns 409. Keep the key secret and reuse it after ambiguous failures. No WhatsApp is sent. Maximum JSON body 8 KiB; unknown fields are rejected.
+      security: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: 32 cryptographically random bytes, lowercase hex; not a human-chosen identifier
+          schema: {type: string, pattern: '^[0-9a-f]{64}$'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateAppointment'}
+      responses:
+        '201': {$ref: '#/components/responses/Created'}
+        '200': {$ref: '#/components/responses/Created'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        default: {$ref: '#/components/responses/BookingError'}
+    options:
+      operationId: preflightCreateAppointment
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+  lookup:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+    post:
+      operationId: lookupAppointment
+      summary: Read only the appointment associated with this secret code and shop
+      description: Code goes in the body, never the URL. No customer contact or history is returned. UUID and phone are not lookup credentials.
+      security: []
+      requestBody: {$ref: '#/components/requestBodies/Code'}
+      responses:
+        '200': {$ref: '#/components/responses/Details'}
+        default: {$ref: '#/components/responses/BookingError'}
+    options:
+      operationId: preflightLookupAppointment
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+  cancel:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+    post:
+      operationId: cancelAppointment
+      summary: Cancel before the start; repeated successful cancellation is harmless
+      security: []
+      requestBody: {$ref: '#/components/requestBodies/Code'}
+      responses:
+        '200': {$ref: '#/components/responses/Details'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        default: {$ref: '#/components/responses/BookingError'}
+    options:
+      operationId: preflightCancelAppointment
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+  adminProfessionals:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+    get:
+      operationId: listShopProfessionals
+      summary: List professionals and service associations in the authorized shop
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Professionals, including inactive records
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Professional'}
+        '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+        default: {$ref: '#/components/responses/BookingError'}
+    post:
+      operationId: createShopProfessional
+      summary: Create professional, active service associations and initial calendar atomically
+      description: Active local identity and shop membership required. All members currently have equal permission. Does not create a Supabase account. Maximum body 64 KiB. Not idempotent; check the list before retrying an ambiguous failure.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name, service_ids, schedule]
+              properties:
+                name: {type: string, minLength: 1, maxLength: 100}
+                service_ids:
+                  type: array
+                  minItems: 1
+                  maxItems: 100
+                  uniqueItems: true
+                  items: {type: string, format: uuid}
+                schedule: {$ref: '#/components/schemas/InitialSchedule'}
+      responses:
+        '201':
+          description: Professional created with initial calendar
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Professional'}
+        '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+        default: {$ref: '#/components/responses/BookingError'}
+    options:
+      operationId: preflightShopProfessionals
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+components:
+  parameters:
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema: {type: string, minLength: 1}
+    ServiceID:
+      name: service_id
+      in: query
+      required: true
+      schema: {type: string, format: uuid}
+  requestBodies:
+    Code:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [code]
+            properties:
+              code:
+                type: string
+                maxLength: 80
+                description: 160-bit random code, 32 base32 characters, optionally grouped with hyphens; case-insensitive
+  schemas:
+    InitialSchedule:
+      type: object
+      additionalProperties: false
+      required: [interval_minutes, buffer_minutes, weekdays, opens_at_minute, closes_at_minute]
+      properties:
+        interval_minutes: {type: integer, minimum: 1, maximum: 1440}
+        buffer_minutes: {type: integer, minimum: 0, maximum: 1440}
+        weekdays:
+          type: array
+          minItems: 1
+          maxItems: 7
+          uniqueItems: true
+          description: Sunday 0 through Saturday 6
+          items: {type: integer, minimum: 0, maximum: 6}
+        opens_at_minute: {type: integer, minimum: 0, maximum: 1439}
+        closes_at_minute: {type: integer, minimum: 1, maximum: 1440}
+    Professional:
+      type: object
+      required: [id, name, active, service_ids]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        active: {type: boolean}
+        service_ids:
+          type: array
+          items: {type: string, format: uuid}
+    CreateAppointment:
+      type: object
+      additionalProperties: false
+      required: [service_id, professional_id, starts_at, customer]
+      properties:
+        service_id: {type: string, format: uuid}
+        professional_id: {type: string, format: uuid}
+        starts_at: {type: string, format: date-time}
+        customer:
+          type: object
+          additionalProperties: false
+          required: [first_name, last_name, phone, phone_country]
+          properties:
+            first_name: {type: string, minLength: 1, maxLength: 100}
+            last_name: {type: string, minLength: 1, maxLength: 100}
+            phone: {type: string, maxLength: 40}
+            phone_country: {type: string, minLength: 2, maxLength: 2}
+    Receipt:
+      type: object
+      required: [id, shop_name, status, service_name, duration_minutes, price_cents, currency, professional_id, professional_name, starts_at, ends_at, shop_timezone]
+      properties:
+        id: {type: string, format: uuid}
+        shop_name: {type: string}
+        status: {type: string, enum: [scheduled, confirmed, cancelled, completed, no_show]}
+        service_name: {type: string}
+        duration_minutes: {type: integer, minimum: 1, maximum: 1440}
+        price_cents: {type: integer, minimum: 0}
+        currency: {type: string, const: BRL}
+        professional_id: {type: string, format: uuid}
+        professional_name: {type: string}
+        starts_at: {type: string, format: date-time}
+        ends_at:
+          type: string
+          format: date-time
+          description: End of the full reserved interval, including grid rounding and buffer
+        shop_timezone: {type: string}
+  responses:
+    Created:
+      description: Original receipt and code; replayed is false for 201 and true for 200. Refresh by code to see later status changes.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [appointment, code, replayed]
+            properties:
+              appointment: {$ref: '#/components/schemas/Receipt'}
+              code: {type: string}
+              replayed: {type: boolean}
+    Details:
+      description: Current receipt and cancellation eligibility; no customer contact information
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [appointment, can_cancel]
+            properties:
+              appointment: {$ref: '#/components/schemas/Receipt'}
+              can_cancel: {type: boolean}
+    Conflict:
+      description: slot_unavailable, idempotency_conflict, idempotency_expired or cancellation_closed
+      content:
+        application/json:
+          schema: {$ref: './openapi.yaml#/components/schemas/Error'}
+    BookingError:
+      description: '400 invalid JSON; 403 disallowed origin/access; 404 shop/selection/appointment not found; 413 oversized body; 415 invalid content type; 422 invalid input; 429 public booking rate limit; 500 internal failure; 503 timeout/unavailable. See api-contract.md for operation-specific limits.'
+      content:
+        application/json:
+          schema: {$ref: './openapi.yaml#/components/schemas/Error'}

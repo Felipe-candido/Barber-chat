@@ -1,7 +1,46 @@
 import type { Page } from "@playwright/test";
+import type { AccessibleShop } from "../src/lib/api/identity";
 
 export const testEmail = "admin@example.com";
 export const testPassword = "correct-horse-battery-staple";
+export const testIdentity = {
+  user_id: "11111111-1111-4111-8111-111111111111",
+  display_name: "Felipe",
+};
+export const testShop: AccessibleShop = {
+  shop_id: "33333333-3333-4333-8333-333333333333",
+  name: "Barbearia do Felipe",
+  slug: "barbearia-do-felipe",
+};
+export const otherShop: AccessibleShop = {
+  shop_id: "44444444-4444-4444-8444-444444444444",
+  name: "Barbearia Centro",
+  slug: "barbearia-centro",
+};
+
+export const emptyAgenda = {
+  month: "2026-10",
+  today: "2026-10-03",
+  from_date: "2026-09-28",
+  until_date: "2026-11-09",
+  shop_timezone: "America/Sao_Paulo",
+  appointments: [],
+  next_cursor: null,
+};
+
+export async function mockAdminAccess(page: Page, shops = [testShop]) {
+  await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/appointments*", (route) =>
+    route.fulfill({ json: emptyAgenda }),
+  );
+  for (const [path, payload] of [
+    ["me", testIdentity],
+    ["shops", shops],
+  ] as const) {
+    await page.route("http://127.0.0.1:8080/api/v1/admin/" + path, (route) =>
+      route.fulfill({ json: payload }),
+    );
+  }
+}
 
 export function createTestSession() {
   const now = Math.floor(Date.now() / 1000);
@@ -45,7 +84,12 @@ export function createTestSession() {
 export async function installSupabaseSession(page: Page) {
   const session = createTestSession();
   await page.addInitScript(
-    ({ value }) => localStorage.setItem("sb-test-project-auth-token", JSON.stringify(value)),
+    ({ value }) => {
+      if (!sessionStorage.getItem("test-session-installed")) {
+        localStorage.setItem("sb-test-project-auth-token", JSON.stringify(value));
+        sessionStorage.setItem("test-session-installed", "true");
+      }
+    },
     { value: session.response },
   );
   return session;

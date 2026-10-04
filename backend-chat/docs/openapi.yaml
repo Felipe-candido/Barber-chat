@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: Barber-chat API
-  version: 0.4.0
-  description: Health/readiness, administrative identity and service catalog. Administrative routes require a Supabase ES256 access token and an active local user; shop reads and writes also require an active shop membership. Browser requests require the exact FRONTEND_ORIGIN. Tokens are accepted only in Authorization, never in URL parameters.
+  version: 0.6.0
+  description: Health/readiness, administrative identity, services/professionals and public booking. Administrative routes require a Supabase ES256 access token and an active local user; shop reads and writes also require an active shop membership. Public appointments use a private consultation code, not staff login. Browser requests require the exact FRONTEND_ORIGIN. Secrets are never accepted in URL parameters.
 servers:
   - url: http://127.0.0.1:8080
 paths:
@@ -223,6 +223,20 @@ paths:
           $ref: '#/components/responses/Preflight'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/v1/public/shops/{slug}/professionals:
+    $ref: './booking-openapi.yaml#/paths/professionals'
+  /api/v1/public/shops/{slug}/availability:
+    $ref: './booking-openapi.yaml#/paths/availability'
+  /api/v1/public/shops/{slug}/appointments:
+    $ref: './booking-openapi.yaml#/paths/appointments'
+  /api/v1/public/shops/{slug}/appointments/lookup:
+    $ref: './booking-openapi.yaml#/paths/lookup'
+  /api/v1/public/shops/{slug}/appointments/cancel:
+    $ref: './booking-openapi.yaml#/paths/cancel'
+  /api/v1/admin/shops/{slug}/professionals:
+    $ref: './booking-openapi.yaml#/paths/adminProfessionals'
+  /api/v1/admin/shops/{slug}/appointments:
+    $ref: './booking-openapi.yaml#/paths/adminAgenda'
 components:
   securitySchemes:
     bearerAuth:
@@ -338,7 +352,7 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
     Preflight:
-      description: Exact configured origin allowed. Does not authenticate or grant access to the real request. Allows Authorization and Content-Type; no cookie credentials.
+      description: Exact configured origin allowed. Does not authenticate or grant access to the real request. Allows Authorization, Content-Type and Idempotency-Key; no cookie credentials.
       headers:
         Access-Control-Allow-Origin:
           schema:

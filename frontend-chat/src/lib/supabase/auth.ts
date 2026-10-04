@@ -66,7 +66,7 @@ export async function signOut(): Promise<void> {
   } catch (error) {
     throw configurationError(error);
   }
-  const { error } = await client.auth.signOut();
+  const { error } = await client.auth.signOut({ scope: "local" });
   if (error) {
     throw new AuthenticationError(
       "Não foi possível encerrar a sessão. Tente novamente.",

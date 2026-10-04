@@ -1,5 +1,11 @@
 import { test, expect, Page } from "@playwright/test";
-import { installSupabaseSession } from "./supabase-fixture";
+import {
+  installSupabaseSession,
+  mockAdminAccess,
+  testIdentity,
+  testShop,
+  emptyAgenda,
+} from "./supabase-fixture";
 
 // HTTP fixtures exercise the UI contract only; they are never shipped to the application.
 const sample = {
@@ -28,7 +34,15 @@ async function intercept(
       });
       return;
     }
-    const result = handler(request.method(), request.postData() ? request.postDataJSON() : null);
+    const path = new URL(request.url()).pathname;
+    const result =
+      path === "/api/v1/admin/me"
+        ? { json: testIdentity }
+        : path === "/api/v1/admin/shops"
+          ? { json: [testShop] }
+          : path.startsWith("/api/v1/admin/shops/") && path.endsWith("/appointments")
+            ? { json: emptyAgenda }
+            : handler(request.method(), request.postData() ? request.postDataJSON() : null);
     await route.fulfill({
       status: result.status ?? 200,
       contentType: "application/json",
@@ -51,7 +65,7 @@ test("lists API data, creates with the real payload and reloads the list", async
     }
     return { json: items };
   });
-  await page.goto("/admin/servicos");
+  await page.goto("/admin/barbearia-do-felipe/servicos");
   await expect(page.getByRole("heading", { name: "Corte da API", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Adicionar serviço", exact: true }).click();
   const dialog = page.getByRole("dialog");
@@ -72,6 +86,7 @@ test("lists API data, creates with the real payload and reloads the list", async
   await expect(page.getByRole("button", { name: "Excluir Corte novo" })).toBeDisabled();
 });
 test("empty and failed lists never restore legacy demonstration data", async ({ page }) => {
+  await installSupabaseSession(page);
   let fail = true;
   await intercept(page, () =>
     fail
@@ -87,7 +102,7 @@ test("empty and failed lists never restore legacy demonstration data", async ({ 
       JSON.stringify({ services: [{ name: "Old mock" }] }),
     ),
   );
-  await page.goto("/admin/servicos");
+  await page.goto("/admin/barbearia-do-felipe/servicos");
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "temporariamente indisponível",
   );
@@ -96,24 +111,32 @@ test("empty and failed lists never restore legacy demonstration data", async ({ 
   await page.getByRole("button", { name: "Tentar novamente" }).click();
   await expect(page.getByRole("heading", { name: "Nenhum serviço ativo" })).toBeVisible();
 });
-test("public chat loads the slug from its URL and cannot book", async ({ page }) => {
+test("public chat loads its slug and requires a configured professional", async ({ page }) => {
   const requested: string[] = [];
   await page.route("http://127.0.0.1:8080/api/v1/**", async (route) => {
     requested.push(route.request().url());
     await route.fulfill({
-      json: [sample],
+      json: route.request().url().includes("/professionals?")
+        ? {
+            shop_name: "Outra barbearia",
+            shop_timezone: "America/Sao_Paulo",
+            today: "2026-10-05",
+            last_booking_date: "2027-01-03",
+            professionals: [],
+          }
+        : [sample],
       headers: { "Access-Control-Allow-Origin": "http://127.0.0.1:3100" },
     });
   });
   await page.goto("/b/outra-barbearia");
   await page.getByRole("button", { name: /Corte da API/ }).click();
   expect(requested[0]).toContain("/api/v1/public/shops/outra-barbearia/services");
-  await expect(page.getByText("Agendamento ainda indisponível.")).toBeVisible();
+  await expect(page.getByText("Nenhum profissional habilitado", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: /Confirmar.*agendamento/ })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Painel|agenda/ })).toHaveCount(0);
 });
 for (const [status, code, text] of [
-  [403, "admin_access_unavailable", "criação local está desabilitada"],
+  [403, "access_denied", "Acesso não liberado"],
   [404, "shop_not_found", "Barbearia não encontrada"],
   [422, "invalid_service", "Revise o nome"],
   [500, "internal_error", "não conseguiu concluir"],
@@ -128,7 +151,7 @@ for (const [status, code, text] of [
       }
       return { json: [sample] };
     });
-    await page.goto("/admin/servicos");
+    await page.goto("/admin/barbearia-do-felipe/servicos");
     await page.getByRole("button", { name: "Adicionar serviço", exact: true }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByLabel("Nome do serviço").fill("Teste com erro");
@@ -140,8 +163,9 @@ for (const [status, code, text] of [
   });
 }
 test("rejects malformed responses and shows a readable network error", async ({ page }) => {
+  await installSupabaseSession(page);
   await intercept(page, () => ({ json: { items: [sample] } }));
-  await page.goto("/admin/servicos");
+  await page.goto("/admin/barbearia-do-felipe/servicos");
   await expect(page.getByRole("main").getByRole("alert")).toContainText("retornar uma lista");
   await page.unrouteAll();
   await page.route("http://127.0.0.1:8080/api/v1/**", (route) => route.abort("failed"));
@@ -173,7 +197,8 @@ test("pending requests disable duplicate submissions; a failed refresh keeps cre
           : { json: [] },
       );
   });
-  await page.goto("/admin/servicos");
+  await mockAdminAccess(page);
+  await page.goto("/admin/barbearia-do-felipe/servicos");
   await page.getByRole("button", { name: "Adicionar serviço", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Nome do serviço").fill("Serviço");
@@ -189,12 +214,18 @@ test("pending requests disable duplicate submissions; a failed refresh keeps cre
   );
   expect(posts).toBe(1);
 });
-test("agenda and responsive screens expose pending capabilities without mock appointments", async ({
+test("agenda and responsive screens display a real empty API result without mock appointments", async ({
   page,
 }) => {
+  await installSupabaseSession(page);
   await intercept(page, () => ({ json: [sample] }));
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const path of ["/admin", "/admin/servicos", "/b/barbearia-do-felipe"]) {
+  for (const path of [
+    "/admin",
+    "/admin/barbearia-do-felipe",
+    "/admin/barbearia-do-felipe/servicos",
+    "/b/barbearia-do-felipe",
+  ]) {
     await page.goto(path);
     await page.getByRole("heading").first().waitFor();
     expect(
@@ -205,8 +236,11 @@ test("agenda and responsive screens expose pending capabilities without mock app
       fullPage: true,
     });
   }
-  await page.goto("/admin");
-  await expect(page.getByRole("button", { name: "Novo agendamento" })).toBeDisabled();
-  await expect(page.getByText("Agenda ainda não integrada.")).toBeVisible();
-  await expect(page.locator(".calendar-event")).toHaveCount(0);
+  await page.goto("/admin/barbearia-do-felipe");
+  await expect(page.getByRole("link", { name: "Novo agendamento" })).toHaveAttribute(
+    "href",
+    "/b/barbearia-do-felipe",
+  );
+  await expect(page.getByText("Nenhum agendamento no período exibido.")).toBeVisible();
+  await expect(page.locator(".agenda-event")).toHaveCount(0);
 });

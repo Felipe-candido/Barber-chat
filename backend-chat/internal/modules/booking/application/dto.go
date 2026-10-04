@@ -18,15 +18,6 @@ type CustomerInput struct {
 	PhoneCountry string
 }
 
-// ConsentInput keeps transactional messaging separate from marketing.
-// NoticeVersion must identify a server-recognized notice; consent timestamps
-// come from the server clock, never the browser. False must not mean opting in.
-type ConsentInput struct {
-	BookingMessages bool
-	Marketing       bool
-	NoticeVersion   string
-}
-
 // CreateAppointmentInput describes only what the public caller may request.
 // ShopSlug comes from the route; it must be resolved to an active shop server-side.
 // There is intentionally no ShopID, CustomerID, status, price, duration or EndsAt.
@@ -38,7 +29,6 @@ type CreateAppointmentInput struct {
 	ProfessionalID uuid.UUID
 	StartsAt       time.Time
 	Customer       CustomerInput
-	Consent        ConsentInput
 	IdempotencyKey string
 }
 
@@ -52,7 +42,8 @@ type ListAvailabilityInput struct {
 	LocalDate      string
 }
 
-// AvailabilitySlot contains UTC instants for an interval [StartsAt, EndsAt).
+// AvailabilitySlot contains UTC instants for the RESERVED [StartsAt, EndsAt).
+// EndsAt includes SlotPolicy padding/rounding, not just the service's duration.
 type AvailabilitySlot struct {
 	StartsAt time.Time
 	EndsAt   time.Time
@@ -64,27 +55,20 @@ type AvailabilityOutput struct {
 	Slots        []AvailabilitySlot
 }
 
-// NotificationStatus reports durable planning, never external delivery.
-type NotificationStatus string
-
-const (
-	NotificationPending      NotificationStatus = "pending"
-	NotificationNotRequested NotificationStatus = "not_requested"
-)
-
 // AppointmentReceipt is the public result retained for idempotent retries.
 // It excludes customer contact data and internal customer IDs. Knowing an
 // appointment ID does not authorize reading, cancelling or confirming it.
+// EndsAt is the reserved calendar end; Service.DurationMinutes is the estimate.
 type AppointmentReceipt struct {
-	AppointmentID     uuid.UUID
-	Status            domain.Status
-	Service           domain.ServiceSnapshot
-	ProfessionalID    uuid.UUID
-	ProfessionalName  string
-	StartsAt          time.Time
-	EndsAt            time.Time
-	ShopTimezone      string
-	NotificationState NotificationStatus
+	ShopName         string
+	AppointmentID    uuid.UUID
+	Status           domain.Status
+	Service          domain.ServiceSnapshot
+	ProfessionalID   uuid.UUID
+	ProfessionalName string
+	StartsAt         time.Time
+	EndsAt           time.Time
+	ShopTimezone     string
 }
 
 // CreateAppointmentOutput separates transport metadata from the stable receipt.
@@ -92,5 +76,25 @@ type AppointmentReceipt struct {
 // HTTP/JSON mapping belongs to infra, so these contracts have no JSON tags.
 type CreateAppointmentOutput struct {
 	Appointment AppointmentReceipt
+	Code        string
 	Replayed    bool
+}
+
+type Professional struct {
+	ID   uuid.UUID
+	Name string
+}
+
+type ProfessionalsOutput struct {
+	ShopName        string
+	ShopTimezone    string
+	Today           string
+	LastBookingDate string
+	Professionals   []Professional
+}
+
+type AppointmentCodeInput struct{ ShopSlug, Code string }
+type AppointmentDetails struct {
+	Appointment AppointmentReceipt
+	CanCancel   bool
 }

@@ -4,9 +4,11 @@
 
 Fundação de um SaaS de agendamentos para barbearias e projeto de estudo de Go, Chi e mensageria. Uma aplicação modular, um módulo Go e dois executáveis: API e worker. PostgreSQL guarda os dados; RabbitMQ será o transporte das notificações.
 
-**Implementado:** configuração por ambiente/.env, HTTP com Chi, health/readiness, logs JSON, graceful shutdown, pool PostgreSQL, conexão AMQP, ciclo de vida do worker, Compose, migrations e testes. O catálogo cria serviços com autenticação/membership e lista serviços ativos publicamente por slug. **Ainda não existe:** edição/ativação de serviços, CRUD de contas, agendamento, scheduler/outbox, consumer de negócio, envio de mensagens ou relatórios. O frontend está em [`../frontend-chat`](../frontend-chat/README.md), com sessão Supabase e criação/listagem integrada à API. O worker verifica dependências e aguarda encerramento; não envia notificações.
+**Implementado:** configuração por ambiente/.env, HTTP com Chi, health/readiness, logs JSON, graceful shutdown, pool PostgreSQL, conexão AMQP, ciclo de vida do worker, Compose, migrations e testes. O catálogo cria serviços e profissionais com autenticação/membership; o cadastro de profissional inclui serviços e expediente inicial. Booking oferece disponibilidade, criação transacional, comprovante com código, consulta e cancelamento público. **Ainda não existe:** edição/ativação de serviços, edição do calendário pelo painel, agenda administrativa integrada, CRUD de contas, scheduler/outbox, consumer de negócio, envio de mensagens ou relatórios. O frontend está em [`../frontend-chat`](../frontend-chat/README.md). O worker verifica dependências e aguarda encerramento; não envia notificações e não é necessário para agendar.
 
-**Estrutura de negócio:** sete módulos em `internal/modules`, cada um com `domain`, `application` e `infra`. Catálogo implementa criar/listar serviços; shops resolve slug ativo; identity autentica usuário, lista suas unidades elegíveis e autoriza cada operação por unidade. O frontend chama /me e /admin/shops após login e usa o slug escolhido no painel. Os demais fluxos continuam planejados. Os `doc.go` explicam as camadas e a fronteira HTTP. Veja [como testar serviços](docs/catalog-testing.md) e o [ADR 0007](docs/adr/0007-catalog-services-and-local-tenant.md).
+**Estrutura de negócio:** sete módulos em `internal/modules`, cada um com `domain`, `application` e `infra`. Catalog possui serviços/profissionais; shops resolve a unidade; identity autentica e autoriza; customers resolve contatos; booking coordena calendário e reserva. O frontend chama /me e /admin/shops após login e usa o slug escolhido no painel. Veja os [contratos atuais](docs/api-contract.md) e a [decisão de booking](docs/adr/0012-public-booking-and-professional-setup.md).
+
+**Booking:** grade configurável por profissional, margem opcional e ocupação por blocos; serviço de 40 minutos reserva 60 e serviço de 80 reserva 120 numa grade de 60. BookingTransactor compartilha uma transação entre idempotência, locks, catálogo, contato, reserva e comprovante. A migration 00005 protege sobreposição com exclusão GiST, referências entre tenants e acesso direto pela Data API. Testes reais cobrem concorrência, rollback, repetição, consulta e cancelamento. WhatsApp permanece adiado; não há coleta de consentimento para mensagens nesta etapa.
 
 Os comandos deste documento são executados dentro de `backend-chat`: na raiz do repositório, execute `cd backend-chat` antes de começar.
 
@@ -37,7 +39,7 @@ Se você vem de Python, Django ou FastAPI, leia o [guia Go para Python/Django/Fa
 
 Cada módulo organiza três pacotes: `domain` para regras/tipos de negócio, `application` para casos de uso/portas e `infra` para adaptadores concretos como repositórios PostgreSQL, handlers HTTP e clientes externos. A raiz do módulo é apenas um diretório organizador. Não são sete módulos Go nem sete serviços: continua existindo um go.mod e dois executáveis.
 
-`internal/platform` continua responsável por conexões e recursos genéricos compartilhados. A futura implementação em `booking/infra` receberá o pool ou a transação e executará SQL de agendamentos; não abrirá um novo pool próprio. A montagem do servidor continua em `internal/httpapi` e a composição das dependências em `cmd`. A infraestrutura de cada módulo não pode ser importada pelo seu domínio ou pelos seus casos de uso.
+`internal/platform` continua responsável por conexões e recursos genéricos compartilhados. `booking/infra` recebe o pool/transação compartilhado e executa SQL de agendamentos. A montagem do servidor continua em `internal/httpapi` e a composição das dependências em `cmd`. A infraestrutura de cada módulo não pode ser importada pelo seu domínio ou pelos seus casos de uso.
 
 ```powershell
 go doc ./internal/modules/booking/domain
@@ -45,7 +47,7 @@ go doc ./internal/modules/booking/application
 go doc ./internal/modules/booking/infra
 ```
 
-O próximo fluxo real deve criar cliente/agendamento/intenção de notificação atomicamente, apesar da separação de responsabilidades. Veja o [ADR das camadas por módulo](docs/adr/0005-explicit-module-layers.md).
+Cliente e agendamento são persistidos atomicamente; futuras intenções de notificação deverão participar dessa transação quando a mensageria for implementada. Veja o [ADR das camadas por módulo](docs/adr/0005-explicit-module-layers.md).
 
 ## Preparar o ambiente
 
@@ -79,7 +81,7 @@ $goose = Join-Path (go env GOPATH) 'bin\goose.exe'
 & $goose -dir db/migrations postgres $env:DATABASE_URL status
 ```
 
-As migrations habilitam `btree_gist`, criam shops/services e adicionam a moeda BRL. Goose cria sua tabela de versões. O Down da primeira mantém a extensão para não apagar objetos compartilhados. O seed de exemplo fica em db/seeds/development.sql e é executado separadamente. Ver [db/migrations/README.md](db/migrations/README.md). Não executar migrations automaticamente no boot dos processos.
+As migrations comuns chegam à versão 5: catálogo, identidade local, profissionais, calendário, contatos, reservas e idempotência. No Supabase, preservar também a sequência específica de vínculo com auth.users, conforme o guia de autenticação. Goose registra versões; `up` aplica somente as pendentes. O seed manual de calendário é opcional: o painel já cadastra profissional, serviços e expediente inicial. Ver [db/migrations/README.md](db/migrations/README.md). Não executar migrations automaticamente no boot nem usar Down no banco real para atualizar.
 
 ## Executar API e worker
 

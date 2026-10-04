@@ -10,6 +10,7 @@ import (
 	"time"
 
 	accessmiddleware "github.com/Felipe-candido/Barber-chat/internal/httpapi/middleware"
+	bookinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/http"
 	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
 	identityapp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/application"
 	identityhttp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/http"
@@ -21,6 +22,9 @@ import (
 type HandlerConfig struct {
 	CheckDB        func(context.Context) error
 	Catalog        *cataloghttp.Handler
+	Professionals  *cataloghttp.ProfessionalHandler
+	Booking        *bookinghttp.Handler
+	Agenda         *bookinghttp.AgendaHandler
 	Authenticate   *identityapp.Authenticate
 	AuthorizeShop  *identityapp.AuthorizeShopAction
 	ListMyShops    *identityapp.ListMyShops
@@ -35,13 +39,13 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 		cfg.Logger = slog.Default()
 	}
 	if cfg.RequestTimeout <= 0 {
-		cfg.RequestTimeout = 10 * time.Second
+		cfg.RequestTimeout = 30 * time.Second
 	}
 	if cfg.DBTimeout <= 0 {
 		cfg.DBTimeout = 3 * time.Second
 	}
 	router := chi.NewRouter()
-	router.Use(middleware.RequestID)
+	router.Use(accessmiddleware.RequestLog(cfg.Logger))
 	router.Use(middleware.Recoverer)
 	router.Use(accessmiddleware.CORS(cfg.FrontendOrigin))
 	router.Use(accessmiddleware.RequestTimeout(cfg.RequestTimeout))
@@ -72,6 +76,21 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 		router.With(authenticate, accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)).
 			Post("/api/v1/admin/shops/{slug}/services", cfg.Catalog.CreateService)
 	}
+	if cfg.Booking != nil {
+		cfg.Booking.Register(router)
+	}
+	if cfg.Agenda != nil {
+		router.Options("/api/v1/admin/shops/{slug}/appointments", accessmiddleware.Preflight(http.MethodGet))
+		router.With(authenticate, accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)).
+			Get("/api/v1/admin/shops/{slug}/appointments", cfg.Agenda.List)
+	}
+	if cfg.Professionals != nil {
+		router.Options("/api/v1/admin/shops/{slug}/professionals", accessmiddleware.Preflight(http.MethodGet, http.MethodPost))
+		router.With(authenticate, accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)).
+			Get("/api/v1/admin/shops/{slug}/professionals", cfg.Professionals.List)
+		router.With(authenticate, accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)).
+			Post("/api/v1/admin/shops/{slug}/professionals", cfg.Professionals.Create)
+	}
 	return router
 }
 
@@ -83,14 +102,18 @@ func writeStatus(w http.ResponseWriter, code int, status string) {
 }
 
 // Serve drains in-flight requests before its caller closes shared resources.
-func Serve(ctx context.Context, listener net.Listener, handler http.Handler, shutdownTimeout time.Duration, logger *slog.Logger) error {
+func Serve(ctx context.Context, listener net.Listener, handler http.Handler, requestTimeout, shutdownTimeout time.Duration, logger *slog.Logger) error {
+	if requestTimeout <= 0 {
+		requestTimeout = 30 * time.Second
+	}
 	server := &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      15 * time.Second,
-		IdleTimeout:       60 * time.Second,
-		ErrorLog:          slog.NewLogLogger(logger.Handler(), slog.LevelError),
+		// Leave time to write the timeout response after the application deadline.
+		WriteTimeout: requestTimeout + 5*time.Second,
+		IdleTimeout:  60 * time.Second,
+		ErrorLog:     slog.NewLogLogger(logger.Handler(), slog.LevelError),
 	}
 	done := make(chan error, 1)
 	go func() { done <- server.Serve(listener) }()

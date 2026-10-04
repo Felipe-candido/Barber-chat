@@ -1,5 +1,82 @@
 # Registro de validações
 
+## Parte 1 de booking — grade e ocupação por blocos — 02/10/2026
+
+Implementada a regra pura SlotPolicy: intervalo configurável, margem opcional,
+arredondamento para blocos inteiros, candidatos ancorados na abertura e validação
+do encaixe no período civil. Os testes ficam em booking/tests/domain. EndsAt
+passa a significar o fim reservado nos contratos; a duração do catálogo permanece
+estimada. ScheduleGuard declara FindSlotPolicy para a futura leitura transacional
+por unidade/profissional. Ver ADR 0011.
+
+| Verificação desta etapa | Resultado |
+| --- | --- |
+| Testes de SlotPolicy | PASS; grade 09:30, faixas flexíveis, múltiplos blocos, margem, limites e rejeição de entradas inválidas |
+| gofmt, go mod tidy e go vet ./... | PASS |
+| go test ./... -count=1 | PASS; inclui regras de domínio e limites de imports |
+| go build ./cmd/api ./cmd/worker | PASS |
+| go doc de SlotPolicy | PASS |
+| Compose config, goose validate e git diff --check | PASS |
+| TestIdentityMigrations | PASS; PostgreSQL local real, incluindo provisionamento e vínculos |
+| TestPostgres e TestCatalog | PASS; migrations, persistência e isolamento no banco descartável |
+| Conversão de fuso/DST e períodos atravessando meia-noite | NÃO IMPLEMENTADOS nesta parte |
+| Concorrência de agendamento, código de consulta/cancelamento e WhatsApp | NÃO IMPLEMENTADOS nesta parte |
+| Frontend, RabbitMQ e projeto Supabase real | NÃO ALTERADOS nem testados nesta parte |
+
+Os testes de integração usaram exclusivamente o banco vazio e descartável
+codex_slot_policy_20261002_01a0c16e no PostgreSQL local. Sua ausência foi conferida
+antes da criação; ele foi removido após os testes, com ausência confirmada.
+Nenhum banco de aplicação, .env real, conta, volume ou credencial foi alterado.
+Não há migration de booking, endpoint novo, dependência nova ou commit/push.
+Os testes da política não comprovam disponibilidade real nem proteção SQL
+contra reservas concorrentes. A pendência de segurança da Data API registrada
+na revisão anterior continua aberta antes da publicação.
+
+## Revisão de arquitetura e contratos de booking — 02/10/2026
+
+Declarados Appointment/ServiceSnapshot/Status, DTOs de criação/disponibilidade,
+projeções, erros e consumer-owned ports. BookingTransactor/BookingTx descrevem
+uma transação compartilhada sem expor pgx à aplicação. Ainda não há regras de
+domínio executáveis, casos de uso, adapters, tabelas ou rotas de agendamento.
+A decisão está no ADR 0010.
+
+| Verificação desta etapa | Resultado |
+| --- | --- |
+| gofmt, go mod tidy e go vet ./... | PASS |
+| go test ./... -count=1 | PASS; execução sem cache |
+| Testes de arquitetura | PASS; imports reais e 20 cenários das regras de dependência |
+| go build ./cmd/api ./cmd/worker | PASS |
+| go doc do pacote booking/application | PASS |
+| go vet dos testes com tag integration | PASS |
+| TestIdentityMigrations em PostgreSQL real | PASS após ajuste da fixture; inclui 22 cenários de provisionamento e 15 de unidades elegíveis |
+| TestCatalogHTTPPersistenceAndIsolation, TestCatalogDatabaseConstraints e TestPostgres | PASS; PostgreSQL real e migrations aplicadas no banco descartável |
+| sqlc compile, Compose config e goose validate | PASS |
+| git diff --check com a configuração normal do repositório | PASS |
+| Frontend: npm run typecheck e npm run build | PASS |
+| Frontend: Playwright nesta revisão | NÃO REEXECUTADO; execução anterior registrada abaixo |
+| Integração RabbitMQ, login real e permissões do Supabase real | NÃO EXECUTADOS |
+| Concorrência/atomicidade de booking | NÃO TESTADAS; não há implementação de booking ainda |
+
+A primeira tentativa de integração revelou que a fixture dependia dos valores
+de exemplo no script manual, falhando após personalizar o UUID. O teste agora
+substitui as cinco declarações somente na cópia em memória, preservando o arquivo
+do usuário, e passa o testing.T correto aos helpers dos subtestes. Não foi uma
+falha do login nem uma mudança no comportamento do provisionamento.
+
+Foi utilizado exclusivamente o banco local descartável
+codex_booking_contracts_20261002_01a0c16e. Sua ausência foi conferida antes da
+criação; ele foi removido após os testes e a ausência foi confirmada. Nenhum
+banco de aplicação, volume, conta, credencial ou .env real foi alterado. Sem
+dependências novas, commit/push ou mudança de código do frontend nesta revisão.
+O build do Next atualizou automaticamente next-env.d.ts para os tipos de
+produção em .next/types, em vez dos tipos do servidor de desenvolvimento.
+
+Pendência identificada: shops/services não têm RLS/revogação de grants nas
+migrations versionadas. Se estiverem expostas na Data API do Supabase com grants
+para anon/authenticated, o acesso direto pode contornar o backend. A proteção
+real precisa ser conferida e corrigida antes da publicação; não foi aplicada
+uma migration de segurança nesta etapa. Ver docs/architecture.md.
+
 ## Script de provisionamento de barbearia e usuário — 02/10/2026
 
 Criado db/supabase/provision_shop_and_user.sql para execução manual no SQL Editor

@@ -23,6 +23,7 @@ type Config struct {
 	HTTPTimeout       time.Duration
 	LogLevel          slog.Level
 	DBTimeout         time.Duration
+	OperationTimeout  time.Duration
 	ShutdownTimeout   time.Duration
 	WorkerInterval    time.Duration
 	DevFrontendOrigin string
@@ -120,7 +121,8 @@ func load(getenv func(string) string) (Config, error) {
 		target   *time.Duration
 	}{
 		{"DB_TIMEOUT", "3s", &c.DBTimeout},
-		{"HTTP_TIMEOUT", "10s", &c.HTTPTimeout},
+		{"OPERATION_TIMEOUT", "20s", &c.OperationTimeout},
+		{"HTTP_TIMEOUT", "30s", &c.HTTPTimeout},
 		{"SHUTDOWN_TIMEOUT", "10s", &c.ShutdownTimeout},
 		{"WORKER_INTERVAL", "30s", &c.WorkerInterval},
 	} {
