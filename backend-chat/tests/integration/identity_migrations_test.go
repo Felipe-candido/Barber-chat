@@ -67,6 +67,10 @@ func TestIdentityMigrations(t *testing.T) {
 	}
 	const common = "db/migrations/00004_create_identity_tables.sql"
 	const provider = "db/supabase/migrations/00001_link_auth_users.sql"
+	const roles = "db/migrations/00006_simple_staff_access.sql"
+	const accounts = "db/migrations/00007_staff_accounts.sql"
+	const replacement = "db/migrations/00008_staff_account_replacement.sql"
+	migrate("db/migrations/00001_enable_btree_gist.sql", true)
 	migrate("db/migrations/00002_create_catalog_tables.sql", true)
 	migrate("db/migrations/00003_service_currency.sql", true)
 	migrate(common, true)
@@ -85,6 +89,57 @@ func TestIdentityMigrations(t *testing.T) {
 		END $$;
 		GRANT ALL ON public.users, public.shop_memberships TO anon, authenticated;`)
 	migrate(provider, true)
+	migrate("db/migrations/00005_booking_flow.sql", true)
+	// Legacy members are upgraded once; new inserts must specify the role.
+	exec(`INSERT INTO shops(id,name,slug) VALUES ('90000000-0000-4000-8000-000000000001','Legacy','legacy');
+		INSERT INTO auth.users VALUES ('90000000-0000-4000-8000-000000000002');
+		INSERT INTO public.users(id,display_name) VALUES ('90000000-0000-4000-8000-000000000002','Legacy owner');
+		INSERT INTO shop_memberships(user_id,shop_id) VALUES ('90000000-0000-4000-8000-000000000002','90000000-0000-4000-8000-000000000001');`)
+	migrate(roles, true)
+	exec(`INSERT INTO professionals(id,shop_id,name) VALUES ('90000000-0000-4000-8000-000000000003','90000000-0000-4000-8000-000000000001','Barber');
+	DO $$ BEGIN
+		IF (SELECT role FROM shop_memberships WHERE user_id='90000000-0000-4000-8000-000000000002') <> 'owner' THEN
+			RAISE EXCEPTION 'Legacy access was not preserved';
+		END IF;
+		BEGIN
+			INSERT INTO shop_memberships(user_id,shop_id) VALUES ('90000000-0000-4000-8000-000000000002','90000000-0000-4000-8000-000000000001');
+			RAISE EXCEPTION 'Missing role accepted';
+		EXCEPTION WHEN not_null_violation THEN NULL; END;
+		BEGIN
+			INSERT INTO shop_memberships(user_id,shop_id,role) VALUES ('90000000-0000-4000-8000-000000000002','90000000-0000-4000-8000-000000000001','admin');
+			RAISE EXCEPTION 'Unknown role accepted';
+		EXCEPTION WHEN check_violation THEN NULL; END;
+		BEGIN
+			INSERT INTO shop_memberships(user_id,shop_id,role) VALUES ('90000000-0000-4000-8000-000000000002','90000000-0000-4000-8000-000000000001','barber');
+			RAISE EXCEPTION 'Unlinked barber accepted';
+		EXCEPTION WHEN check_violation THEN NULL; END;
+		BEGIN
+			INSERT INTO shop_memberships(user_id,shop_id,role,professional_id) VALUES ('90000000-0000-4000-8000-000000000002','90000000-0000-4000-8000-000000000001','barber','00000000-0000-0000-0000-000000000000');
+			RAISE EXCEPTION 'Nil professional accepted';
+		EXCEPTION WHEN check_violation THEN NULL; END;
+	END $$;
+	UPDATE shop_memberships SET role='barber', professional_id='90000000-0000-4000-8000-000000000003'
+	WHERE user_id='90000000-0000-4000-8000-000000000002';
+	INSERT INTO shops(id,name,slug) VALUES ('90000000-0000-4000-8000-000000000004','Other','legacy-other');
+	DO $$ BEGIN
+		BEGIN
+			INSERT INTO shop_memberships(user_id,shop_id,role,professional_id) VALUES ('90000000-0000-4000-8000-000000000002','90000000-0000-4000-8000-000000000004','barber','90000000-0000-4000-8000-000000000003');
+			RAISE EXCEPTION 'Foreign shop professional accepted';
+		EXCEPTION WHEN foreign_key_violation THEN NULL; END;
+	END $$;
+	DELETE FROM auth.users WHERE id='90000000-0000-4000-8000-000000000002';
+	DELETE FROM professionals WHERE id='90000000-0000-4000-8000-000000000003';
+	DELETE FROM shops WHERE id='90000000-0000-4000-8000-000000000001';`)
+	exec("DELETE FROM shops WHERE id='90000000-0000-4000-8000-000000000004'")
+	migrate(accounts, true)
+	migrate(replacement, true)
+	exec(`DO $$ BEGIN
+		IF NOT (SELECT relrowsecurity FROM pg_class WHERE oid='public.staff_accounts'::regclass)
+		   OR has_table_privilege('anon','public.staff_accounts','SELECT')
+		   OR has_table_privilege('authenticated','public.staff_accounts','INSERT') THEN
+			RAISE EXCEPTION 'Staff accounts are exposed to browser roles';
+		END IF;
+	END $$;`)
 	t.Run("shop provisioning", func(t *testing.T) {
 		testShopProvisioning(t, ctx, tx)
 	})
@@ -114,15 +169,15 @@ func TestIdentityMigrations(t *testing.T) {
 			RAISE EXCEPTION 'Missing Auth user accepted';
 		EXCEPTION WHEN foreign_key_violation THEN NULL; END;
 		BEGIN
-			INSERT INTO public.shop_memberships(user_id, shop_id) SELECT user_id, shop_id FROM public.shop_memberships LIMIT 1;
+			INSERT INTO public.shop_memberships(user_id, shop_id, role) SELECT user_id, shop_id, role FROM public.shop_memberships LIMIT 1;
 			RAISE EXCEPTION 'Duplicate membership accepted';
 		EXCEPTION WHEN unique_violation THEN NULL; END;
 		BEGIN
-			INSERT INTO public.shop_memberships VALUES ('20000000-0000-4000-8000-000000000099', '10000000-0000-4000-8000-000000000001');
+			INSERT INTO public.shop_memberships(user_id,shop_id,role) VALUES ('20000000-0000-4000-8000-000000000099', '10000000-0000-4000-8000-000000000001','owner');
 			RAISE EXCEPTION 'Missing local user accepted';
 		EXCEPTION WHEN foreign_key_violation THEN NULL; END;
 		BEGIN
-			INSERT INTO public.shop_memberships VALUES ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000099');
+			INSERT INTO public.shop_memberships(user_id,shop_id,role) VALUES ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-000000000099','owner');
 			RAISE EXCEPTION 'Missing shop accepted';
 		EXCEPTION WHEN foreign_key_violation THEN NULL; END;
 		IF EXISTS (SELECT 1 FROM pg_class WHERE oid IN ('public.users'::regclass, 'public.shop_memberships'::regclass) AND NOT relrowsecurity) THEN
@@ -163,7 +218,13 @@ func TestIdentityMigrations(t *testing.T) {
 			END IF;
 		END $$;`)
 	migrate(provider, false)
+	migrate(replacement, false)
+	migrate(accounts, false)
+	migrate(roles, false)
 	migrate(common, false)
 	migrate(common, true)
+	migrate(roles, true)
 	migrate(provider, true)
+	migrate(accounts, true)
+	migrate(replacement, true)
 }

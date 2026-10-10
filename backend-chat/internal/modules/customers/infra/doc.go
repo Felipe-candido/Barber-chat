@@ -1,13 +1,11 @@
-// Package infra is the boundary for concrete customer adapters.
+// Package infra implements contact normalization and transactional persistence.
 //
-// Planned adapters include tenant-scoped contact/consent persistence and
-// authorized administrative HTTP reads. Phone metadata validation may use a
-// concrete library here when required by an application-owned port.
+// ContactNormalizer validates names and uses phone metadata to normalize E.164.
+// A valid phone number is not verified ownership. BookingContacts finds or creates
+// a same-shop contact inside the booking transaction, without overwriting an
+// existing person's profile using unverified public input.
 //
-// Find-or-create operations during booking must use the provided transaction,
-// preserve same-tenant uniqueness and avoid independent commits. Map constraint
-// errors to application errors; never expose DSNs, raw SQL or customer PII.
-//
-// No public incomplete-customer registration endpoint is planned. Pools come
-// from composition via internal/platform. No adapter is implemented yet.
+// No incomplete-customer endpoint, contact history lookup, consent collection or
+// WhatsApp delivery is implemented. Customer data must not appear in public
+// receipts, logs or persistent frontend booking state.
 package infra

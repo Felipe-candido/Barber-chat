@@ -1,0 +1,170 @@
+# Contract fragment referenced by openapi.yaml.
+paths:
+  accounts:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+    get:
+      operationId: listStaffAccounts
+      summary: Owner lists separate barber logins in this shop
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Pending, review and linked requests; never cached
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/Account'}
+        default: {$ref: '#/components/responses/Error'}
+    post:
+      operationId: inviteStaffAccount
+      summary: Owner invites a login for an existing active professional
+      description: No password, role or admin key is accepted. Reserve once before Auth call. Ambiguous failures require explicit review, not invitation retry. Auth and local DB do not share a transaction.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [professional_id, email]
+              properties:
+                professional_id: {type: string, format: uuid}
+                email: {type: string, format: email, maxLength: 254}
+      responses:
+        '201':
+          description: Linked account; Auth accepted the invitation request, not guaranteed email delivery
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Account'}
+        '409': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+        default: {$ref: '#/components/responses/Error'}
+    options:
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+  link:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+      - $ref: '#/components/parameters/AccountID'
+    post:
+      operationId: linkExistingStaffAccount
+      summary: Owner resolves a pending request using an Auth UUID with the original email
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [user_id]
+              properties:
+                user_id: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Verified and linked barber account; never overwrites an owner
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Account'}
+        default: {$ref: '#/components/responses/Error'}
+    options:
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+  status:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+      - $ref: '#/components/parameters/AccountID'
+    post:
+      operationId: setStaffAccountActive
+      summary: Owner activates or disables only the barber membership in this shop
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [active]
+              properties:
+                active: {type: boolean}
+      responses:
+        '200':
+          description: Membership updated; global Auth user and professional unchanged
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [active]
+                properties:
+                  active: {type: boolean}
+        default: {$ref: '#/components/responses/Error'}
+    options:
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+  replace:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+      - $ref: '#/components/parameters/AccountID'
+    post:
+      operationId: replaceStaffAccount
+      summary: Owner replaces an inactive or pending account with a different email
+      description: Retire the original UUID and reserve a fresh one atomically, removing only its inactive barber membership in this shop. Professional, appointments, local user and global Auth remain unchanged. Invite after commit; ambiguous failures leave the NEW request for explicit review. Never retry automatically. Active membership returns 409 staff_account_must_be_inactive; retired UUID returns 404.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email]
+              properties:
+                email: {type: string, format: email, maxLength: 254}
+      responses:
+        '201':
+          description: New linked account; Auth accepted invitation, not guaranteed delivery
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Account'}
+        '409': {$ref: '#/components/responses/Error'}
+        default: {$ref: '#/components/responses/Error'}
+    options:
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+components:
+  parameters:
+    Slug:
+      name: slug
+      in: path
+      required: true
+      schema: {type: string, minLength: 1}
+    AccountID:
+      name: accountID
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+  schemas:
+    Account:
+      type: object
+      additionalProperties: false
+      required: [id, professional_id, email, user_id, state, active]
+      properties:
+        id: {type: string, format: uuid}
+        professional_id: {type: string, format: uuid}
+        email: {type: string, format: email}
+        user_id: {type: [string, 'null'], format: uuid}
+        state: {type: string, enum: [pending, linked, review]}
+        active: {type: boolean}
+  responses:
+    Error:
+      description: Sanitized JSON error. 400 invalid JSON; 401/403 access; 404 missing scoped account; 409 duplicate/review; 413/415 size/type; 422 invalid fields; 500/503 dependency/configuration failure. Maximum body 8 KiB.
+      content:
+        application/json:
+          schema: {$ref: './openapi.yaml#/components/schemas/Error'}

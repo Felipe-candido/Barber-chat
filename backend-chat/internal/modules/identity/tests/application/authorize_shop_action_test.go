@@ -77,6 +77,10 @@ func TestAuthorizeShopAction(t *testing.T) {
 		{"membership for another user", func(s *scenario) { s.membership.UserID = uuid.New() }, application.ErrIdentityMismatch, []string{"user", "shop", "membership"}},
 		{"membership for another shop", func(s *scenario) { s.membership.ShopID = uuid.New() }, application.ErrIdentityMismatch, []string{"user", "shop", "membership"}},
 		{"inactive membership", func(s *scenario) { s.membership.Active = false }, application.ErrShopAccessDenied, []string{"user", "shop", "membership"}},
+		{"missing role", func(s *scenario) { s.membership.Role = "" }, application.ErrShopAccessDenied, []string{"user", "shop", "membership"}},
+		{"unknown role", func(s *scenario) { s.membership.Role = "admin" }, application.ErrShopAccessDenied, []string{"user", "shop", "membership"}},
+		{"barber without professional", func(s *scenario) { s.membership.Role = domain.RoleBarber }, application.ErrShopAccessDenied, []string{"user", "shop", "membership"}},
+		{"barber with professional", func(s *scenario) { s.membership.Role = domain.RoleBarber; s.membership.ProfessionalID = uuid.New() }, nil, []string{"user", "shop", "membership"}},
 		{"active membership", func(s *scenario) {}, nil, []string{"user", "shop", "membership"}},
 		{"trimmed slug", func(s *scenario) { s.input.ShopSlug = " \tbarbearia\n " }, nil, []string{"user", "shop", "membership"}},
 	}
@@ -89,7 +93,7 @@ func TestAuthorizeShopAction(t *testing.T) {
 				userFound:       true,
 				shopID:          shopID,
 				shopFound:       true,
-				membership:      domain.Membership{UserID: userID, ShopID: shopID, Active: true},
+				membership:      domain.Membership{UserID: userID, ShopID: shopID, Active: true, Role: domain.RoleOwner},
 				membershipFound: true,
 			}
 			tt.change(&s)
@@ -130,7 +134,7 @@ func TestAuthorizeShopAction(t *testing.T) {
 			}
 			want := application.AuthorizedShopScope{}
 			if tt.wantErr == nil {
-				want = application.AuthorizedShopScope{UserID: userID, ShopID: shopID}
+				want = application.AuthorizedShopScope{UserID: userID, ShopID: shopID, Role: s.membership.Role, ProfessionalID: s.membership.ProfessionalID}
 			}
 			if got != want {
 				t.Errorf("Execute() scope = %+v, want %+v", got, want)
@@ -150,7 +154,7 @@ func TestAuthorizeShopActionRechecksSuspensions(t *testing.T) {
 					return domain.User{ID: userID, Active: userActive}, true, nil
 				},
 				membership: func(context.Context, uuid.UUID, uuid.UUID) (domain.Membership, bool, error) {
-					return domain.Membership{UserID: userID, ShopID: shopID, Active: membershipActive}, true, nil
+					return domain.Membership{UserID: userID, ShopID: shopID, Active: membershipActive, Role: domain.RoleOwner}, true, nil
 				},
 			}
 			shops := shopResolverFunc(func(context.Context, string) (uuid.UUID, bool, error) {

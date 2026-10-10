@@ -1,5 +1,11 @@
 import { test, expect } from "@playwright/test";
-import { createTestSession, testEmail, testPassword } from "./supabase-fixture";
+import {
+  createTestSession,
+  testEmail,
+  testPassword,
+  testIdentity,
+  testShop,
+} from "./supabase-fixture";
 
 test("login sends credentials only to Supabase and the API receives only the access token", async ({
   page,
@@ -8,6 +14,21 @@ test("login sends credentials only to Supabase and the API receives only the acc
   let supabaseBody: unknown;
   let backendAuthorization = "";
   let backendBody = "";
+  const accessCalls: string[] = [];
+  await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/access", (route) =>
+    route.fulfill({ json: { role: "owner", professional_id: null } }),
+  );
+  for (const [path, payload] of [
+    ["me", testIdentity],
+    ["shops", [testShop]],
+  ] as const) {
+    await page.route("http://127.0.0.1:8080/api/v1/admin/" + path, async (route) => {
+      expect(route.request().headers().authorization).toBe("Bearer " + session.accessToken);
+      expect(route.request().postData()).toBeNull();
+      accessCalls.push(path);
+      await route.fulfill({ json: payload });
+    });
+  }
 
   await page.route("https://test-project.supabase.co/auth/v1/token**", async (route) => {
     supabaseBody = route.request().postDataJSON();
@@ -17,26 +38,30 @@ test("login sends credentials only to Supabase and the API receives only the acc
       body: JSON.stringify(session.response),
     });
   });
-  await page.route("**/api/v1/public/shops/**/services", async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
-  });
-  await page.route("http://127.0.0.1:8080/api/v1/admin/services", async (route) => {
-    backendAuthorization = route.request().headers().authorization ?? "";
-    backendBody = route.request().postData() ?? "";
-    await route.fulfill({
-      status: 201,
-      contentType: "application/json",
-      body: JSON.stringify({
-        id: "22222222-2222-4222-8222-222222222222",
-        name: "Corte autenticado",
-        description: "Teste",
-        duration_minutes: 30,
-        price_cents: 4500,
-        currency: "BRL",
-        active: true,
-      }),
-    });
-  });
+  await page.route(
+    "http://127.0.0.1:8080/api/v1/admin/shops/" + testShop.slug + "/services",
+    async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({ json: [] });
+        return;
+      }
+      backendAuthorization = route.request().headers().authorization ?? "";
+      backendBody = route.request().postData() ?? "";
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "22222222-2222-4222-8222-222222222222",
+          name: "Corte autenticado",
+          description: "Teste",
+          duration_minutes: 30,
+          price_cents: 4500,
+          currency: "BRL",
+          active: true,
+        }),
+      });
+    },
+  );
 
   await page.goto("/login");
   await page.getByLabel("E-mail", { exact: true }).fill(testEmail);
@@ -48,12 +73,15 @@ test("login sends credentials only to Supabase and the API receives only the acc
   await page.getByRole("button", { name: "Entrar no painel", exact: true }).click();
 
   await expect(page).toHaveURL(/\/admin$/);
+  await expect(page.getByRole("heading", { name: /Escolha sua barbearia/ })).toBeVisible();
+  expect(accessCalls).toEqual(["me", "shops"]);
   expect(supabaseBody).toMatchObject({ email: testEmail, password: testPassword });
   const stored = await page.evaluate(() => JSON.stringify({ ...localStorage }));
   expect(stored).toContain(session.accessToken);
   expect(stored).not.toContain(testPassword);
 
-  await page.goto("/admin/servicos");
+  await page.getByRole("link", { name: "Entrar em " + testShop.name }).click();
+  await expect(page).toHaveURL("/admin/" + testShop.slug + "/servicos");
   await page.getByRole("button", { name: "Adicionar serviço" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Nome do serviço").fill("Corte autenticado");
@@ -66,6 +94,8 @@ test("login sends credentials only to Supabase and the API receives only the acc
   expect(backendBody).not.toContain(testEmail);
   expect(backendBody).not.toContain(testPassword);
   expect(backendBody).not.toContain(session.accessToken);
+  expect(backendBody).not.toContain("shop_id");
+  expect(backendBody).not.toContain("user_id");
 });
 
 test("invalid credentials show a generic error and do not create a session", async ({ page }) => {
@@ -91,7 +121,7 @@ test("invalid credentials show a generic error and do not create a session", asy
   expect(stored).not.toContain("wrong-password");
 });
 
-test("recovery and invitation remain clearly simulated and dismissible", async ({ page }) => {
+test("recovery is simulated and access help explains manual provisioning", async ({ page }) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "Esqueci minha senha" }).click();
   let dialog = page.getByRole("dialog");
@@ -99,7 +129,7 @@ test("recovery and invitation remain clearly simulated and dismissible", async (
   await dialog.getByRole("button", { name: "Simular recuperação" }).click();
   await expect(dialog.getByRole("status")).toContainText("nenhum e-mail foi enviado");
   await dialog.getByRole("button", { name: "Voltar ao login" }).click();
-  await page.getByRole("button", { name: "Saiba como funciona o convite" }).click();
+  await page.getByRole("button", { name: "Como obter acesso" }).click();
   dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("Não é necessário compartilhar uma senha");
   await page.keyboard.press("Escape");

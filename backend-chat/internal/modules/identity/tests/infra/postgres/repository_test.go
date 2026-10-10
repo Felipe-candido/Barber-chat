@@ -133,6 +133,7 @@ func TestFindUserByID(t *testing.T) {
 
 func TestFindMembership(t *testing.T) {
 	userID, shopID := uuid.New(), uuid.New()
+	professionalID := uuid.New()
 	failure := errors.New("scan failed")
 	for _, tt := range []struct {
 		name    string
@@ -141,8 +142,9 @@ func TestFindMembership(t *testing.T) {
 		want    domain.Membership
 		wantErr error
 	}{
-		{"active", rowStub{values: []any{userID, shopID, true}}, true, domain.Membership{UserID: userID, ShopID: shopID, Active: true}, nil},
-		{"inactive", rowStub{values: []any{userID, shopID, false}}, true, domain.Membership{UserID: userID, ShopID: shopID, Active: false}, nil},
+		{"active", rowStub{values: []any{userID, shopID, true, "owner", uuid.Nil}}, true, domain.Membership{UserID: userID, ShopID: shopID, Active: true, Role: domain.RoleOwner}, nil},
+		{"inactive", rowStub{values: []any{userID, shopID, false, "owner", uuid.Nil}}, true, domain.Membership{UserID: userID, ShopID: shopID, Active: false, Role: domain.RoleOwner}, nil},
+		{"barber", rowStub{values: []any{userID, shopID, true, "barber", professionalID}}, true, domain.Membership{UserID: userID, ShopID: shopID, Active: true, Role: domain.RoleBarber, ProfessionalID: professionalID}, nil},
 		{"missing", rowStub{err: pgx.ErrNoRows}, false, domain.Membership{}, nil},
 		{"wrapped missing", rowStub{err: fmt.Errorf("scan: %w", pgx.ErrNoRows)}, false, domain.Membership{}, nil},
 		{"database failure", rowStub{err: failure}, false, domain.Membership{}, failure},
@@ -168,8 +170,8 @@ func TestFindMembership(t *testing.T) {
 func TestListMembershipsByUser(t *testing.T) {
 	userID, shopA, shopB := uuid.New(), uuid.New(), uuid.New()
 	failure := errors.New("connection lost")
-	first := rowStub{values: []any{userID, shopA, true}}
-	second := rowStub{values: []any{userID, shopB, false}}
+	first := rowStub{values: []any{userID, shopA, true, "owner", uuid.Nil}}
+	second := rowStub{values: []any{userID, shopB, false, "owner", uuid.Nil}}
 	for _, tt := range []struct {
 		name     string
 		rows     []rowStub
@@ -209,7 +211,7 @@ func TestListMembershipsByUser(t *testing.T) {
 			}
 			want := []domain.Membership{}
 			if len(tt.rows) > 0 {
-				want = []domain.Membership{{UserID: userID, ShopID: shopA, Active: true}, {UserID: userID, ShopID: shopB, Active: false}}
+				want = []domain.Membership{{UserID: userID, ShopID: shopA, Active: true, Role: domain.RoleOwner}, {UserID: userID, ShopID: shopB, Active: false, Role: domain.RoleOwner}}
 			}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("ListMembershipsByUser() = %+v, want %+v", got, want)

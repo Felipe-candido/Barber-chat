@@ -9,6 +9,72 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Appointment struct {
+	ID               uuid.UUID          `json:"id"`
+	ShopID           uuid.UUID          `json:"shop_id"`
+	CustomerID       uuid.UUID          `json:"customer_id"`
+	ServiceID        uuid.UUID          `json:"service_id"`
+	ProfessionalID   uuid.UUID          `json:"professional_id"`
+	ServiceName      string             `json:"service_name"`
+	DurationMinutes  int32              `json:"duration_minutes"`
+	PriceCents       int64              `json:"price_cents"`
+	Currency         string             `json:"currency"`
+	ProfessionalName string             `json:"professional_name"`
+	ShopTimezone     string             `json:"shop_timezone"`
+	StartsAt         pgtype.Timestamptz `json:"starts_at"`
+	EndsAt           pgtype.Timestamptz `json:"ends_at"`
+	Status           string             `json:"status"`
+	Version          int64              `json:"version"`
+	CodeHash         []byte             `json:"code_hash"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
+type BookingRequest struct {
+	ShopID           uuid.UUID          `json:"shop_id"`
+	KeyHash          []byte             `json:"key_hash"`
+	Fingerprint      []byte             `json:"fingerprint"`
+	EncryptedReceipt []byte             `json:"encrypted_receipt"`
+	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
+}
+
+type Customer struct {
+	ID        uuid.UUID          `json:"id"`
+	ShopID    uuid.UUID          `json:"shop_id"`
+	FirstName string             `json:"first_name"`
+	LastName  string             `json:"last_name"`
+	PhoneE164 string             `json:"phone_e164"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type Professional struct {
+	ID     uuid.UUID `json:"id"`
+	ShopID uuid.UUID `json:"shop_id"`
+	Name   string    `json:"name"`
+	Active bool      `json:"active"`
+}
+
+type ProfessionalService struct {
+	ShopID         uuid.UUID `json:"shop_id"`
+	ProfessionalID uuid.UUID `json:"professional_id"`
+	ServiceID      uuid.UUID `json:"service_id"`
+}
+
+type ScheduleBlock struct {
+	ID             uuid.UUID          `json:"id"`
+	ShopID         uuid.UUID          `json:"shop_id"`
+	ProfessionalID uuid.UUID          `json:"professional_id"`
+	StartsAt       pgtype.Timestamptz `json:"starts_at"`
+	EndsAt         pgtype.Timestamptz `json:"ends_at"`
+}
+
+type ScheduleSetting struct {
+	ShopID          uuid.UUID `json:"shop_id"`
+	ProfessionalID  uuid.UUID `json:"professional_id"`
+	IntervalMinutes int32     `json:"interval_minutes"`
+	BufferMinutes   int32     `json:"buffer_minutes"`
+}
+
 type Service struct {
 	ID              uuid.UUID          `json:"id"`
 	ShopID          uuid.UUID          `json:"shop_id"`
@@ -34,10 +100,23 @@ type Shop struct {
 }
 
 type ShopMembership struct {
-	UserID    uuid.UUID          `json:"user_id"`
-	ShopID    uuid.UUID          `json:"shop_id"`
-	Active    bool               `json:"active"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UserID         uuid.UUID          `json:"user_id"`
+	ShopID         uuid.UUID          `json:"shop_id"`
+	Active         bool               `json:"active"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Role           string             `json:"role"`
+	ProfessionalID pgtype.UUID        `json:"professional_id"`
+}
+
+type StaffAccount struct {
+	ID             uuid.UUID          `json:"id"`
+	ShopID         uuid.UUID          `json:"shop_id"`
+	ProfessionalID uuid.UUID          `json:"professional_id"`
+	Email          string             `json:"email"`
+	AuthUserID     pgtype.UUID        `json:"auth_user_id"`
+	State          string             `json:"state"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ReplacedAt     pgtype.Timestamptz `json:"replaced_at"`
 }
 
 type User struct {
@@ -45,4 +124,13 @@ type User struct {
 	DisplayName string             `json:"display_name"`
 	Active      bool               `json:"active"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type WorkingHour struct {
+	ID             uuid.UUID `json:"id"`
+	ShopID         uuid.UUID `json:"shop_id"`
+	ProfessionalID uuid.UUID `json:"professional_id"`
+	Weekday        int32     `json:"weekday"`
+	OpensAtMinute  int32     `json:"opens_at_minute"`
+	ClosesAtMinute int32     `json:"closes_at_minute"`
 }

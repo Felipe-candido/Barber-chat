@@ -47,8 +47,26 @@ type AuthorizeShopActionInput struct {
 // user, membership and shop have all been confirmed as active.
 // This is a per-operation result, not a reusable session or proof of authentication.
 type AuthorizedShopScope struct {
-	UserID uuid.UUID
-	ShopID uuid.UUID
+	UserID         uuid.UUID
+	ShopID         uuid.UUID
+	Role           domain.Role
+	ProfessionalID uuid.UUID
+}
+
+// StaffAccount is a shop-scoped provisioning projection, not an Auth session.
+type StaffAccount struct {
+	ID             uuid.UUID
+	ProfessionalID uuid.UUID
+	Email          string
+	UserID         uuid.UUID
+	State          string
+	Active         bool
+}
+
+// ProviderUser contains only the verified fields needed for local linking.
+type ProviderUser struct {
+	ID    uuid.UUID
+	Email string
 }
 
 func staffIdentityOutput(user domain.User) StaffIdentityOutput {

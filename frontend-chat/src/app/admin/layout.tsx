@@ -1,4 +1,4 @@
-import { AdminShell } from "@/components/admin-shell";
+import { AdminAccessGuard } from "@/components/admin-access-guard";
 export default function Layout({ children }: { children: React.ReactNode }) {
-  return <AdminShell>{children}</AdminShell>;
+  return <AdminAccessGuard>{children}</AdminAccessGuard>;
 }

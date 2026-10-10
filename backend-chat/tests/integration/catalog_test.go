@@ -89,7 +89,7 @@ func TestCatalogHTTPPersistenceAndIsolation(t *testing.T) {
 	if _, err := tx.Exec(ctx, "INSERT INTO public.users (id,display_name) VALUES ($1,'HTTP integration test')", userID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := tx.Exec(ctx, "INSERT INTO public.shop_memberships (user_id,shop_id) VALUES ($1,$2)", userID, shopA); err != nil {
+	if _, err := tx.Exec(ctx, "INSERT INTO public.shop_memberships (user_id,shop_id,role) VALUES ($1,$2,'owner')", userID, shopA); err != nil {
 		t.Fatal(err)
 	}
 	identityRepo := identitypostgres.NewRepository(queries)

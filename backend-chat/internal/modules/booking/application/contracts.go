@@ -12,6 +12,7 @@ import (
 type ShopContext struct {
 	ShopID   uuid.UUID
 	Slug     string
+	Name     string
 	Timezone string
 }
 
@@ -38,31 +39,26 @@ type AvailabilityQuery struct {
 	ShopTimezone   string
 }
 
-// ScheduleCheck is recomputed from the requested start and effective duration.
-// The professional's common agenda lock must already be held in the transaction.
-type ScheduleCheck struct {
-	ShopID         uuid.UUID
-	ProfessionalID uuid.UUID
-	StartsAt       time.Time
-	EndsAt         time.Time
+// ClaimedReceipt stores the original response, including its one-appointment
+// capability. Infrastructure encrypts it with the high-entropy request key;
+// neither that key nor the plaintext code is persisted.
+type ClaimedReceipt struct {
+	Appointment AppointmentReceipt
+	Code        string
 }
 
 // CustomerResolutionInput is submitted only after validating final booking data.
-// Resolving contacts and recording consent must share the booking transaction.
+// Resolving contacts must share the booking transaction.
 // RecordedAt is supplied by the server clock. Customer data must not be logged.
 type CustomerResolutionInput struct {
 	ShopID     uuid.UUID
 	Customer   CustomerInput
-	Consent    ConsentInput
 	RecordedAt time.Time
 }
 
 // CustomerResolution never exposes an existing customer's profile or history.
-// BookingMessagesAllowed applies to this request's validated consent, not an
-// assumed opt-in based on an old record or the mere presence of a phone number.
 type CustomerResolution struct {
-	CustomerID             uuid.UUID
-	BookingMessagesAllowed bool
+	CustomerID uuid.UUID
 }
 
 // IdempotencyClaim reserves the create-appointment operation's tenant-scoped key.
@@ -75,18 +71,4 @@ type IdempotencyClaim struct {
 	RequestFingerprint [32]byte
 	RequestedAt        time.Time
 	ExpiresAt          time.Time
-}
-
-// AppointmentNotificationPlan contains references, not phone numbers or broker
-// messages. Notifications owns reminder policy, intent/job/outbox persistence
-// and later delivery. This request's allowed messaging consent is explicit.
-type AppointmentNotificationPlan struct {
-	ShopID                 uuid.UUID
-	AppointmentID          uuid.UUID
-	AppointmentVersion     int64
-	CustomerID             uuid.UUID
-	StartsAt               time.Time
-	ShopTimezone           string
-	RecordedAt             time.Time
-	BookingMessagesAllowed bool
 }

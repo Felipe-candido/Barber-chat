@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import "@fontsource-variable/dm-sans";
 import "./globals.css";
+import "./booking.css";
 import { FeedbackProvider } from "@/components/feedback-provider";
+import { AdminAccessProvider } from "@/components/admin-access-provider";
 
 export const metadata: Metadata = {
   title: {
@@ -16,7 +18,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="pt-BR">
       <body>
-        <FeedbackProvider>{children}</FeedbackProvider>
+        <FeedbackProvider>
+          <AdminAccessProvider>{children}</AdminAccessProvider>
+        </FeedbackProvider>
       </body>
     </html>
   );

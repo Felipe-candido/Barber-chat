@@ -1,4 +1,5 @@
 import { ApiError, requestJSON } from "./client";
+import { shopPathSegment } from "./config";
 
 // These fields mirror serviceResponse and createServiceRequest in the Go handler.
 export type Service = {
@@ -37,20 +38,29 @@ function service(value: unknown): Service {
   return s;
 }
 export async function listServices(slug: string, signal?: AbortSignal): Promise<Service[]> {
-  if (!slug.trim())
-    throw new ApiError(
-      "configuration",
-      "Configure NEXT_PUBLIC_SHOP_SLUG para carregar os serviços da barbearia.",
-    );
-  const payload = await requestJSON(
-    "/api/v1/public/shops/" + encodeURIComponent(slug) + "/services",
-    { signal },
-  );
+  const payload = await requestJSON("/api/v1/public/shops/" + shopPathSegment(slug) + "/services", {
+    signal,
+  });
   if (!Array.isArray(payload))
     throw new ApiError("invalid_response", "A API deveria retornar uma lista de serviços.");
   return payload.map(service);
 }
-export async function createService(input: CreateServiceInput): Promise<Service> {
+
+export async function listAdminServices(slug: string, signal?: AbortSignal): Promise<Service[]> {
+  const payload = await requestJSON("/api/v1/admin/shops/" + shopPathSegment(slug) + "/services", {
+    authenticated: true,
+    signal,
+  });
+  if (!Array.isArray(payload))
+    throw new ApiError("invalid_response", "A API deveria retornar uma lista de serviços.");
+  return payload.map(service);
+}
+
+export async function createService(
+  slug: string,
+  input: CreateServiceInput,
+  signal?: AbortSignal,
+): Promise<Service> {
   const name = input.name.trim();
   if (
     !name ||
@@ -66,9 +76,10 @@ export async function createService(input: CreateServiceInput): Promise<Service>
       "Informe um nome de até 100 caracteres, duração inteira positiva e preço válido.",
     );
   // Explicit mapping prevents tenant, category and active fields from leaking into the request.
-  const payload = await requestJSON("/api/v1/admin/services", {
+  const payload = await requestJSON("/api/v1/admin/shops/" + shopPathSegment(slug) + "/services", {
     method: "POST",
     authenticated: true,
+    signal,
     body: {
       name,
       description: input.description,

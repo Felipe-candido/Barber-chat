@@ -1,15 +1,16 @@
-// Package infra is the boundary for concrete booking adapters.
+// Package infra contains HTTP, PostgreSQL and cryptographic booking adapters.
 //
-// Planned adapters include HTTP request/response mapping and PostgreSQL access
-// for availability, appointments and calendar rules. SQL enforces exclusion
-// constraints, tenant references and the common agenda-locking protocol.
+// HTTP translates validated JSON to use-case inputs and sanitized errors to
+// responses. PostgreSQL binds all BookingTx capabilities to one transaction,
+// serializes calendar operations by professional and maps exclusion violations
+// to slot conflicts. The bootstrap supplies adapters of the resource-owning
+// modules using the same sqlc transaction, not independently committed writes.
 //
-// The concrete transaction boundary must bind the ports for customer resolution,
-// booking and notification intents to one transaction. Do not commit each step
-// independently, expose pgx.Tx to the domain, or send messages before commit.
-// Translate overlap violations into an application conflict before HTTP mapping.
+// Security generates 160-bit random consultation codes, stores their SHA-256
+// hashes and encrypts replay receipts with a key derived from the caller's
+// 256-bit random Idempotency-Key. Neither secret belongs in URLs or logs.
 //
-// Generic connection setup stays in internal/platform. Handlers invoke use cases;
-// they do not duplicate business decisions or query the database directly.
-// Domain/application never import infra. These adapters are not implemented yet.
+// The HTTP rate limiter is process-local, uses RemoteAddr and does not trust
+// arbitrary forwarding headers. Multi-instance deployment needs edge limits.
+// No message provider is invoked by the booking transaction.
 package infra

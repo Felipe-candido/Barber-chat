@@ -1,11 +1,19 @@
 openapi: 3.1.0
 info:
   title: Barber-chat API
-  version: 0.4.0
-  description: Health/readiness, administrative identity and service catalog. Administrative routes require a Supabase ES256 access token and an active local user; shop reads and writes also require an active shop membership. Browser requests require the exact FRONTEND_ORIGIN. Tokens are accepted only in Authorization, never in URL parameters.
+  version: 0.8.0
+  description: Health/readiness, administrative identity, services/professionals and public booking. Administrative routes require a Supabase ES256 access token and an active local user; shop reads and writes also require an active shop membership. Public appointments use a private consultation code, not staff login. Browser requests require the exact FRONTEND_ORIGIN. Secrets are never accepted in URL parameters.
 servers:
   - url: http://127.0.0.1:8080
 paths:
+  /api/v1/admin/shops/{slug}/accounts:
+    $ref: './staff-accounts-openapi.yaml#/paths/accounts'
+  /api/v1/admin/shops/{slug}/accounts/{accountID}/link:
+    $ref: './staff-accounts-openapi.yaml#/paths/link'
+  /api/v1/admin/shops/{slug}/accounts/{accountID}/status:
+    $ref: './staff-accounts-openapi.yaml#/paths/status'
+  /api/v1/admin/shops/{slug}/accounts/{accountID}/replace:
+    $ref: './staff-accounts-openapi.yaml#/paths/replace'
   /health:
     get:
       operationId: health
@@ -115,6 +123,39 @@ paths:
           $ref: '#/components/responses/Preflight'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/v1/admin/shops/{slug}/access:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: {type: string}
+    get:
+      operationId: getMyShopAccess
+      summary: Return the current local role and professional association for this shop
+      description: Roles are fixed owner or barber, not permissions from JWT user metadata. An owner sees the whole shop; a barber is linked to an active professional. This response informs the UI, but every operation checks authorization again. No administrative account creation is implemented by this endpoint.
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current shop access; never cached
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [role, professional_id]
+                properties:
+                  role: {type: string, enum: [owner, barber]}
+                  professional_id: {type: [string, 'null'], format: uuid}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    options:
+      operationId: preflightMyShopAccess
+      responses:
+        '204': {$ref: '#/components/responses/Preflight'}
+        '403': {$ref: '#/components/responses/Forbidden'}
   /api/v1/admin/shops/{slug}/services:
     parameters:
       - name: slug
@@ -125,7 +166,7 @@ paths:
     get:
       operationId: listShopServices
       summary: List active services in the authorized shop
-      description: Requires the same current active user/shop membership checks as creation. The query receives only the ShopID from authorization. Returns an empty array when the authorized active shop has no active services. Inactive service management and pagination are not implemented.
+      description: Owners and barbers with current active shop access can read the booking catalog. The query receives only the ShopID from authorization. Returns an empty array when the authorized active shop has no active services. Inactive service management and pagination are not implemented.
       security:
         - bearerAuth: []
       responses:
@@ -148,7 +189,7 @@ paths:
     post:
       operationId: createShopService
       summary: Create a service in an authorized shop
-      description: Resolves the active path slug and checks the exact active user/shop membership before decoding the body. Unknown/inactive shops and missing/inactive memberships all return 403. Tenant and user identifiers are not accepted in JSON. Maximum body size is 64 KiB. All active members have the same permissions in this increment.
+      description: Requires owner role on the exact active user/shop membership before decoding the body. Unknown/inactive shops, invalid/inactive memberships and barbers return 403. Tenant, role and user identifiers are not accepted in JSON. Maximum body size is 64 KiB.
       security:
         - bearerAuth: []
       requestBody:
@@ -223,6 +264,20 @@ paths:
           $ref: '#/components/responses/Preflight'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/v1/public/shops/{slug}/professionals:
+    $ref: './booking-openapi.yaml#/paths/professionals'
+  /api/v1/public/shops/{slug}/availability:
+    $ref: './booking-openapi.yaml#/paths/availability'
+  /api/v1/public/shops/{slug}/appointments:
+    $ref: './booking-openapi.yaml#/paths/appointments'
+  /api/v1/public/shops/{slug}/appointments/lookup:
+    $ref: './booking-openapi.yaml#/paths/lookup'
+  /api/v1/public/shops/{slug}/appointments/cancel:
+    $ref: './booking-openapi.yaml#/paths/cancel'
+  /api/v1/admin/shops/{slug}/professionals:
+    $ref: './booking-openapi.yaml#/paths/adminProfessionals'
+  /api/v1/admin/shops/{slug}/appointments:
+    $ref: './booking-openapi.yaml#/paths/adminAgenda'
 components:
   securitySchemes:
     bearerAuth:
@@ -338,7 +393,7 @@ components:
           schema:
             $ref: '#/components/schemas/Error'
     Preflight:
-      description: Exact configured origin allowed. Does not authenticate or grant access to the real request. Allows Authorization and Content-Type; no cookie credentials.
+      description: Exact configured origin allowed. Does not authenticate or grant access to the real request. Allows Authorization, Content-Type and Idempotency-Key; no cookie credentials.
       headers:
         Access-Control-Allow-Origin:
           schema:

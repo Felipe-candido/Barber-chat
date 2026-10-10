@@ -13,12 +13,15 @@ import (
 
 const getMembership = `-- name: GetMembership :one
 SELECT
-    user_id,
-    shop_id,
-    active
-FROM public.shop_memberships
-WHERE user_id = $1
-  AND shop_id = $2
+    m.user_id,
+    m.shop_id,
+    (m.active AND (m.role = 'owner' OR (m.role = 'barber' AND COALESCE(p.active, FALSE))))::boolean AS active,
+    m.role,
+    COALESCE(m.professional_id,'00000000-0000-0000-0000-000000000000'::uuid)::uuid AS professional_id
+FROM public.shop_memberships m
+LEFT JOIN professionals p ON p.shop_id = m.shop_id AND p.id = m.professional_id
+WHERE m.user_id = $1
+  AND m.shop_id = $2
 `
 
 type GetMembershipParams struct {
@@ -27,15 +30,23 @@ type GetMembershipParams struct {
 }
 
 type GetMembershipRow struct {
-	UserID uuid.UUID `json:"user_id"`
-	ShopID uuid.UUID `json:"shop_id"`
-	Active bool      `json:"active"`
+	UserID         uuid.UUID `json:"user_id"`
+	ShopID         uuid.UUID `json:"shop_id"`
+	Active         bool      `json:"active"`
+	Role           string    `json:"role"`
+	ProfessionalID uuid.UUID `json:"professional_id"`
 }
 
 func (q *Queries) GetMembership(ctx context.Context, arg GetMembershipParams) (GetMembershipRow, error) {
 	row := q.db.QueryRow(ctx, getMembership, arg.UserID, arg.ShopID)
 	var i GetMembershipRow
-	err := row.Scan(&i.UserID, &i.ShopID, &i.Active)
+	err := row.Scan(
+		&i.UserID,
+		&i.ShopID,
+		&i.Active,
+		&i.Role,
+		&i.ProfessionalID,
+	)
 	return i, err
 }
 
@@ -73,6 +84,10 @@ WHERE m.user_id = $1
   AND u.active = TRUE
   AND m.active = TRUE
   AND s.active = TRUE
+  AND (m.role = 'owner' OR (m.role = 'barber' AND EXISTS (
+      SELECT 1 FROM professionals p
+      WHERE p.shop_id = m.shop_id AND p.id = m.professional_id AND p.active = TRUE
+  )))
 ORDER BY s.name, s.id
 `
 
@@ -106,16 +121,20 @@ const listMembershipsByUser = `-- name: ListMembershipsByUser :many
 SELECT
     user_id,
     shop_id,
-    active
+    active,
+    role,
+    COALESCE(professional_id,'00000000-0000-0000-0000-000000000000'::uuid)::uuid AS professional_id
 FROM public.shop_memberships
 WHERE user_id = $1
 ORDER BY shop_id
 `
 
 type ListMembershipsByUserRow struct {
-	UserID uuid.UUID `json:"user_id"`
-	ShopID uuid.UUID `json:"shop_id"`
-	Active bool      `json:"active"`
+	UserID         uuid.UUID `json:"user_id"`
+	ShopID         uuid.UUID `json:"shop_id"`
+	Active         bool      `json:"active"`
+	Role           string    `json:"role"`
+	ProfessionalID uuid.UUID `json:"professional_id"`
 }
 
 func (q *Queries) ListMembershipsByUser(ctx context.Context, userID uuid.UUID) ([]ListMembershipsByUserRow, error) {
@@ -127,7 +146,13 @@ func (q *Queries) ListMembershipsByUser(ctx context.Context, userID uuid.UUID) (
 	items := []ListMembershipsByUserRow{}
 	for rows.Next() {
 		var i ListMembershipsByUserRow
-		if err := rows.Scan(&i.UserID, &i.ShopID, &i.Active); err != nil {
+		if err := rows.Scan(
+			&i.UserID,
+			&i.ShopID,
+			&i.Active,
+			&i.Role,
+			&i.ProfessionalID,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

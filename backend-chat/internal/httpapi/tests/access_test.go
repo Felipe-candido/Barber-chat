@@ -22,6 +22,7 @@ import (
 	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
 	identityapp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/application"
 	identitydomain "github.com/Felipe-candido/Barber-chat/internal/modules/identity/domain"
+	identityhttp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/http"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/supabase"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v5"
@@ -117,7 +118,7 @@ func newAccessFixture(t *testing.T) *accessFixture {
 	f.store = &accessStore{
 		user: identitydomain.User{ID: userID, DisplayName: "Felipe", Active: true}, userFound: true,
 		shops:       map[string]uuid.UUID{"shop-a": shopID, "shop-b": uuid.New()},
-		memberships: map[uuid.UUID]identitydomain.Membership{shopID: {UserID: userID, ShopID: shopID, Active: true}},
+		memberships: map[uuid.UUID]identitydomain.Membership{shopID: {UserID: userID, ShopID: shopID, Active: true, Role: identitydomain.RoleOwner}},
 	}
 	return f
 }
@@ -126,11 +127,62 @@ func (f *accessFixture) handler() http.Handler {
 	logger := slog.New(slog.NewJSONHandler(&f.logs, nil))
 	catalog := cataloghttp.NewHandler(catalogapp.NewCreateService(f.store), catalogapp.NewListServices(f.store, f.store), catalogapp.NewListAuthorizedServices(f.store), time.Second, logger)
 	return httpapi.NewHandler(httpapi.HandlerConfig{
-		Catalog: catalog, Authenticate: identityapp.NewAuthenticate(f.verifier, f.store),
+		Accounts: identityhttp.NewAccountHandler(identityapp.NewStaffAccounts(nil, nil), time.Second, logger),
+		Catalog:  catalog, Authenticate: identityapp.NewAuthenticate(f.verifier, f.store),
 		AuthorizeShop: identityapp.NewAuthorizeShopAction(f.store, f.store),
 		Logger:        logger, FrontendOrigin: browserOrigin,
 		RequestTimeout: time.Second, CheckDB: func(context.Context) error { return nil },
 	})
+}
+
+func TestStaffAccountsRoutesAreOwnerOnly(t *testing.T) {
+	f := newAccessFixture(t)
+	for _, tc := range []struct {
+		name, slug    string
+		role          identitydomain.Role
+		authenticated bool
+		want          int
+	}{
+		{"anonymous", "shop-a", identitydomain.RoleOwner, false, 401},
+		{"other shop", "shop-b", identitydomain.RoleOwner, true, 403},
+		{"barber", "shop-a", identitydomain.RoleBarber, true, 403},
+		{"owner without configured Auth adapter", "shop-a", identitydomain.RoleOwner, true, 503},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			shopID := f.store.shops["shop-a"]
+			membership := f.store.memberships[shopID]
+			membership.Role, membership.ProfessionalID = tc.role, uuid.New()
+			f.store.memberships[shopID] = membership
+			for _, endpoint := range []struct{ suffix, body string }{
+				{"", `{"professional_id":"22222222-2222-4222-8222-222222222222","email":"barber@example.com"}`},
+				{"/44444444-4444-4444-8444-444444444444/replace", `{"email":"correct@example.com"}`},
+			} {
+				r := httptest.NewRequest(http.MethodPost, "/api/v1/admin/shops/"+tc.slug+"/accounts"+endpoint.suffix, strings.NewReader(endpoint.body))
+				r.Header.Set("Content-Type", "application/json")
+				if tc.authenticated {
+					r.Header.Set("Authorization", "Bearer "+f.token(t, nil))
+				}
+				w := httptest.NewRecorder()
+				f.handler().ServeHTTP(w, r)
+				if w.Code != tc.want {
+					t.Fatal(w.Code, w.Body.String())
+				}
+			}
+		})
+	}
+}
+
+func TestStaffAccountReplacementPreflight(t *testing.T) {
+	f := newAccessFixture(t)
+	r := httptest.NewRequest(http.MethodOptions, "/api/v1/admin/shops/shop-a/accounts/44444444-4444-4444-8444-444444444444/replace", nil)
+	r.Header.Set("Origin", browserOrigin)
+	r.Header.Set("Access-Control-Request-Method", "POST")
+	r.Header.Set("Access-Control-Request-Headers", "authorization,content-type")
+	w := httptest.NewRecorder()
+	f.handler().ServeHTTP(w, r)
+	if w.Code != 204 {
+		t.Fatal(w.Code, w.Body.String())
+	}
 }
 
 func (f *accessFixture) token(t *testing.T, change func(jwt.MapClaims)) string {
@@ -322,7 +374,7 @@ func TestShopAccessScopesWritesAndRejectsOtherUnits(t *testing.T) {
 		}, 500},
 		{"second active membership", "shop-b", func(f *accessFixture) {
 			id := f.store.shops["shop-b"]
-			f.store.memberships[id] = identitydomain.Membership{UserID: f.store.user.ID, ShopID: id, Active: true}
+			f.store.memberships[id] = identitydomain.Membership{UserID: f.store.user.ID, ShopID: id, Active: true, Role: identitydomain.RoleOwner}
 		}, 201},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -386,6 +438,44 @@ func TestUnscopedServiceEndpointWasRemoved(t *testing.T) {
 		if w.Code != 404 || len(f.store.created) != 0 || f.store.userCalls != 0 {
 			t.Fatalf("unscoped endpoint remains active: %d", w.Code)
 		}
+	}
+}
+
+func TestTwoRolesUseDatabaseMembershipNotTokenMetadata(t *testing.T) {
+	f := newAccessFixture(t)
+	shopID := f.store.shops["shop-a"]
+	membership := f.store.memberships[shopID]
+	membership.Role = identitydomain.RoleBarber
+	membership.ProfessionalID = uuid.New()
+	f.store.memberships[shopID] = membership
+	token := f.token(t, func(claims jwt.MapClaims) {
+		claims["user_metadata"] = map[string]any{"role": "owner"}
+	})
+	h := f.handler()
+	if w := accessRequest(h, "GET", "/api/v1/admin/shops/shop-a/services", token, ""); w.Code != 200 {
+		t.Fatal("barber cannot read booking catalog", w.Code, w.Body.String())
+	}
+	if w := accessRequest(h, "POST", "/api/v1/admin/shops/shop-a/services", token, serviceBody); w.Code != 403 || len(f.store.created) != 0 {
+		t.Fatal("barber promoted through token metadata", w.Code, w.Body.String())
+	}
+	w := accessRequest(h, "GET", "/api/v1/admin/shops/shop-a/access", token, "")
+	var result struct {
+		Role           string    `json:"role"`
+		ProfessionalID uuid.UUID `json:"professional_id"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || w.Code != 200 || result.Role != "barber" || result.ProfessionalID != membership.ProfessionalID {
+		t.Fatal("wrong shop-specific access", w.Code, w.Body.String(), err)
+	}
+	// A role change is read on the next request, without issuing a new token.
+	membership.Role = identitydomain.RoleOwner
+	membership.ProfessionalID = uuid.Nil
+	f.store.memberships[shopID] = membership
+	w = accessRequest(h, "GET", "/api/v1/admin/shops/shop-a/access", token, "")
+	if w.Code != 200 || !strings.Contains(w.Body.String(), `"role":"owner"`) || !strings.Contains(w.Body.String(), `"professional_id":null`) {
+		t.Fatal("owner role did not update or null association changed", w.Code, w.Body.String())
+	}
+	if w := accessRequest(h, "POST", "/api/v1/admin/shops/shop-a/services", token, serviceBody); w.Code != 201 || len(f.store.created) != 1 {
+		t.Fatal("owner write blocked", w.Code, w.Body.String())
 	}
 }
 

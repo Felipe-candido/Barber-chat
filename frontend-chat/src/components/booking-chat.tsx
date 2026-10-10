@@ -1,27 +1,23 @@
 "use client";
 import { useState } from "react";
 import Image from "next/image";
-import {
-  ArrowLeft,
-  CalendarDays,
-  CheckCheck,
-  ChevronRight,
-  LoaderCircle,
-  Scissors,
-} from "lucide-react";
+import { CheckCheck, ChevronRight, LoaderCircle, Scissors } from "lucide-react";
 import { Brand } from "./ui";
-import { configuredShopSlug } from "@/lib/api/config";
 import { useServices } from "@/hooks/use-services";
 import { money } from "@/lib/model";
-export function BookingChat({ slug = configuredShopSlug }: { slug?: string }) {
+import { BookingForm } from "./booking-form";
+import { AppointmentLookup } from "./appointment-receipt";
+export function BookingChat({ slug }: { slug: string }) {
   const { services, loading, error, reload } = useServices(slug);
   const [selectedId, setSelectedId] = useState("");
+  const [mode, setMode] = useState<"book" | "lookup">("book");
+  const [locked, setLocked] = useState(false);
   const selected = services.find((s) => s.id === selectedId);
   return (
     <div className="booking-page">
       <header className="booking-nav">
         <Brand />
-        <span className="admin-link">Catálogo · {slug || "barbearia não configurada"}</span>
+        <span className="admin-link">Agendamento · {slug || "barbearia não configurada"}</span>
       </header>
       <main className="booking-layout">
         <section className="booking-story">
@@ -49,9 +45,9 @@ export function BookingChat({ slug = configuredShopSlug }: { slug?: string }) {
               <em>Um cuidado nosso.</em>
             </h1>
             <p>
-              Conheça os serviços disponíveis.
+              Escolha seu cuidado e reserve um horário.
               <br />
-              Em breve, escolha seu próximo horário por aqui.
+              Simples, sem criar uma conta.
             </p>
           </div>
           <div className="story-bottom">
@@ -63,13 +59,17 @@ export function BookingChat({ slug = configuredShopSlug }: { slug?: string }) {
             <i />
           </div>
         </section>
-        <section className="chat-panel" aria-label="Catálogo público">
+        <section className="chat-panel" aria-label="Agendamento público">
           <header className="chat-header">
             <span className="chat-assistant-avatar">
               <Scissors size={24} />
             </span>
             <div>
-              <h2>Qual cuidado combina com você?</h2>
+              <h2>
+                {mode === "book"
+                  ? "Qual cuidado combina com você?"
+                  : "Seu agendamento, sempre à mão"}
+              </h2>
               <p>Serviços da barbearia · {slug || "slug não configurado"}</p>
             </div>
           </header>
@@ -80,20 +80,46 @@ export function BookingChat({ slug = configuredShopSlug }: { slug?: string }) {
             </div>
             <div>
               <span>2</span>
-              <small>Horário · em breve</small>
+              <small>Horário</small>
+            </div>
+            <div>
+              <span>3</span>
+              <small>Confirmação</small>
             </div>
           </div>
           <div className="chat-conversation">
+            <div className="booking-mode-actions">
+              <button
+                className="button button-secondary"
+                disabled={locked}
+                aria-pressed={mode === "book"}
+                onClick={() => setMode("book")}
+              >
+                Agendar horário
+              </button>
+              <button
+                className="button button-secondary"
+                disabled={locked}
+                aria-pressed={mode === "lookup"}
+                onClick={() => setMode("lookup")}
+              >
+                Já tenho um código
+              </button>
+            </div>
             <div className="chat-date-label">SEU PRÓXIMO BOM MOMENTO</div>
             <div className="bot-message">
               <span className="bot-avatar">
                 <Scissors size={14} />
               </span>
               <div className="bot-bubble">
-                Boas-vindas! Consulte os serviços e valores disponíveis nesta barbearia.
+                {mode === "book"
+                  ? "Boas-vindas! Escolha um serviço para começar seu agendamento."
+                  : "Informe o código recebido ao finalizar sua reserva."}
               </div>
             </div>
-            {loading ? (
+            {mode === "lookup" ? (
+              <AppointmentLookup slug={slug} />
+            ) : loading ? (
               <div className="loading-screen" role="status">
                 <LoaderCircle size={25} />
                 <span>Carregando serviços…</span>
@@ -115,27 +141,13 @@ export function BookingChat({ slug = configuredShopSlug }: { slug?: string }) {
                     <CheckCheck size={14} />
                   </div>
                 </div>
-                <div className="booking-summary">
-                  <span className="eyebrow">SERVIÇO SELECIONADO</span>
-                  <h3>{selected.name}</h3>
-                  <p>{selected.description}</p>
-                  <div className="booking-total">
-                    <span>{selected.duration_minutes} minutos</span>
-                    <strong>{money(selected.price_cents)}</strong>
-                  </div>
-                </div>
-                <div className="inline-hint integration-note">
-                  <CalendarDays size={18} />
-                  <strong>Agendamento ainda indisponível.</strong>
-                  <p>
-                    Profissionais, horários e confirmação aguardam integração. Nenhuma reserva foi
-                    criada.
-                  </p>
-                </div>
-                <button className="chat-back" onClick={() => setSelectedId("")}>
-                  <ArrowLeft size={15} />
-                  Escolher outro serviço
-                </button>
+                <BookingForm
+                  key={selected.id}
+                  slug={slug}
+                  service={selected}
+                  onBack={() => setSelectedId("")}
+                  onLockedChange={setLocked}
+                />
               </>
             ) : services.length ? (
               <div className="chat-options">
@@ -166,7 +178,7 @@ export function BookingChat({ slug = configuredShopSlug }: { slug?: string }) {
             )}
           </div>
           <footer className="chat-footer">
-            Catálogo conectado à API · Reservas ainda indisponíveis
+            Reserva confirmada pelo servidor · Guarde seu código
           </footer>
         </section>
       </main>
