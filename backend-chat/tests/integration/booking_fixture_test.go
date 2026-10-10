@@ -26,6 +26,7 @@ import (
 	catalogpostgres "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/postgres"
 	customers "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra"
 	customerspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra/postgres"
+	identitypostgres "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/postgres"
 	shopspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/shops/infra/postgres"
 	"github.com/Felipe-candido/Barber-chat/internal/platform/postgres"
 	"github.com/google/uuid"
@@ -43,7 +44,7 @@ type bookingFixture struct {
 
 func bindBookingQueries(q *db.Queries) booking.BookingTx {
 	r := bookingpostgres.NewRepository(q)
-	return booking.BookingTx{Shops: shopspostgres.NewResolver(q), Catalog: catalogpostgres.NewRepository(q), Schedule: r,
+	return booking.BookingTx{Staff: identitypostgres.NewRepository(q), Shops: shopspostgres.NewResolver(q), Catalog: catalogpostgres.NewRepository(q), Schedule: r,
 		Customers: customerspostgres.NewBookingContacts(q), Appointments: r, Idempotency: r}
 }
 func newBookingFixture(t *testing.T) *bookingFixture {

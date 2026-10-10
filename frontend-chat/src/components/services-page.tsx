@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { publicBookingPath } from "@/lib/api/config";
-import { useSelectedShop } from "./shop-panel";
+import { useSelectedShop, useSelectedShopAccess } from "./shop-panel";
 import { createService, priceToCents } from "@/lib/api/services";
 import { errorMessage } from "@/lib/api/client";
 import { useServices } from "@/hooks/use-services";
@@ -24,6 +24,7 @@ import { EmptyState, Modal } from "./ui";
 
 export function ServicesPage() {
   const shop = useSelectedShop();
+  const owner = useSelectedShopAccess().role === "owner";
   const { services, loading, error, errorStatus, reload } = useServices(shop.slug, "admin");
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
@@ -40,14 +41,16 @@ export function ServicesPage() {
           </h1>
           <p>Serviços ativos de {shop.name}.</p>
         </div>
-        <button
-          className="button button-primary"
-          disabled={errorStatus === 401 || errorStatus === 403}
-          onClick={() => setCreating(true)}
-        >
-          <Plus size={18} />
-          Adicionar serviço
-        </button>
+        {owner && (
+          <button
+            className="button button-primary"
+            disabled={errorStatus === 401 || errorStatus === 403}
+            onClick={() => setCreating(true)}
+          >
+            <Plus size={18} />
+            Adicionar serviço
+          </button>
+        )}
       </div>
       <div className="catalog-banner">
         <div className="catalog-banner-mark">
@@ -57,7 +60,8 @@ export function ServicesPage() {
           <span className="eyebrow">FEITO PARA CUIDAR</span>
           <h2>Um bom atendimento começa na escolha.</h2>
           <p>
-            Os serviços abaixo são consultados na API. Agendamentos ainda não estão disponíveis.
+            Os serviços abaixo estão disponíveis para agendar pelo chat ou pela agenda
+            administrativa.
           </p>
         </div>
         <Link href={publicBookingPath(shop.slug)} className="button button-secondary">
@@ -168,7 +172,7 @@ export function ServicesPage() {
           )}
         </>
       )}
-      {creating && (
+      {owner && creating && (
         <ServiceForm
           slug={shop.slug}
           onClose={() => setCreating(false)}

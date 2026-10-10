@@ -13,8 +13,11 @@ const AgendaPageSize = 100
 // ShopID is supplied by authenticated shop authorization, never query parameters.
 type ListAgendaInput struct {
 	ShopID uuid.UUID
-	Month  string
-	After  *AgendaCursor
+	// Set by the HTTP adapter from authorization, not supplied by the browser.
+	// Nil means the owner can read the entire shop agenda.
+	ProfessionalID uuid.UUID
+	Month          string
+	After          *AgendaCursor
 }
 
 // A cursor is only a pagination position, not an authorization credential.
@@ -42,11 +45,12 @@ type AgendaOutput struct {
 }
 
 type AgendaQuery struct {
-	ShopID uuid.UUID
-	From   time.Time
-	Until  time.Time
-	After  *AgendaCursor
-	Limit  int
+	ShopID         uuid.UUID
+	ProfessionalID uuid.UUID
+	From           time.Time
+	Until          time.Time
+	After          *AgendaCursor
+	Limit          int
 }
 
 type ListAgenda struct {
@@ -91,6 +95,7 @@ func (uc *ListAgenda) Execute(ctx context.Context, input ListAgendaInput) (Agend
 	}
 	items, err := uc.appointments.ListAgendaAppointments(ctx, AgendaQuery{
 		ShopID: input.ShopID, From: from.UTC(), Until: until.UTC(), After: input.After, Limit: AgendaPageSize + 1,
+		ProfessionalID: input.ProfessionalID,
 	})
 	if err != nil {
 		return AgendaOutput{}, fmt.Errorf("list agenda appointments: %w", err)

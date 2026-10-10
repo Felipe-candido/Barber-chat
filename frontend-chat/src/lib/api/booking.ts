@@ -163,12 +163,31 @@ export async function createAppointment(
   input: BookingInput,
   key: string,
 ): Promise<BookingResult> {
+  return createBooking(slug, input, key, false);
+}
+export async function createStaffAppointment(
+  slug: string,
+  input: BookingInput,
+  key: string,
+): Promise<BookingResult> {
+  return createBooking(slug, input, key, true);
+}
+async function createBooking(
+  slug: string,
+  input: BookingInput,
+  key: string,
+  staff: boolean,
+): Promise<BookingResult> {
   const result = record(
-    await requestJSON(base(slug) + "/appointments", {
-      method: "POST",
-      body: input,
-      idempotencyKey: key,
-    }),
+    await requestJSON(
+      (staff ? "/api/v1/admin/shops/" + shopPathSegment(slug) : base(slug)) + "/appointments",
+      {
+        method: "POST",
+        body: input,
+        idempotencyKey: key,
+        authenticated: staff,
+      },
+    ),
   );
   if (
     typeof result.code !== "string" ||

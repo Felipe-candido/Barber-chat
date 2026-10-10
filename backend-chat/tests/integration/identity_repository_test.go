@@ -53,7 +53,7 @@ func testIdentityRepository(t *testing.T, ctx context.Context, tx pgx.Tx) {
 	if got, err := repo.ListMembershipsByUser(ctx, otherUser); err != nil || got == nil || len(got) != 0 {
 		t.Fatalf("user without memberships: %+v, %v", got, err)
 	}
-	if _, err := tx.Exec(ctx, "INSERT INTO public.shop_memberships (user_id, shop_id) VALUES ($1, $2)", otherUser, shopA); err != nil {
+	if _, err := tx.Exec(ctx, "INSERT INTO public.shop_memberships (user_id, shop_id, role) VALUES ($1, $2, 'owner')", otherUser, shopA); err != nil {
 		t.Fatal(err)
 	}
 	// The other user belongs to A only. B must not be inferred from someone else's membership.
@@ -71,7 +71,7 @@ func testIdentityRepository(t *testing.T, ctx context.Context, tx pgx.Tx) {
 		t.Fatalf("inactive user was hidden or reactivated: %+v, %v, %v", user, found, err)
 	}
 	membership, found, err := repo.FindMembership(ctx, userID, shopB)
-	wantInactive := domain.Membership{UserID: userID, ShopID: shopB, Active: false}
+	wantInactive := domain.Membership{UserID: userID, ShopID: shopB, Active: false, Role: domain.RoleOwner}
 	if err != nil || !found || membership != wantInactive {
 		t.Fatalf("inactive membership was hidden or reactivated: %+v, %v, %v", membership, found, err)
 	}
@@ -79,11 +79,11 @@ func testIdentityRepository(t *testing.T, ctx context.Context, tx pgx.Tx) {
 	if err != nil || len(memberships) != 2 {
 		t.Fatalf("unexpected memberships: %+v, %v", memberships, err)
 	}
-	if memberships[0] != (domain.Membership{UserID: userID, ShopID: shopA, Active: true}) || memberships[1] != wantInactive {
+	if memberships[0] != (domain.Membership{UserID: userID, ShopID: shopA, Active: true, Role: domain.RoleOwner}) || memberships[1] != wantInactive {
 		t.Fatalf("list changed ordering, IDs or active flags: %+v", memberships)
 	}
 	otherMemberships, err := repo.ListMembershipsByUser(ctx, otherUser)
-	if err != nil || len(otherMemberships) != 1 || otherMemberships[0] != (domain.Membership{UserID: otherUser, ShopID: shopA, Active: true}) {
+	if err != nil || len(otherMemberships) != 1 || otherMemberships[0] != (domain.Membership{UserID: otherUser, ShopID: shopA, Active: true, Role: domain.RoleOwner}) {
 		t.Fatalf("list leaked another user's memberships: %+v, %v", otherMemberships, err)
 	}
 }
@@ -117,8 +117,8 @@ func testIdentityAccessibleShops(t *testing.T, ctx context.Context, tx pgx.Tx) {
 			($1, 'Shop inactive', 'selection-inactive-shop', false),
 			($2, 'Membership inactive', 'selection-inactive-membership', true),
 			($3, 'Other user only', 'selection-other-user', true)`, []any{inactiveShop, inactiveMembershipShop, otherShop}},
-		{`INSERT INTO public.shop_memberships (user_id, shop_id, active) VALUES
-			($1, $2, true), ($1, $3, false), ($4, $5, true), ($4, $6, true)`,
+		{`INSERT INTO public.shop_memberships (user_id, shop_id, active, role) VALUES
+			($1, $2, true, 'owner'), ($1, $3, false, 'owner'), ($4, $5, true, 'owner'), ($4, $6, true, 'owner')`,
 			[]any{userID, inactiveShop, inactiveMembershipShop, otherUser, shopA, otherShop}},
 	} {
 		if _, err := fixtureTx.Exec(ctx, statement.sql, statement.args...); err != nil {

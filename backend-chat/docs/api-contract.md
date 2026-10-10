@@ -2,13 +2,37 @@
 
 ## Autenticação e unidades
 
-Login envia credenciais apenas ao Supabase. O frontend chama `GET /api/v1/admin/me` e depois `GET /api/v1/admin/shops` com Bearer, mostra as unidades elegíveis e abre `/admin/{slug}/servicos` após a escolha. Cada operação administrativa revalida usuário, unidade e vínculo ativos. Contas, unidades e memberships continuam manuais; cadastrar um profissional não cria uma conta Supabase.
+Login envia credenciais apenas ao Supabase. O frontend chama `GET /api/v1/admin/me` e depois `GET /api/v1/admin/shops` com Bearer, mostra as unidades elegíveis e abre o painel após a escolha. Cada operação administrativa revalida usuário, unidade e vínculo ativos. Proprietários e unidades iniciais continuam manuais; cadastrar um profissional não cria uma conta Supabase.
 
-Health/readiness, identidade e catálogo estão descritos no [OpenAPI](openapi.yaml). Readiness verifica conectividade PostgreSQL, não migrations nem RabbitMQ. Todas as rotas abaixo estão implementadas; WhatsApp e agenda visual administrativa não estão.
+Após a migration 00006, há somente dois perfis fixos: `owner` e `barber`. Os vínculos antigos tornam-se proprietários; novos vínculos precisam declarar o perfil. `GET /api/v1/admin/shops/{slug}/access` retorna `{role,professional_id}`. POST de serviço/profissional exige proprietário; ambos podem ler o catálogo. Barbeiro só consulta a agenda de seu profissional ativo, filtrada no banco antes da paginação. A interface consulta o perfil e não oferece gestão de equipe, contas ou preços ao barbeiro.
+
+Health/readiness, identidade, catálogo, contas e booking estão descritos no [OpenAPI](openapi.yaml). Readiness verifica conectividade PostgreSQL, não migrations nem RabbitMQ. WhatsApp não está implementado.
+
+## Contas de acesso dos barbeiros
+
+Painel `/admin/{slug}/contas`, apenas para `owner`. Todas as rotas abaixo exigem Bearer, vínculo de proprietário ativo e corpo JSON de até 8 KiB, sem campos desconhecidos:
+
+- `GET /api/v1/admin/shops/{slug}/accounts`: lista `{id,professional_id,email,user_id,state,active}`; `user_id` pode ser nulo e `state` é `pending`, `linked` ou `review`.
+- `POST /accounts`: `{professional_id,email}`, retorna 201 com a conta vinculada e solicita convite por e-mail ao Auth.
+- `POST /accounts/{accountID}/link`: `{user_id}`, recuperação explícita de solicitação pendente/em revisão; busca UUID no Auth e compara e-mail antes de vincular.
+- `POST /accounts/{accountID}/status`: `{active:true|false}`, retorna `{active}` e altera somente acesso nesta unidade, não a conta global nem o cadastro do profissional.
+- `POST /accounts/{accountID}/replace`: `{email}`, diferente do atual; exige desativar primeiro o membership vinculado. Retorna 201 com uma nova conta/UUID para o mesmo profissional e solicita convite. Disponível também para solicitações pendentes/em revisão.
+
+A migration 00008 preserva o registro substituído como histórico (`replaced_at`), com índice único apenas para a conta atual por profissional. A troca remove apenas o membership inativo de barbeiro nesta unidade, não usuários, outras unidades ou agendamentos. Transação com lock do profissional serializa troca, vínculo e ativação; reler após o lock impede requisições antigas de reativar/vincular o UUID substituído. A chamada Auth ocorre depois do commit: se falhar, o NOVO registro fica pendente/em revisão. Não há compensação que restaure o acesso antigo nem envio automático duplicado. 409 `staff_account_must_be_inactive` exige desativação; 404 no UUID antigo exige atualizar a lista.
+
+Os sufixos POST usam a mesma base da rota GET. Nenhuma senha, role ou chave administrativa é aceita do navegador. Há uma solicitação única por profissional, inclusive em falha ambígua. Conta Auth e banco local não compartilham uma transação: 409 `staff_account_needs_review` exige conferir a lista e resolver a solicitação pelo UUID; nunca repetir envio automaticamente. 409 `staff_account_exists` indica profissional já vinculado/reservado; 503 `staff_accounts_not_configured` indica chave ausente.
+
+Configuração: `SUPABASE_SERVICE_ROLE_KEY` opcional apenas no `.env` Go (chave legada service_role JWT), `FRONTEND_ORIGIN` exata, e allowlist de redirects Supabase contendo `{FRONTEND_ORIGIN}/definir-senha`. Chave ausente não bloqueia o restante da API. SMTP padrão Supabase restringe destinatários; configure SMTP próprio para convites reais. O barbeiro abre o convite e define senha em `/definir-senha`; o frontend envia a senha diretamente ao Auth. Nunca adicionar a chave administrativa ao `.env.local` ou a variáveis `NEXT_PUBLIC_*`.
+
+## Criação administrativa de agendamentos
+
+`POST /api/v1/admin/shops/{slug}/appointments` exige Bearer e `Idempotency-Key`. Mesmo corpo e comprovante do POST público. Proprietário pode escolher qualquer profissional elegível da unidade; barbeiro só pode escolher o próprio profissional, independentemente de alterações no JSON. A identidade e unidade vêm do contexto autenticado, nunca do corpo.
+
+Além dos middlewares, a transação revalida o acesso atual, inclusive em replay de reserva. O núcleo público é reutilizado: chave de idempotência → lock do profissional → verificação de acesso → disponibilidade atual → contato → reserva → comprovante → commit. A exclusão SQL de sobreposição continua como proteção final. A interface atualiza a agenda após criar e mantém a tentativa bloqueada em falha ambígua.
 
 ## Cadastro administrativo de profissionais
 
-`GET/POST /api/v1/admin/shops/{slug}/professionals` exige Bearer e membership ativo. GET retorna array de `{id,name,active,service_ids}`. POST cria profissional, associações a serviços ativos da mesma unidade e calendário inicial em uma transação; retorna 201 com o mesmo formato.
+`GET/POST /api/v1/admin/shops/{slug}/professionals` exige Bearer e membership ativo. POST também exige `owner`. GET retorna array de `{id,name,active,service_ids}`. POST cria profissional, associações a serviços ativos da mesma unidade e calendário inicial em uma transação; retorna 201 com o mesmo formato.
 
 ```json
 {

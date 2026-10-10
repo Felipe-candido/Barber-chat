@@ -12,10 +12,11 @@ import {
   LogOut,
   Building2,
   Users,
+  UserRoundCog,
 } from "lucide-react";
 import { useState } from "react";
 import { publicBookingPath, adminShopPath } from "@/lib/api/config";
-import type { AccessibleShop, StaffIdentity } from "@/lib/api/identity";
+import type { AccessibleShop, StaffIdentity, ShopAccess } from "@/lib/api/identity";
 import { errorMessage } from "@/lib/api/client";
 import { useAdminAccess } from "./admin-access-provider";
 import { Brand } from "./ui";
@@ -25,10 +26,12 @@ export function AdminShell({
   children,
   shop,
   identity,
+  access,
 }: {
   children: React.ReactNode;
   shop: AccessibleShop;
   identity: StaffIdentity;
+  access: ShopAccess;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -95,14 +98,26 @@ export function AdminShell({
             <Building2 size={20} />
             Trocar barbearia
           </Link>
-          <Link
-            className={"nav-item " + (pathname === panelPath + "/barbeiros" ? "active" : "")}
-            href={panelPath + "/barbeiros"}
-            onClick={() => setOpen(false)}
-          >
-            <Users size={20} />
-            Barbeiros
-          </Link>
+          {access.role === "owner" && (
+            <Link
+              className={"nav-item " + (pathname === panelPath + "/barbeiros" ? "active" : "")}
+              href={panelPath + "/barbeiros"}
+              onClick={() => setOpen(false)}
+            >
+              <Users size={20} />
+              Barbeiros
+            </Link>
+          )}
+          {access.role === "owner" && (
+            <Link
+              className={"nav-item " + (pathname === panelPath + "/contas" ? "active" : "")}
+              href={panelPath + "/contas"}
+              onClick={() => setOpen(false)}
+            >
+              <UserRoundCog size={20} />
+              Contas de acesso
+            </Link>
+          )}
         </nav>
         <div className="sidebar-booking">
           <span className="sidebar-booking-icon">
@@ -155,14 +170,16 @@ export function AdminShell({
                   ? "Serviços"
                   : pathname.includes("barbeiros")
                     ? "Barbeiros"
-                    : "Agenda"}
+                    : pathname.includes("contas")
+                      ? "Contas de acesso"
+                      : "Agenda"}
               </strong>
             </span>
           </div>
           <div className="topbar-right">
             <span className="demo-pill">
               <span />
-              Integração parcial
+              {access.role === "owner" ? "Proprietário" : "Barbeiro"}
             </span>
             <button
               className="icon-button"

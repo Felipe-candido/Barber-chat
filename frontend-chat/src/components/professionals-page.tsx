@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useSelectedShop } from "./shop-panel";
+import { useSelectedShop, useSelectedShopAccess } from "./shop-panel";
 import { useServices } from "@/hooks/use-services";
 import { ApiError, errorMessage } from "@/lib/api/client";
 import { adminShopPath, publicBookingPath } from "@/lib/api/config";
@@ -24,6 +24,18 @@ const days = [
 ];
 
 export function ProfessionalsPage() {
+  const access = useSelectedShopAccess();
+  if (access.role !== "owner")
+    return (
+      <section className="api-error">
+        <h1>Acesso restrito ao proprietário</h1>
+        <p>Use a agenda para consultar e criar seus agendamentos.</p>
+      </section>
+    );
+  return <OwnerProfessionalsPage />;
+}
+
+function OwnerProfessionalsPage() {
   const shop = useSelectedShop();
   const catalog = useServices(shop.slug, "admin");
   const [items, setItems] = useState<StaffProfessional[]>([]);
@@ -133,7 +145,11 @@ export function ProfessionalsPage() {
       </header>
       <p className="booking-note">
         O barbeiro aparece para os clientes agendarem. Esse cadastro não cria uma conta de login ou
-        acesso administrativo.
+        acesso administrativo.{" "}
+        <Link href={adminShopPath(shop.slug) + "/contas"}>
+          Criar conta de acesso para um barbeiro
+        </Link>
+        .
       </p>
       {success && (
         <p className="professional-success" role="status">

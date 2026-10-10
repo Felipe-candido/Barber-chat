@@ -44,22 +44,25 @@ FROM appointments a
 JOIN customers c ON c.shop_id = a.shop_id AND c.id = a.customer_id
 JOIN shops s ON s.id = a.shop_id AND s.active = TRUE
 WHERE a.shop_id = $1
-  AND a.starts_at >= $2::timestamptz
-  AND a.starts_at < $3::timestamptz
-  AND (NOT $4::boolean OR
-       (a.starts_at, a.id) > ($5::timestamptz, $6::uuid))
+  AND ($2::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+       OR a.professional_id = $2::uuid)
+  AND a.starts_at >= $3::timestamptz
+  AND a.starts_at < $4::timestamptz
+  AND (NOT $5::boolean OR
+       (a.starts_at, a.id) > ($6::timestamptz, $7::uuid))
 ORDER BY a.starts_at, a.id
-LIMIT $7::integer
+LIMIT $8::integer
 `
 
 type ListAdminAgendaParams struct {
-	ShopID    uuid.UUID          `json:"shop_id"`
-	FromAt    pgtype.Timestamptz `json:"from_at"`
-	UntilAt   pgtype.Timestamptz `json:"until_at"`
-	HasCursor bool               `json:"has_cursor"`
-	AfterAt   pgtype.Timestamptz `json:"after_at"`
-	AfterID   uuid.UUID          `json:"after_id"`
-	PageLimit int32              `json:"page_limit"`
+	ShopID         uuid.UUID          `json:"shop_id"`
+	ProfessionalID uuid.UUID          `json:"professional_id"`
+	FromAt         pgtype.Timestamptz `json:"from_at"`
+	UntilAt        pgtype.Timestamptz `json:"until_at"`
+	HasCursor      bool               `json:"has_cursor"`
+	AfterAt        pgtype.Timestamptz `json:"after_at"`
+	AfterID        uuid.UUID          `json:"after_id"`
+	PageLimit      int32              `json:"page_limit"`
 }
 
 type ListAdminAgendaRow struct {
@@ -81,6 +84,7 @@ type ListAdminAgendaRow struct {
 func (q *Queries) ListAdminAgenda(ctx context.Context, arg ListAdminAgendaParams) ([]ListAdminAgendaRow, error) {
 	rows, err := q.db.Query(ctx, listAdminAgenda,
 		arg.ShopID,
+		arg.ProfessionalID,
 		arg.FromAt,
 		arg.UntilAt,
 		arg.HasCursor,

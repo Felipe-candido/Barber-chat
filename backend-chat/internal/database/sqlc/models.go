@@ -100,10 +100,23 @@ type Shop struct {
 }
 
 type ShopMembership struct {
-	UserID    uuid.UUID          `json:"user_id"`
-	ShopID    uuid.UUID          `json:"shop_id"`
-	Active    bool               `json:"active"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UserID         uuid.UUID          `json:"user_id"`
+	ShopID         uuid.UUID          `json:"shop_id"`
+	Active         bool               `json:"active"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	Role           string             `json:"role"`
+	ProfessionalID pgtype.UUID        `json:"professional_id"`
+}
+
+type StaffAccount struct {
+	ID             uuid.UUID          `json:"id"`
+	ShopID         uuid.UUID          `json:"shop_id"`
+	ProfessionalID uuid.UUID          `json:"professional_id"`
+	Email          string             `json:"email"`
+	AuthUserID     pgtype.UUID        `json:"auth_user_id"`
+	State          string             `json:"state"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	ReplacedAt     pgtype.Timestamptz `json:"replaced_at"`
 }
 
 type User struct {

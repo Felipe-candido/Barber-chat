@@ -22,6 +22,7 @@ test("admin registers a barber with services and initial calendar in the selecte
     "http://127.0.0.1:8080/api/v1/admin/shops/" + testShop.slug + "/**",
     async (route) => {
       const request = route.request();
+      if (request.url().endsWith("/access")) return route.fallback();
       if (request.method() === "OPTIONS") {
         await route.fulfill({
           status: 204,
@@ -86,7 +87,7 @@ test("a barber requires an existing active service", async ({ page }) => {
   await installSupabaseSession(page);
   await mockAdminAccess(page);
   await page.route("http://127.0.0.1:8080/api/v1/admin/shops/" + testShop.slug + "/**", (route) =>
-    route.fulfill({ json: [] }),
+    route.request().url().endsWith("/access") ? route.fallback() : route.fulfill({ json: [] }),
   );
   await page.goto("/admin/" + testShop.slug + "/barbeiros");
   await expect(page.getByText("Cadastre primeiro um", { exact: false })).toBeVisible();
@@ -116,6 +117,7 @@ test("slow professional creation keeps one submission pending beyond ten seconds
     "http://127.0.0.1:8080/api/v1/admin/shops/" + testShop.slug + "/**",
     async (route) => {
       const request = route.request();
+      if (request.url().endsWith("/access")) return route.fallback();
       if (request.method() === "OPTIONS") {
         await route.fulfill({
           status: 204,

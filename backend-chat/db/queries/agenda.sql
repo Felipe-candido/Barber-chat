@@ -10,6 +10,8 @@ FROM appointments a
 JOIN customers c ON c.shop_id = a.shop_id AND c.id = a.customer_id
 JOIN shops s ON s.id = a.shop_id AND s.active = TRUE
 WHERE a.shop_id = sqlc.arg(shop_id)
+  AND (sqlc.arg(professional_id)::uuid = '00000000-0000-0000-0000-000000000000'::uuid
+       OR a.professional_id = sqlc.arg(professional_id)::uuid)
   AND a.starts_at >= sqlc.arg(from_at)::timestamptz
   AND a.starts_at < sqlc.arg(until_at)::timestamptz
   AND (NOT sqlc.arg(has_cursor)::boolean OR

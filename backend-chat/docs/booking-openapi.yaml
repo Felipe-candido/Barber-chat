@@ -3,20 +3,21 @@ paths:
   adminAgenda:
     parameters:
       - $ref: '#/components/parameters/Slug'
-      - name: month
-        in: query
-        description: YYYY-MM, defaults to the current month in the shop timezone. Years 1900 through 9998. Returns six complete Monday-first weeks including adjacent-month dates.
-        schema: {type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'}
-      - name: after
-        in: query
-        description: Opaque next_cursor from the same month. A pagination position, never an authorization credential. Refresh starts over; concurrent changes are not a snapshot across pages. Unknown, empty and repeated query parameters are rejected.
-        schema: {type: string, maxLength: 160}
     get:
       operationId: listAdminAgenda
       summary: Private appointment agenda for an authorized shop
-      description: Requires active user, shop and membership. Tenant comes exclusively from middleware. Includes all statuses, even inactive professionals and services, using booking snapshots and current local customer contact. No consultation code, hash or internal customer ID. Responses use Cache-Control no-store.
+      description: Requires active user, shop and membership with a valid local role. Owners read the whole shop including inactive professionals. Barbers read only their linked active professional; this filter is derived from middleware and enforced in SQL before pagination, never controlled by query parameters. Includes all appointment statuses, using booking snapshots and current local customer contact. No consultation code, hash or internal customer ID. Responses use Cache-Control no-store.
       security:
         - bearerAuth: []
+      parameters:
+        - name: month
+          in: query
+          description: YYYY-MM, defaults to the current shop-local month. Six Monday-first weeks.
+          schema: {type: string, pattern: '^[0-9]{4}-(0[1-9]|1[0-2])$'}
+        - name: after
+          in: query
+          description: Opaque pagination cursor, never an authorization credential.
+          schema: {type: string, maxLength: 160}
       responses:
         '200':
           description: Up to 100 appointments ordered by start and UUID; next_cursor is null on the last page. until_date is exclusive. Group instants using shop_timezone.
@@ -46,6 +47,29 @@ paths:
         '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
         '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
         '422': {$ref: '#/components/responses/BookingError'}
+        default: {$ref: '#/components/responses/BookingError'}
+    post:
+      operationId: createStaffAppointment
+      summary: Owner books any eligible professional; barber books only their linked professional
+      description: Same booking core, JSON and idempotency as public creation. Current local membership is checked inside the transaction, including on replay. No client role, user ID or shop ID is accepted.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema: {type: string, pattern: '^[0-9a-f]{64}$'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateAppointment'}
+      responses:
+        '201': {$ref: '#/components/responses/Created'}
+        '200': {$ref: '#/components/responses/Created'}
+        '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
         default: {$ref: '#/components/responses/BookingError'}
     options:
       operationId: preflightAdminAgenda
@@ -214,7 +238,7 @@ paths:
     post:
       operationId: createShopProfessional
       summary: Create professional, active service associations and initial calendar atomically
-      description: Active local identity and shop membership required. All members currently have equal permission. Does not create a Supabase account. Maximum body 64 KiB. Not idempotent; check the list before retrying an ambiguous failure.
+      description: Active local identity and owner membership required. Barbers cannot create professionals. Does not create a Supabase account. Maximum body 64 KiB. Not idempotent; check the list before retrying an ambiguous failure.
       security: [{bearerAuth: []}]
       requestBody:
         required: true

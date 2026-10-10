@@ -11,6 +11,7 @@ import {
   bookingDate,
   bookingTime,
   createAppointment,
+  createStaffAppointment,
   listAvailability,
   listProfessionals,
   newBookingKey,
@@ -24,11 +25,13 @@ export function BookingForm({
   service,
   onBack,
   onLockedChange,
+  staff,
 }: {
   slug: string;
   service: Service;
   onBack: () => void;
   onLockedChange: (locked: boolean) => void;
+  staff?: { professionalID: string | null; onCreated: () => void };
 }) {
   const [professionals, setProfessionals] = useState<Professionals | null>(null);
   const [professionalId, setProfessionalId] = useState("");
@@ -61,7 +64,12 @@ export function BookingForm({
     void listProfessionals(slug, service.id, controller.signal)
       .then((data) => {
         if (!controller.signal.aborted) {
-          setProfessionals(data);
+          const allowed = staff?.professionalID;
+          const eligible = allowed
+            ? data.professionals.filter((p) => p.id === allowed)
+            : data.professionals;
+          setProfessionals({ ...data, professionals: eligible });
+          if (allowed) setProfessionalId(eligible.length ? allowed : "");
           setDate(data.today);
         }
       })
@@ -69,7 +77,7 @@ export function BookingForm({
         if (!controller.signal.aborted) setProfessionalsError(errorMessage(error));
       });
     return () => controller.abort();
-  }, [slug, service.id, professionalsVersion]);
+  }, [slug, service.id, professionalsVersion, staff?.professionalID]);
 
   useEffect(() => {
     setSlot(null);
@@ -122,11 +130,16 @@ export function BookingForm({
             },
           },
         };
-      const saved = await createAppointment(slug, attempt.current.input, attempt.current.key);
+      const saved = await (staff ? createStaffAppointment : createAppointment)(
+        slug,
+        attempt.current.input,
+        attempt.current.key,
+      );
       setResult(saved);
       setUncertain(false);
       attempt.current = null;
       setCustomer({ first_name: "", last_name: "", phone: "", phone_country: "BR" });
+      staff?.onCreated();
     } catch (error) {
       setError(errorMessage(error));
       const definitive =
@@ -191,6 +204,7 @@ export function BookingForm({
                 Profissional
                 <select
                   value={professionalId}
+                  disabled={!!staff?.professionalID}
                   onChange={(event) => setProfessionalId(event.target.value)}
                 >
                   <option value="">Selecione um profissional</option>

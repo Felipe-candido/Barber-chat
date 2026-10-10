@@ -13,6 +13,7 @@ import (
 	"github.com/Felipe-candido/Barber-chat/internal/httpapi/requestctx"
 	"github.com/Felipe-candido/Barber-chat/internal/httpapi/response"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/booking/application"
+	identitydomain "github.com/Felipe-candido/Barber-chat/internal/modules/identity/domain"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 )
@@ -56,7 +57,8 @@ func (h *AgendaHandler) List(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, 401, "authentication_required", "authentication is required")
 		return
 	}
-	if !authorized || scope.ShopID == uuid.Nil || scope.UserID != identity.UserID {
+	if !authorized || scope.ShopID == uuid.Nil || scope.UserID != identity.UserID || !scope.Role.Valid() ||
+		(scope.Role == identitydomain.RoleBarber && scope.ProfessionalID == uuid.Nil) {
 		response.Error(w, 403, "access_denied", "shop access is required")
 		return
 	}
@@ -79,7 +81,11 @@ func (h *AgendaHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
 	defer cancel()
-	output, err := h.list.Execute(ctx, application.ListAgendaInput{ShopID: scope.ShopID, Month: query.Get("month"), After: cursor})
+	professionalID := uuid.Nil
+	if scope.Role == identitydomain.RoleBarber {
+		professionalID = scope.ProfessionalID
+	}
+	output, err := h.list.Execute(ctx, application.ListAgendaInput{ShopID: scope.ShopID, ProfessionalID: professionalID, Month: query.Get("month"), After: cursor})
 	if err != nil {
 		switch {
 		case errors.Is(err, application.ErrInvalidAgenda):

@@ -101,7 +101,7 @@ test("local access denial is not treated as a successful Supabase login", async 
   );
   await page.goto("/admin");
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Acesso não liberado");
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("cadastrados manualmente");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("proprietário");
   await expect(page.getByRole("heading", { name: /Escolha sua barbearia/ })).toHaveCount(0);
 });
 

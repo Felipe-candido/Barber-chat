@@ -15,6 +15,9 @@ test("login sends credentials only to Supabase and the API receives only the acc
   let backendAuthorization = "";
   let backendBody = "";
   const accessCalls: string[] = [];
+  await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/access", (route) =>
+    route.fulfill({ json: { role: "owner", professional_id: null } }),
+  );
   for (const [path, payload] of [
     ["me", testIdentity],
     ["shops", [testShop]],

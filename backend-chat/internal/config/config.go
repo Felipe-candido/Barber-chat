@@ -15,18 +15,19 @@ import (
 )
 
 type Config struct {
-	HTTPAddr          string
-	DatabaseURL       string
-	RabbitMQURL       string
-	SupabaseURL       string
-	FrontendOrigin    string
-	HTTPTimeout       time.Duration
-	LogLevel          slog.Level
-	DBTimeout         time.Duration
-	OperationTimeout  time.Duration
-	ShutdownTimeout   time.Duration
-	WorkerInterval    time.Duration
-	DevFrontendOrigin string
+	HTTPAddr               string
+	DatabaseURL            string
+	RabbitMQURL            string
+	SupabaseURL            string
+	SupabaseServiceRoleKey string
+	FrontendOrigin         string
+	HTTPTimeout            time.Duration
+	LogLevel               slog.Level
+	DBTimeout              time.Duration
+	OperationTimeout       time.Duration
+	ShutdownTimeout        time.Duration
+	WorkerInterval         time.Duration
+	DevFrontendOrigin      string
 }
 
 // Load reads the optional .env in the working directory, then validates settings.
@@ -53,12 +54,13 @@ func load(getenv func(string) string) (Config, error) {
 		return fallback
 	}
 	c := Config{
-		HTTPAddr:          value("HTTP_ADDR", "127.0.0.1:8080"),
-		DatabaseURL:       getenv("DATABASE_URL"),
-		RabbitMQURL:       getenv("RABBITMQ_URL"),
-		SupabaseURL:       strings.TrimSpace(getenv("SUPABASE_URL")),
-		FrontendOrigin:    strings.TrimSpace(getenv("FRONTEND_ORIGIN")),
-		DevFrontendOrigin: strings.TrimSpace(getenv("DEV_FRONTEND_ORIGIN")),
+		HTTPAddr:               value("HTTP_ADDR", "127.0.0.1:8080"),
+		DatabaseURL:            getenv("DATABASE_URL"),
+		RabbitMQURL:            getenv("RABBITMQ_URL"),
+		SupabaseURL:            strings.TrimSpace(getenv("SUPABASE_URL")),
+		SupabaseServiceRoleKey: strings.TrimSpace(getenv("SUPABASE_SERVICE_ROLE_KEY")),
+		FrontendOrigin:         strings.TrimSpace(getenv("FRONTEND_ORIGIN")),
+		DevFrontendOrigin:      strings.TrimSpace(getenv("DEV_FRONTEND_ORIGIN")),
 	}
 	if c.FrontendOrigin == "" {
 		c.FrontendOrigin = c.DevFrontendOrigin

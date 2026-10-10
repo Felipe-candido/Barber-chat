@@ -25,6 +25,7 @@ type HandlerConfig struct {
 	Professionals  *cataloghttp.ProfessionalHandler
 	Booking        *bookinghttp.Handler
 	Agenda         *bookinghttp.AgendaHandler
+	Accounts       *identityhttp.AccountHandler
 	Authenticate   *identityapp.Authenticate
 	AuthorizeShop  *identityapp.AuthorizeShopAction
 	ListMyShops    *identityapp.ListMyShops
@@ -67,28 +68,53 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	authenticate := accessmiddleware.Authentication(cfg.Authenticate, cfg.Logger)
 	router.With(authenticate).Get("/api/v1/admin/me", identityhttp.Me)
 	router.With(authenticate).Get("/api/v1/admin/shops", identityhttp.ListShops(cfg.ListMyShops, cfg.DBTimeout, cfg.Logger))
+	shopAccess := accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)
+	router.Options("/api/v1/admin/shops/{slug}/access", accessmiddleware.Preflight(http.MethodGet))
+	router.With(authenticate, shopAccess).Get("/api/v1/admin/shops/{slug}/access", identityhttp.Access)
 	if cfg.Catalog != nil {
 		cataloghttp.RegisterPublicRoutes(router, cfg.Catalog)
 		router.Options("/api/v1/public/shops/{slug}/services", accessmiddleware.Preflight(http.MethodGet))
 		router.Options("/api/v1/admin/shops/{slug}/services", accessmiddleware.Preflight(http.MethodGet, http.MethodPost))
-		router.With(authenticate, accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)).
+		router.With(authenticate, shopAccess).
 			Get("/api/v1/admin/shops/{slug}/services", cfg.Catalog.ListShopServices)
-		router.With(authenticate, accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)).
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).
 			Post("/api/v1/admin/shops/{slug}/services", cfg.Catalog.CreateService)
 	}
 	if cfg.Booking != nil {
 		cfg.Booking.Register(router)
+		router.With(authenticate, shopAccess).Post("/api/v1/admin/shops/{slug}/appointments", cfg.Booking.CreateForStaff)
+	}
+	if cfg.Agenda != nil || cfg.Booking != nil {
+		methods := []string{}
+		if cfg.Agenda != nil {
+			methods = append(methods, http.MethodGet)
+		}
+		if cfg.Booking != nil {
+			methods = append(methods, http.MethodPost)
+		}
+		router.Options("/api/v1/admin/shops/{slug}/appointments", accessmiddleware.Preflight(methods...))
 	}
 	if cfg.Agenda != nil {
-		router.Options("/api/v1/admin/shops/{slug}/appointments", accessmiddleware.Preflight(http.MethodGet))
-		router.With(authenticate, accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)).
+		router.With(authenticate, shopAccess).
 			Get("/api/v1/admin/shops/{slug}/appointments", cfg.Agenda.List)
+	}
+	if cfg.Accounts != nil {
+		base := "/api/v1/admin/shops/{slug}/accounts"
+		router.Options(base, accessmiddleware.Preflight(http.MethodGet, http.MethodPost))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Get(base, cfg.Accounts.List)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base, cfg.Accounts.Invite)
+		router.Options(base+"/{accountID}/link", accessmiddleware.Preflight(http.MethodPost))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base+"/{accountID}/link", cfg.Accounts.Link)
+		router.Options(base+"/{accountID}/status", accessmiddleware.Preflight(http.MethodPost))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base+"/{accountID}/status", cfg.Accounts.SetActive)
+		router.Options(base+"/{accountID}/replace", accessmiddleware.Preflight(http.MethodPost))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base+"/{accountID}/replace", cfg.Accounts.Replace)
 	}
 	if cfg.Professionals != nil {
 		router.Options("/api/v1/admin/shops/{slug}/professionals", accessmiddleware.Preflight(http.MethodGet, http.MethodPost))
-		router.With(authenticate, accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)).
+		router.With(authenticate, shopAccess).
 			Get("/api/v1/admin/shops/{slug}/professionals", cfg.Professionals.List)
-		router.With(authenticate, accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)).
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).
 			Post("/api/v1/admin/shops/{slug}/professionals", cfg.Professionals.Create)
 	}
 	return router

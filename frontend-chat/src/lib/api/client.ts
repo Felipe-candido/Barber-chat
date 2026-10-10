@@ -39,6 +39,18 @@ const messages: Record<string, string> = {
   invalid_customer: "Confira seu nome, sobrenome e telefone com DDD ou código internacional.",
   invalid_availability: "Escolha um serviço, profissional e uma data dentro do período disponível.",
   invalid_agenda: "Confira o mês selecionado e atualize a agenda para reiniciar a paginação.",
+  invalid_staff_account: "Confira o e-mail e selecione um barbeiro cadastrado e ativo.",
+  staff_account_exists:
+    "Já existe uma conta ou tentativa para esse barbeiro. Atualize e confira a lista.",
+  staff_account_not_found: "Conta ou barbeiro não encontrado nesta barbearia.",
+  staff_account_must_be_inactive:
+    "Desative o acesso atual antes de substituir a conta. Depois, atualize a lista.",
+  staff_account_needs_review:
+    "A tentativa foi registrada, mas precisa ser conferida. Atualize a lista e confira a conta no Supabase antes de enviar outro convite.",
+  staff_accounts_not_configured:
+    "Configure SUPABASE_SERVICE_ROLE_KEY somente no backend e reinicie a API para criar contas.",
+  staff_account_provider_rejected:
+    "O Supabase não confirmou essa conta. Confira o UUID e o e-mail no Supabase Authentication.",
   invalid_appointment: "Confira o horário e os dados da reserva. O início precisa estar no futuro.",
   slot_unavailable: "Esse horário não está mais disponível. Atualize os horários e escolha outro.",
   idempotency_conflict:

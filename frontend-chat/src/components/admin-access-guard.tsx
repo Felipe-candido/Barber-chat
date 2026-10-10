@@ -32,8 +32,8 @@ export function AdminAccessGuard({ children }: { children: React.ReactNode }) {
         <h1>Não foi possível liberar o painel</h1>
         <p>{state.error.message}</p>
         <p>
-          As contas e os vínculos ainda são cadastrados manualmente. Uma conta no Supabase, sozinha,
-          não libera o painel.
+          Uma conta no Supabase, sozinha, não libera o painel. Peça ao proprietário para conferir
+          seu vínculo com um barbeiro ativo nesta unidade.
         </p>
         {logoutError && <p>{logoutError}</p>}
         <div className="access-actions">

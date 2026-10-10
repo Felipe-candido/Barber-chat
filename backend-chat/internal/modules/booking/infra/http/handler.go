@@ -177,8 +177,20 @@ func (h *Handler) createAppointment(w http.ResponseWriter, r *http.Request) {
 		h.failure(w, application.ErrInvalidAppointment, "create")
 		return
 	}
-	result, err := h.create.Execute(r.Context(), application.CreateAppointmentInput{ShopSlug: chi.URLParam(r, "slug"), ServiceID: input.ServiceID, ProfessionalID: input.ProfessionalID,
-		StartsAt: input.StartsAt, IdempotencyKey: keys[0], Customer: application.CustomerInput{FirstName: input.Customer.FirstName, LastName: input.Customer.LastName, Phone: input.Customer.Phone, PhoneCountry: input.Customer.PhoneCountry}})
+	result, err := h.create.Execute(
+		r.Context(),
+		application.CreateAppointmentInput{
+			ShopSlug:       chi.URLParam(r, "slug"),
+			ServiceID:      input.ServiceID,
+			ProfessionalID: input.ProfessionalID,
+			StartsAt:       input.StartsAt,
+			IdempotencyKey: keys[0],
+			Customer: application.CustomerInput{
+				FirstName:    input.Customer.FirstName,
+				LastName:     input.Customer.LastName,
+				Phone:        input.Customer.Phone,
+				PhoneCountry: input.Customer.PhoneCountry}})
+
 	if err != nil {
 		h.failure(w, err, "create")
 		return

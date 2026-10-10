@@ -18,7 +18,8 @@ func (r *Repository) ListAgendaAppointments(ctx context.Context, query applicati
 	}
 	rows, err := r.queries.ListAdminAgenda(ctx, db.ListAdminAgendaParams{
 		ShopID: query.ShopID, FromAt: timestamp(query.From), UntilAt: timestamp(query.Until),
-		HasCursor: query.After != nil, AfterAt: timestamp(afterAt), AfterID: afterID, PageLimit: int32(query.Limit),
+		ProfessionalID: query.ProfessionalID,
+		HasCursor:      query.After != nil, AfterAt: timestamp(afterAt), AfterID: afterID, PageLimit: int32(query.Limit),
 	})
 	if err != nil {
 		return nil, err

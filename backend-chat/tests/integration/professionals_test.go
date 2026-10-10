@@ -35,7 +35,7 @@ func TestProfessionalSetupToPublicBooking(t *testing.T) {
 	if _, err := f.pool.Exec(f.ctx, "INSERT INTO users (id,display_name) VALUES ($1,'Professional setup test')", userID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := f.pool.Exec(f.ctx, "INSERT INTO shop_memberships (user_id,shop_id) VALUES ($1,$2)", userID, f.shop); err != nil {
+	if _, err := f.pool.Exec(f.ctx, "INSERT INTO shop_memberships (user_id,shop_id,role) VALUES ($1,$2,'owner')", userID, f.shop); err != nil {
 		t.Fatal(err)
 	}
 	q := db.New(f.pool)

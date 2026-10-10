@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -16,6 +17,11 @@ import (
 
 const BookingHorizonDays = 90
 const IdempotencyRetention = 24 * time.Hour
+
+var ErrStaffBookingAccessDenied = errors.New("staff booking access denied")
+
+// Authority is supplied by the authenticated adapter, never by public JSON.
+type staffBookingScope struct{ UserID, ShopID, ProfessionalID uuid.UUID }
 
 type CreateAppointment struct {
 	transactions BookingTransactor
@@ -29,6 +35,17 @@ func NewCreateAppointment(tx BookingTransactor, contacts CustomerNormalizer, cod
 }
 
 func (uc *CreateAppointment) Execute(ctx context.Context, input CreateAppointmentInput) (CreateAppointmentOutput, error) {
+	return uc.execute(ctx, input, nil)
+}
+
+func (uc *CreateAppointment) ExecuteForStaff(ctx context.Context, input CreateAppointmentInput, userID, shopID, allowedProfessionalID uuid.UUID) (CreateAppointmentOutput, error) {
+	if userID == uuid.Nil || shopID == uuid.Nil || (allowedProfessionalID != uuid.Nil && input.ProfessionalID != allowedProfessionalID) {
+		return CreateAppointmentOutput{}, ErrStaffBookingAccessDenied
+	}
+	return uc.execute(ctx, input, &staffBookingScope{userID, shopID, allowedProfessionalID})
+}
+
+func (uc *CreateAppointment) execute(ctx context.Context, input CreateAppointmentInput, staff *staffBookingScope) (CreateAppointmentOutput, error) {
 	input.ShopSlug = strings.TrimSpace(input.ShopSlug)
 	input.StartsAt = input.StartsAt.UTC()
 	key, err := hex.DecodeString(input.IdempotencyKey)
@@ -59,18 +76,38 @@ func (uc *CreateAppointment) Execute(ctx context.Context, input CreateAppointmen
 		if err != nil {
 			return err
 		}
+		if staff != nil && shop.ShopID != staff.ShopID {
+			return ErrStaffBookingAccessDenied
+		}
 		now := uc.clock.Now().UTC()
 		previous, replayed, err := tx.Idempotency.ClaimCreateAppointment(ctx, IdempotencyClaim{
 			ShopID: shop.ShopID, Key: input.IdempotencyKey, RequestFingerprint: fingerprint, RequestedAt: now, ExpiresAt: now.Add(IdempotencyRetention)})
 		if err != nil {
 			return fmt.Errorf("claim booking request: %w", err)
 		}
+		if staff != nil {
+			if err := tx.Schedule.LockProfessionalSchedule(ctx, shop.ShopID, input.ProfessionalID); err != nil {
+				return err
+			}
+			if tx.Staff == nil {
+				return ErrStaffBookingAccessDenied
+			}
+			allowed, err := tx.Staff.CanCreateBooking(ctx, staff.UserID, shop.ShopID, input.ProfessionalID)
+			if err != nil {
+				return err
+			}
+			if !allowed {
+				return ErrStaffBookingAccessDenied
+			}
+		}
 		if replayed {
 			output = CreateAppointmentOutput{Appointment: previous.Appointment, Code: previous.Code, Replayed: true}
 			return nil
 		}
-		if err := tx.Schedule.LockProfessionalSchedule(ctx, shop.ShopID, input.ProfessionalID); err != nil {
-			return err
+		if staff == nil {
+			if err := tx.Schedule.LockProfessionalSchedule(ctx, shop.ShopID, input.ProfessionalID); err != nil {
+				return err
+			}
 		}
 		selection, err := findSelection(ctx, tx.Catalog, shop.ShopID, input.ServiceID, input.ProfessionalID)
 		if err != nil {

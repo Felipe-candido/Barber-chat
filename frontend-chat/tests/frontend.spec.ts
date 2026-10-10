@@ -40,9 +40,11 @@ async function intercept(
         ? { json: testIdentity }
         : path === "/api/v1/admin/shops"
           ? { json: [testShop] }
-          : path.startsWith("/api/v1/admin/shops/") && path.endsWith("/appointments")
-            ? { json: emptyAgenda }
-            : handler(request.method(), request.postData() ? request.postDataJSON() : null);
+          : path.endsWith("/access")
+            ? { json: { role: "owner", professional_id: null } }
+            : path.startsWith("/api/v1/admin/shops/") && path.endsWith("/appointments")
+              ? { json: emptyAgenda }
+              : handler(request.method(), request.postData() ? request.postDataJSON() : null);
     await route.fulfill({
       status: result.status ?? 200,
       contentType: "application/json",
@@ -237,10 +239,7 @@ test("agenda and responsive screens display a real empty API result without mock
     });
   }
   await page.goto("/admin/barbearia-do-felipe");
-  await expect(page.getByRole("link", { name: "Novo agendamento" })).toHaveAttribute(
-    "href",
-    "/b/barbearia-do-felipe",
-  );
+  await expect(page.getByRole("button", { name: "Novo agendamento" })).toBeVisible();
   await expect(page.getByText("Nenhum agendamento no período exibido.")).toBeVisible();
   await expect(page.locator(".agenda-event")).toHaveCount(0);
 });

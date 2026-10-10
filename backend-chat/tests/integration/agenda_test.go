@@ -57,7 +57,7 @@ func TestAdminAgendaReadsPublicBookingAndIsolatesTenants(t *testing.T) {
 		args []any
 	}{
 		{"INSERT INTO users (id,display_name) VALUES ($1,'Agenda test')", []any{userID}},
-		{"INSERT INTO shop_memberships (user_id,shop_id) VALUES ($1,$2)", []any{userID, f.shop}},
+		{"INSERT INTO shop_memberships (user_id,shop_id,role) VALUES ($1,$2,'owner')", []any{userID, f.shop}},
 		{"UPDATE services SET name='Changed catalog',price_cents=9999 WHERE id=$1", []any{f.service}},
 		{"UPDATE professionals SET name='Changed barber' WHERE id=$1", []any{f.professional}},
 	} {
@@ -145,5 +145,62 @@ func TestAdminAgendaReadsPublicBookingAndIsolatesTenants(t *testing.T) {
 	}
 	if w := request(f.slug, query, true); w.Code != 403 {
 		t.Fatal("inactive membership accepted", w.Code)
+	}
+}
+
+func TestBarberAgendaIsRestrictedByServerScope(t *testing.T) {
+	f := newBookingFixture(t)
+	created := bookingResult(t, f.request("POST", "/appointments", f.body(f.start, f.service), bookingKey()), 201)
+	userID, otherProfessionalID := uuid.New(), uuid.New()
+	for _, statement := range []struct {
+		sql  string
+		args []any
+	}{
+		{"INSERT INTO users(id,display_name) VALUES ($1,'Agenda access test')", []any{userID}},
+		{"INSERT INTO professionals(id,shop_id,name) VALUES ($1,$2,'Other barber')", []any{otherProfessionalID, f.shop}},
+		{"INSERT INTO shop_memberships(user_id,shop_id,role,professional_id) VALUES ($1,$2,'barber',$3)", []any{userID, f.shop, f.professional}},
+		{`INSERT INTO appointments
+		(id,shop_id,customer_id,service_id,professional_id,service_name,duration_minutes,price_cents,currency,professional_name,shop_timezone,starts_at,ends_at,status,version,created_at,updated_at,code_hash)
+		SELECT gen_random_uuid(),shop_id,customer_id,service_id,$2,service_name,duration_minutes,price_cents,currency,'Other barber',shop_timezone,starts_at,ends_at,status,version,created_at,updated_at,decode(md5(gen_random_uuid()::text)||md5(gen_random_uuid()::text),'hex')
+		FROM appointments WHERE id=$1`, []any{created.Appointment.ID, otherProfessionalID}},
+	} {
+		if _, err := f.pool.Exec(f.ctx, statement.sql, statement.args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	q := db.New(f.pool)
+	shops, identities := shopspostgres.NewResolver(q), identitypostgres.NewRepository(q)
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	h := httpapi.NewHandler(httpapi.HandlerConfig{
+		Agenda:       bookinghttp.NewAgendaHandler(booking.NewListAgenda(shops, bookingpostgres.NewRepository(q), booking.ClockFunc(time.Now)), 5*time.Second, logger),
+		Authenticate: identity.NewAuthenticate(catalogTokenVerifier{userID}, identities), AuthorizeShop: identity.NewAuthorizeShopAction(identities, shops), Logger: logger,
+	})
+	request := func(extra string) *httptest.ResponseRecorder {
+		r := httptest.NewRequest("GET", "/api/v1/admin/shops/"+f.slug+"/appointments?month="+f.date[:7]+extra, nil)
+		r.Header.Set("Authorization", "Bearer integration-token")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, r)
+		return w
+	}
+	var result agendaResult
+	w := request("")
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || w.Code != 200 || len(result.Appointments) != 1 || result.Appointments[0].ID != created.Appointment.ID {
+		t.Fatal("barber read another professional's private agenda", w.Code, w.Body.String(), err)
+	}
+	if w := request("&professional_id=" + otherProfessionalID.String()); w.Code != 422 {
+		t.Fatal("client replaced authorized professional", w.Code)
+	}
+	if _, err := f.pool.Exec(f.ctx, "UPDATE professionals SET active=false WHERE id=$1", f.professional); err != nil {
+		t.Fatal(err)
+	}
+	if w := request(""); w.Code != 403 {
+		t.Fatal("inactive professional retained barber access", w.Code)
+	}
+	if _, err := f.pool.Exec(f.ctx, "UPDATE shop_memberships SET role='owner',professional_id=NULL WHERE user_id=$1 AND shop_id=$2", userID, f.shop); err != nil {
+		t.Fatal(err)
+	}
+	w = request("")
+	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil || w.Code != 200 || len(result.Appointments) != 2 {
+		t.Fatal("owner cannot see entire agenda including inactive professionals", w.Code, w.Body.String(), err)
 	}
 }

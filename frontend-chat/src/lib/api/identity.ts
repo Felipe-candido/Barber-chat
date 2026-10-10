@@ -3,14 +3,31 @@ import { shopPathSegment } from "./config";
 
 export type StaffIdentity = { user_id: string; display_name: string };
 export type AccessibleShop = { shop_id: string; name: string; slug: string };
+export type ShopAccess = { role: "owner" | "barber"; professional_id: string | null };
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function isID(value: unknown): value is string {
+export function isID(value: unknown): value is string {
   return (
     typeof value === "string" &&
     uuidPattern.test(value) &&
     value !== "00000000-0000-0000-0000-000000000000"
   );
+}
+
+export async function getShopAccess(slug: string, signal?: AbortSignal): Promise<ShopAccess> {
+  const value = await requestJSON("/api/v1/admin/shops/" + shopPathSegment(slug) + "/access", {
+    authenticated: true,
+    signal,
+  });
+  const item = value as ShopAccess | null;
+  if (
+    !item ||
+    !["owner", "barber"].includes(item.role) ||
+    (item.professional_id !== null && !isID(item.professional_id)) ||
+    (item.role === "barber" && !isID(item.professional_id))
+  )
+    invalidResponse();
+  return { role: item.role, professional_id: item.professional_id };
 }
 function invalidResponse(): never {
   throw new ApiError(

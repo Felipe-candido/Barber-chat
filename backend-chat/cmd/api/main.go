@@ -24,6 +24,7 @@ import (
 	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
 	catalogpostgres "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/postgres"
 	identityapp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/application"
+	identityhttp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/http"
 	identitypostgres "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/postgres"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/supabase"
 	shopspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/shops/infra/postgres"
@@ -80,6 +81,14 @@ func run(
 	authenticate := identityapp.NewAuthenticate(verifier, identityRepository)
 	authorizeShop := identityapp.NewAuthorizeShopAction(identityRepository, shopResolver)
 	listMyShops := identityapp.NewListMyShops(identityRepository, identityRepository)
+	var accountProvider identityapp.StaffAccountProvider
+	if cfg.SupabaseServiceRoleKey != "" {
+		accountProvider, err = supabase.NewAdminClient(cfg.SupabaseURL, cfg.SupabaseServiceRoleKey, cfg.FrontendOrigin, nil)
+		if err != nil {
+			return fmt.Errorf("configure staff invitations: %w", err)
+		}
+	}
+	accountHandler := identityhttp.NewAccountHandler(identityapp.NewStaffAccounts(identitypostgres.NewAccountRepository(pool), accountProvider), cfg.OperationTimeout, logger)
 
 	createService := catalogapp.NewCreateService(catalogRepository)
 	listServices := catalogapp.NewListServices(catalogRepository, shopResolver)
@@ -98,6 +107,7 @@ func run(
 			Shops: shopspostgres.NewResolver(q), Catalog: catalogpostgres.NewRepository(q),
 			Schedule: repository, Customers: customerspostgres.NewBookingContacts(q),
 			Appointments: repository, Idempotency: repository,
+			Staff: identitypostgres.NewRepository(q),
 		}
 	})
 	clock := bookingapp.ClockFunc(time.Now)
@@ -117,6 +127,7 @@ func run(
 		Professionals:  professionalHandler,
 		Booking:        bookingHandler,
 		Agenda:         agendaHandler,
+		Accounts:       accountHandler,
 		Authenticate:   authenticate,
 		AuthorizeShop:  authorizeShop,
 		ListMyShops:    listMyShops,

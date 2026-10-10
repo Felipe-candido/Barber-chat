@@ -58,9 +58,16 @@ func TestAgendaShopTimezoneAndBoundedPagination(t *testing.T) {
 		}
 	}
 	r.items = nil
+	professionalID := uuid.New()
+	if _, err := uc.Execute(context.Background(), app.ListAgendaInput{ShopID: id, ProfessionalID: professionalID}); err != nil || r.query.ProfessionalID != professionalID {
+		t.Fatal("authorized professional restriction was not forwarded", r.query, err)
+	}
 	output, err = uc.Execute(context.Background(), app.ListAgendaInput{ShopID: id})
 	if err != nil || output.Month != "2026-10" || output.Appointments == nil {
 		t.Fatal("default month/empty list contract", output, err)
+	}
+	if r.query.ProfessionalID != uuid.Nil {
+		t.Fatal("owner was restricted to a professional")
 	}
 	r.err = context.DeadlineExceeded
 	if _, err := uc.Execute(context.Background(), app.ListAgendaInput{ShopID: id}); !errors.Is(err, context.DeadlineExceeded) {

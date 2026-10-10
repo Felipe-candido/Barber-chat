@@ -99,14 +99,14 @@ BEGIN
         RAISE EXCEPTION 'User is disabled; review access before reactivating';
     END IF;
 
-    INSERT INTO public.shop_memberships (user_id, shop_id)
-    VALUES (target_user_id, target_shop.id)
+    INSERT INTO public.shop_memberships (user_id, shop_id, role)
+    VALUES (target_user_id, target_shop.id, 'owner')
     ON CONFLICT (user_id, shop_id) DO NOTHING;
 
     PERFORM 1 FROM public.shop_memberships
-    WHERE user_id = target_user_id AND shop_id = target_shop.id AND active FOR UPDATE;
+    WHERE user_id = target_user_id AND shop_id = target_shop.id AND active AND role = 'owner' FOR UPDATE;
     IF NOT FOUND THEN
-        RAISE EXCEPTION 'Membership is disabled; review access before reactivating';
+        RAISE EXCEPTION 'Membership is disabled or not an owner; review access without promoting automatically';
     END IF;
 
     -- Transaction-local settings let the result query reuse the inputs once.

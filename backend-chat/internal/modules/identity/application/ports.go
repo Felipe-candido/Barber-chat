@@ -49,3 +49,23 @@ type AccessibleShopReader interface {
 type ShopResolver interface {
 	LookupActiveShop(context.Context, string) (uuid.UUID, bool, error)
 }
+
+// Auth owns credentials. No password or admin key crosses this boundary.
+type StaffAccountProvider interface {
+	Invite(context.Context, string) (ProviderUser, error)
+	FindUser(context.Context, uuid.UUID) (ProviderUser, error)
+}
+
+// Each operation rechecks the owner in a short local transaction; writes also
+// lock the professional. No transaction spans the network call to Auth.
+type StaffAccountStore interface {
+	ListAccounts(context.Context, uuid.UUID, uuid.UUID) ([]StaffAccount, error)
+	ReserveAccount(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string) (StaffAccount, error)
+	// Retire the original and reserve a fresh UUID atomically. Reject any active
+	// stored membership; remove only its inactive barber link in this shop.
+	ReserveReplacement(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, string) (StaffAccount, error)
+	FindAccount(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (StaffAccount, error)
+	LinkAccount(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, ProviderUser) (StaffAccount, error)
+	ReviewAccount(context.Context, uuid.UUID, uuid.UUID) error
+	SetAccountActive(context.Context, uuid.UUID, uuid.UUID, uuid.UUID, bool) error
+}

@@ -62,7 +62,14 @@ type AppointmentCodes interface {
 	Hash(string) ([32]byte, error)
 }
 
+// Identity implements this read-only port using the same transaction as booking.
+// Call after the professional lock, including on an idempotent replay.
+type StaffBookingAuthorizer interface {
+	CanCreateBooking(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (bool, error)
+}
+
 type BookingTx struct {
+	Staff        StaffBookingAuthorizer
 	Shops        ShopResolver
 	Catalog      BookableCatalogReader
 	Schedule     ScheduleGuard

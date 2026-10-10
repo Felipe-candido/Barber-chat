@@ -14,7 +14,9 @@ export function getSupabaseBrowserClient(): SupabaseClient {
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,
-        flowType: "pkce",
+        // Supabase admin invites arrive in another browser and do not support PKCE.
+        // Restrict implicit callback handling to the dedicated invitation page.
+        flowType: window.location.pathname === "/definir-senha" ? "implicit" : "pkce",
       },
     });
   }

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Felipe-candido/Barber-chat/internal/modules/identity/domain"
 	"github.com/google/uuid"
 )
 
@@ -63,12 +64,14 @@ func (uc *AuthorizeShopAction) Execute(ctx context.Context, input AuthorizeShopA
 	if membership.UserID != user.ID || membership.ShopID != shopID {
 		return AuthorizedShopScope{}, fmt.Errorf("find membership: %w", ErrIdentityMismatch)
 	}
-	if !membership.Active {
+	if !membership.Active || !membership.Role.Valid() || (membership.Role == domain.RoleBarber && membership.ProfessionalID == uuid.Nil) {
 		return AuthorizedShopScope{}, ErrShopAccessDenied
 	}
 
 	return AuthorizedShopScope{
-		UserID: user.ID,
-		ShopID: shopID,
+		UserID:         user.ID,
+		ShopID:         shopID,
+		Role:           membership.Role,
+		ProfessionalID: membership.ProfessionalID,
 	}, nil
 }

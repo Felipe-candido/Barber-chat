@@ -12,7 +12,7 @@ func TestNewMembership(t *testing.T) {
 	userID := uuid.New()
 	shopID := uuid.New()
 
-	membership, err := domain.NewMembership(userID, shopID)
+	membership, err := domain.NewMembership(userID, shopID, domain.RoleOwner, uuid.Nil)
 	if err != nil {
 		t.Fatalf("NewMembership() error = %v", err)
 	}
@@ -25,6 +25,22 @@ func TestNewMembership(t *testing.T) {
 	}
 	if !membership.Active {
 		t.Error("NewMembership() Active = false, want true")
+	}
+	if membership.Role != domain.RoleOwner || membership.ProfessionalID != uuid.Nil {
+		t.Fatal("unexpected owner membership", membership)
+	}
+	professionalID := uuid.New()
+	barber, err := domain.NewMembership(userID, shopID, domain.RoleBarber, professionalID)
+	if err != nil || barber.Role != domain.RoleBarber || barber.ProfessionalID != professionalID {
+		t.Fatal("barber must retain its professional association", barber, err)
+	}
+	for _, role := range []domain.Role{"", "admin"} {
+		if _, err := domain.NewMembership(userID, shopID, role, uuid.Nil); !errors.Is(err, domain.ErrInvalidRole) {
+			t.Fatal("role must be explicit and valid", role, err)
+		}
+	}
+	if _, err := domain.NewMembership(userID, shopID, domain.RoleBarber, uuid.Nil); !errors.Is(err, domain.ErrInvalidProfessionalID) {
+		t.Fatal("barber without professional accepted", err)
 	}
 }
 
@@ -49,7 +65,7 @@ func TestNewMembershipValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			_, err := domain.NewMembership(tt.userID, tt.shopID)
+			_, err := domain.NewMembership(tt.userID, tt.shopID, domain.RoleOwner, uuid.Nil)
 			if !errors.Is(err, tt.wantErr) {
 				t.Fatalf("NewMembership() error = %v, want %v", err, tt.wantErr)
 			}

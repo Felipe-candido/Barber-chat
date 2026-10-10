@@ -1,14 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { CalendarDays, ChevronLeft, ChevronRight, Plus, RefreshCw } from "lucide-react";
 import { addDays, dateKey, formatDate, money, parseDate } from "@/lib/model";
 import { useSelectedShop } from "./shop-panel";
-import { publicBookingPath } from "@/lib/api/config";
 import { agendaDate, listAgenda, type Agenda, type AdminAppointment } from "@/lib/api/agenda";
 import { bookingTime } from "@/lib/api/booking";
 import { ApiError, errorMessage } from "@/lib/api/client";
 import { Modal } from "./ui";
+import { AdminBookingForm } from "./admin-booking-form";
 
 const statuses: Record<AdminAppointment["status"], string> = {
   scheduled: "Agendado",
@@ -29,6 +28,8 @@ export function AgendaPage() {
   const [error, setError] = useState("");
   const [dayFilter, setDayFilter] = useState("");
   const [selected, setSelected] = useState<AdminAppointment | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [creationLocked, setCreationLocked] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -104,14 +105,9 @@ export function AgendaPage() {
           </h1>
           <p>Agendamentos de {shop.name}, consultados no banco.</p>
         </div>
-        <Link
-          className="button button-primary"
-          href={publicBookingPath(shop.slug)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
+        <button className="button button-primary" onClick={() => setCreating(true)}>
           <Plus size={18} /> Novo agendamento
-        </Link>
+        </button>
       </div>
       <div className="agenda-actions">
         <button className="button button-secondary" onClick={refresh} disabled={loading}>
@@ -356,6 +352,17 @@ export function AgendaPage() {
             </p>
           </div>
         )}
+      </Modal>
+      <Modal
+        open={creating}
+        onClose={() => {
+          if (!creationLocked) setCreating(false);
+        }}
+        title="Novo agendamento"
+        subtitle="Escolha um horário livre e informe os dados do cliente."
+        wide
+      >
+        <AdminBookingForm onLockedChange={setCreationLocked} onCreated={refresh} />
       </Modal>
     </>
   );

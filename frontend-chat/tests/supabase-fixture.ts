@@ -29,6 +29,9 @@ export const emptyAgenda = {
 };
 
 export async function mockAdminAccess(page: Page, shops = [testShop]) {
+  await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/access", (route) =>
+    route.fulfill({ json: { role: "owner", professional_id: null } }),
+  );
   await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/appointments*", (route) =>
     route.fulfill({ json: emptyAgenda }),
   );

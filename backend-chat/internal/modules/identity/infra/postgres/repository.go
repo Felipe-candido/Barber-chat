@@ -30,9 +30,11 @@ func toDomainUser(row db.GetUserByIDRow) domain.User {
 
 func toDomainMembership(row db.GetMembershipRow) domain.Membership {
 	return domain.Membership{
-		UserID: row.UserID,
-		ShopID: row.ShopID,
-		Active: row.Active,
+		UserID:         row.UserID,
+		ShopID:         row.ShopID,
+		Active:         row.Active,
+		Role:           domain.Role(row.Role),
+		ProfessionalID: row.ProfessionalID,
 	}
 }
 
@@ -82,9 +84,11 @@ func (r *Repository) ListMembershipsByUser(
 
 	for _, row := range rows {
 		memberships = append(memberships, domain.Membership{
-			UserID: row.UserID,
-			ShopID: row.ShopID,
-			Active: row.Active,
+			UserID:         row.UserID,
+			ShopID:         row.ShopID,
+			Active:         row.Active,
+			Role:           domain.Role(row.Role),
+			ProfessionalID: row.ProfessionalID,
 		})
 	}
 
