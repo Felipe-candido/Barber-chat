@@ -13,7 +13,8 @@ import (
 )
 
 const cancelAppointment = `-- name: CancelAppointment :execrows
-UPDATE appointments SET status = 'cancelled', version = $3, updated_at = $4
+UPDATE appointments SET status = 'cancelled', version = $3, updated_at = $4,
+    status_source='public',status_reason='Cancelled by booking code',status_actor_id=NULL
 WHERE shop_id = $1 AND id = $2 AND version = $3 - 1 AND status IN ('scheduled','confirmed')
 `
 
@@ -81,7 +82,7 @@ func (q *Queries) CompleteBookingRequest(ctx context.Context, arg CompleteBookin
 }
 
 const findAppointmentByCode = `-- name: FindAppointmentByCode :one
-SELECT id, shop_id, customer_id, service_id, professional_id, service_name, duration_minutes, price_cents, currency, professional_name, shop_timezone, starts_at, ends_at, status, version, code_hash, created_at, updated_at FROM appointments WHERE shop_id = $1 AND code_hash = $2
+SELECT id, shop_id, customer_id, service_id, professional_id, service_name, duration_minutes, price_cents, currency, professional_name, shop_timezone, starts_at, ends_at, status, version, code_hash, created_at, updated_at, status_source, status_reason, status_actor_id FROM appointments WHERE shop_id = $1 AND code_hash = $2
 `
 
 type FindAppointmentByCodeParams struct {
@@ -111,6 +112,9 @@ func (q *Queries) FindAppointmentByCode(ctx context.Context, arg FindAppointment
 		&i.CodeHash,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.StatusSource,
+		&i.StatusReason,
+		&i.StatusActorID,
 	)
 	return i, err
 }

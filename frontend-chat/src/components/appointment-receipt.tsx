@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { Check, Copy, RefreshCw } from "lucide-react";
 import {
-  Appointment,
-  AppointmentDetails,
+  type Appointment,
+  type AppointmentDetails,
   bookingDate,
   bookingTime,
   cancelAppointment,
@@ -12,6 +12,8 @@ import {
 } from "@/lib/api/booking";
 import { errorMessage } from "@/lib/api/client";
 import { money } from "@/lib/model";
+import { Alert, Badge, Button } from "./ui";
+import styles from "./booking/booking.module.css";
 
 const statusNames: Record<Appointment["status"], string> = {
   scheduled: "Reservado",
@@ -25,10 +27,14 @@ export function AppointmentReceipt({
   slug,
   code,
   initial,
+  onShopName,
+  onLockedChange,
 }: {
   slug: string;
   code: string;
   initial?: Appointment;
+  onShopName?: (name: string) => void;
+  onLockedChange?: (locked: boolean) => void;
 }) {
   const [details, setDetails] = useState<AppointmentDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,19 +42,25 @@ export function AppointmentReceipt({
   const [copied, setCopied] = useState("");
   const [confirmCancel, setConfirmCancel] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const cancellingRef = useRef(false);
   const request = useRef<AbortController | null>(null);
-  const codeInput = useRef<HTMLInputElement>(null);
+  const codeInput = useRef<HTMLTextAreaElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const cancelHeading = useRef<HTMLHeadingElement>(null);
+  const cancelTrigger = useRef<HTMLButtonElement>(null);
+  const codeId = useId();
   const reload = useCallback(async () => {
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
     setLoading(true);
     setError("");
+    setConfirmCancel(false);
     try {
       const result = await lookupAppointment(slug, code, controller.signal);
       if (!controller.signal.aborted) setDetails(result);
-    } catch (error) {
-      if (!controller.signal.aborted) setError(errorMessage(error));
+    } catch (cause) {
+      if (!controller.signal.aborted) setError(errorMessage(cause));
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
@@ -57,49 +69,121 @@ export function AppointmentReceipt({
     void reload();
     return () => request.current?.abort();
   }, [reload]);
+  useEffect(() => {
+    heading.current?.focus();
+  }, []);
+  useEffect(() => {
+    if (confirmCancel) cancelHeading.current?.focus();
+  }, [confirmCancel]);
+  const appointment = details?.appointment ?? initial;
+  useEffect(() => {
+    if (appointment) onShopName?.(appointment.shop_name);
+  }, [appointment, onShopName]);
+  useEffect(() => {
+    onLockedChange?.(cancelling);
+    return () => onLockedChange?.(false);
+  }, [cancelling, onLockedChange]);
+  useEffect(() => {
+    if (!cancelling) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [cancelling]);
 
   async function copy() {
     try {
       await navigator.clipboard.writeText(code);
       setCopied("Código copiado. Guarde-o para consultar esta reserva.");
     } catch {
+      codeInput.current?.focus();
       codeInput.current?.select();
       setCopied("Selecione o código e copie com Ctrl+C ou pelo menu do celular.");
     }
   }
   async function cancel() {
-    if (cancelling) return;
+    if (cancellingRef.current || loading || error || !details?.can_cancel) return;
+    cancellingRef.current = true;
     setCancelling(true);
     setError("");
     try {
       setDetails(await cancelAppointment(slug, code));
       setConfirmCancel(false);
-    } catch (error) {
-      setError(errorMessage(error));
+      heading.current?.focus();
+    } catch (cause) {
+      setError(errorMessage(cause));
+      setConfirmCancel(false);
     } finally {
+      cancellingRef.current = false;
       setCancelling(false);
     }
   }
-  const appointment = details?.appointment ?? initial;
+  const canCancel = details?.can_cancel && !loading && !error;
   return (
-    <section className="booking-receipt" aria-label="Comprovante do agendamento">
-      {initial && (
-        <h3>
-          <Check size={22} /> Agendamento registrado!
-        </h3>
-      )}
-      {loading && <p role="status">Conferindo a situação atual da reserva…</p>}
-      {error && (
-        <p className="form-error" role="alert">
-          {error}
+    <section className={styles.receipt} aria-label="Comprovante do agendamento">
+      <h2 ref={heading} tabIndex={-1}>
+        {initial && <Check size={22} aria-hidden="true" />}
+        {initial ? "Agendamento registrado!" : "Informações do agendamento"}
+      </h2>
+      {loading && (
+        <p className={styles.loading} role="status">
+          Conferindo a situação atual da reserva…
         </p>
+      )}
+      {error && (
+        <Alert tone="error">
+          {error}
+          <p>Atualize a situação antes de fazer outra operação.</p>
+        </Alert>
       )}
       {appointment && (
         <>
-          <h3>{appointment.shop_name}</h3>
-          <dl className="receipt-details">
+          <div className={styles.selection}>
+            <h3>{appointment.shop_name}</h3>
+            <Badge
+              tone={
+                appointment.status === "cancelled" || appointment.status === "no_show"
+                  ? "neutral"
+                  : "success"
+              }
+            >
+              {statusNames[appointment.status]}
+            </Badge>
+          </div>
+          <div className={styles.codeBox}>
+            <label htmlFor={codeId}>Código do agendamento</label>
+            <textarea
+              id={codeId}
+              ref={codeInput}
+              className={styles.code}
+              rows={2}
+              value={code}
+              readOnly
+              onFocus={(event) => event.currentTarget.select()}
+              spellCheck={false}
+              aria-describedby={`${codeId}-hint`}
+            />
+            <Button onClick={() => void copy()}>
+              <Copy size={16} aria-hidden="true" />
+              Copiar código
+            </Button>
+            {copied && (
+              <p role="status" className={styles.hint}>
+                {copied}
+              </p>
+            )}
+            <p id={`${codeId}-hint`} className={styles.hint}>
+              Guarde este código e o link da barbearia. Quem tiver o código poderá consultar e
+              cancelar somente esta reserva. Não compartilhe publicamente.
+            </p>
+          </div>
+          <dl className={styles.details}>
             <div>
-              <dt>Situação{!details ? " no registro" : ""}</dt>
+              <dt>
+                Situação{!details ? " no registro" : loading || error ? " na última consulta" : ""}
+              </dt>
               <dd>{statusNames[appointment.status]}</dd>
             </div>
             <div>
@@ -131,112 +215,61 @@ export function AppointmentReceipt({
               <dd>{money(appointment.price_cents)}</dd>
             </div>
           </dl>
-          <p className="booking-note">
+          <p className={styles.hint}>
             Horários da barbearia: {appointment.shop_timezone}. O intervalo reservado pode incluir
-            margem entre atendimentos.
-          </p>
-          <label className="booking-field">
-            Código do agendamento
-            <input
-              ref={codeInput}
-              className="appointment-code"
-              value={code}
-              readOnly
-              onFocus={(event) => event.currentTarget.select()}
-              spellCheck={false}
-            />
-          </label>
-          <button className="button button-primary" onClick={() => void copy()}>
-            <Copy size={16} /> Copiar código
-          </button>
-          {copied && <p role="status">{copied}</p>}
-          <p className="booking-note">
-            Guarde este código e o link da barbearia. Quem tiver o código poderá consultar e
-            cancelar somente esta reserva. Nenhuma mensagem será enviada pelo WhatsApp nesta etapa.
+            margem entre atendimentos. Nenhuma mensagem será enviada pelo WhatsApp nesta etapa.
           </p>
         </>
       )}
-      <div className="booking-actions">
-        <button
-          className="button button-secondary"
-          disabled={loading || cancelling}
-          onClick={() => void reload()}
-        >
+      <div className={styles.actions}>
+        <Button variant="secondary" disabled={loading || cancelling} onClick={() => void reload()}>
+          <RefreshCw size={16} aria-hidden="true" />
           Atualizar situação
-        </button>
-        {details?.can_cancel && !confirmCancel && (
-          <button
-            className="button button-secondary"
-            disabled={loading || cancelling}
+        </Button>
+        {canCancel && !confirmCancel && (
+          <Button
+            ref={cancelTrigger}
+            variant="quiet"
+            disabled={cancelling}
             onClick={() => setConfirmCancel(true)}
           >
             Cancelar agendamento
-          </button>
+          </Button>
         )}
       </div>
-      {confirmCancel && details?.can_cancel && (
-        <section className="cancellation-confirm" aria-label="Confirmar cancelamento">
-          <p>Cancelar este agendamento? Seu horário será liberado para outra pessoa.</p>
-          <div className="booking-actions">
-            <button
-              className="button button-primary"
-              disabled={cancelling}
-              onClick={() => void cancel()}
-            >
+      {confirmCancel && canCancel && (
+        <section className={styles.cancelConfirm} aria-label="Confirmar cancelamento">
+          <h3 tabIndex={-1} ref={cancelHeading}>
+            Cancelar este agendamento?
+          </h3>
+          <p className={styles.hint}>
+            Seu horário será liberado para outra pessoa. Esta ação não pode ser desfeita.
+          </p>
+          <div className={styles.actions}>
+            <Button variant="danger" loading={cancelling} onClick={() => void cancel()}>
               {cancelling ? "Cancelando…" : "Sim, cancelar agendamento"}
-            </button>
-            <button
-              className="button button-secondary"
+            </Button>
+            <Button
+              variant="secondary"
               disabled={cancelling}
-              onClick={() => setConfirmCancel(false)}
+              onClick={() => {
+                setConfirmCancel(false);
+                requestAnimationFrame(() => cancelTrigger.current?.focus());
+              }}
             >
               Manter agendamento
-            </button>
+            </Button>
           </div>
         </section>
       )}
       {details?.appointment.status === "cancelled" && (
-        <p role="status">Agendamento cancelado. O horário foi liberado.</p>
+        <Alert tone="success">Agendamento cancelado. O horário foi liberado.</Alert>
       )}
       {details && !details.can_cancel && details.appointment.status !== "cancelled" && (
-        <p className="booking-note">
+        <p className={styles.hint}>
           O cancelamento não está disponível para esta reserva. Fale com a barbearia se precisar de
           ajuda.
         </p>
-      )}
-    </section>
-  );
-}
-
-export function AppointmentLookup({ slug }: { slug: string }) {
-  const [code, setCode] = useState("");
-  const [submitted, setSubmitted] = useState<{ code: string; attempt: number } | null>(null);
-  return (
-    <section className="booking-lookup">
-      <h3>Consultar meu agendamento</h3>
-      <p>Use o código recebido ao concluir sua reserva nesta barbearia.</p>
-      <form
-        className="booking-form"
-        onSubmit={(event) => {
-          event.preventDefault();
-          setSubmitted({ code: code.trim().toUpperCase(), attempt: (submitted?.attempt ?? 0) + 1 });
-        }}
-      >
-        <label className="booking-field">
-          Código recebido
-          <input
-            required
-            maxLength={80}
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </label>
-        <button className="button button-primary">Consultar agendamento</button>
-      </form>
-      {submitted && (
-        <AppointmentReceipt key={submitted.attempt} slug={slug} code={submitted.code} />
       )}
     </section>
   );

@@ -38,7 +38,7 @@ func (q *Queries) GetActiveAgendaShop(ctx context.Context, id uuid.UUID) (GetAct
 const listAdminAgenda = `-- name: ListAdminAgenda :many
 SELECT a.id, a.status, a.service_name, a.duration_minutes, a.price_cents,
        a.currency, a.professional_id, a.professional_name, a.shop_timezone,
-       a.starts_at, a.ends_at,
+       a.starts_at, a.ends_at, a.version,a.status_source,a.status_reason,a.status_actor_id,a.updated_at,
        (c.first_name || ' ' || c.last_name)::text AS customer_name, c.phone_e164
 FROM appointments a
 JOIN customers c ON c.shop_id = a.shop_id AND c.id = a.customer_id
@@ -77,6 +77,11 @@ type ListAdminAgendaRow struct {
 	ShopTimezone     string             `json:"shop_timezone"`
 	StartsAt         pgtype.Timestamptz `json:"starts_at"`
 	EndsAt           pgtype.Timestamptz `json:"ends_at"`
+	Version          int64              `json:"version"`
+	StatusSource     string             `json:"status_source"`
+	StatusReason     string             `json:"status_reason"`
+	StatusActorID    pgtype.UUID        `json:"status_actor_id"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 	CustomerName     string             `json:"customer_name"`
 	PhoneE164        string             `json:"phone_e164"`
 }
@@ -111,6 +116,11 @@ func (q *Queries) ListAdminAgenda(ctx context.Context, arg ListAdminAgendaParams
 			&i.ShopTimezone,
 			&i.StartsAt,
 			&i.EndsAt,
+			&i.Version,
+			&i.StatusSource,
+			&i.StatusReason,
+			&i.StatusActorID,
+			&i.UpdatedAt,
 			&i.CustomerName,
 			&i.PhoneE164,
 		); err != nil {

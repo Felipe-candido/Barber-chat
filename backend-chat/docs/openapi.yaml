@@ -1,11 +1,45 @@
 openapi: 3.1.0
 info:
   title: Barber-chat API
-  version: 0.8.0
+  version: 0.11.0
   description: Health/readiness, administrative identity, services/professionals and public booking. Administrative routes require a Supabase ES256 access token and an active local user; shop reads and writes also require an active shop membership. Public appointments use a private consultation code, not staff login. Browser requests require the exact FRONTEND_ORIGIN. Secrets are never accepted in URL parameters.
 servers:
   - url: http://127.0.0.1:8080
 paths:
+  /api/v1/admin/shops/{slug}/sales:
+    $ref: './sales-openapi.yaml#/paths/sales'
+  /api/v1/admin/shops/{slug}/sales/{saleID}:
+    $ref: './sales-openapi.yaml#/paths/sale'
+  /api/v1/admin/shops/{slug}/sales/{saleID}/cancel:
+    $ref: './sales-openapi.yaml#/paths/cancel'
+  /api/v1/admin/shops/{slug}/products:
+    $ref: './products-openapi.yaml#/paths/products'
+  /api/v1/admin/shops/{slug}/products/{productID}:
+    $ref: './products-openapi.yaml#/paths/product'
+  /api/v1/admin/shops/{slug}/products/{productID}/stock-minimum:
+    $ref: './products-openapi.yaml#/paths/minimum'
+  /api/v1/admin/shops/{slug}/products/{productID}/stock-movements:
+    $ref: './products-openapi.yaml#/paths/movements'
+  /api/v1/admin/shops/{slug}/booking/professionals:
+    $ref: './booking-openapi.yaml#/paths/staffBookingProfessionals'
+  /api/v1/admin/shops/{slug}/booking/availability:
+    $ref: './booking-openapi.yaml#/paths/staffBookingAvailability'
+  /api/v1/admin/shops/{slug}/commercial-status:
+    $ref: './shop-publication-openapi.yaml#/paths/commercialStatus'
+  /api/v1/admin/shops/{slug}/publication:
+    $ref: './shop-publication-openapi.yaml#/paths/publication'
+  /api/v1/webhooks/stripe:
+    $ref: './billing-openapi.yaml#/paths/webhook'
+  /api/v1/admin/shops/{slug}/billing/checkout:
+    $ref: './billing-openapi.yaml#/paths/checkout'
+  /api/v1/admin/shops/{slug}/billing/offer:
+    $ref: './billing-openapi.yaml#/paths/offer'
+  /api/v1/admin/shops/{slug}/billing/portal:
+    $ref: './billing-openapi.yaml#/paths/portal'
+  /api/v1/admin/shops/{slug}/settings:
+    $ref: './shop-settings-openapi.yaml#/paths/settings'
+  /api/v1/onboarding/shops:
+    $ref: './registration-openapi.yaml#/paths/registration'
   /api/v1/admin/shops/{slug}/accounts:
     $ref: './staff-accounts-openapi.yaml#/paths/accounts'
   /api/v1/admin/shops/{slug}/accounts/{accountID}/link:
@@ -278,6 +312,10 @@ paths:
     $ref: './booking-openapi.yaml#/paths/adminProfessionals'
   /api/v1/admin/shops/{slug}/appointments:
     $ref: './booking-openapi.yaml#/paths/adminAgenda'
+  /api/v1/admin/shops/{slug}/appointments/{appointmentID}:
+    $ref: './appointment-lifecycle-openapi.yaml#/paths/detail'
+  /api/v1/admin/shops/{slug}/appointments/{appointmentID}/status:
+    $ref: './appointment-lifecycle-openapi.yaml#/paths/status'
 components:
   securitySchemes:
     bearerAuth:

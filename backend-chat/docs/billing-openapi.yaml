@@ -1,0 +1,204 @@
+# Contract fragment referenced by openapi.yaml. Billing is TEST only.
+paths:
+  portal:
+    parameters:
+      - in: path
+        name: slug
+        required: true
+        schema: {type: string}
+    post:
+      operationId: openCustomerPortal
+      summary: Owner-only TEST portal session for the unit's existing reconciled Customer
+      description: No payment coverage or publication is required for invoice history/card recovery. Server selects Customer, configuration and return URL; no subscription/publication changes are performed by this request. Return query is not financial evidence. Session URL is a bearer credential, must not be logged or stored, and is returned with no-store.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {type: object, additionalProperties: false, maxProperties: 0}
+      responses:
+        '200':
+          description: Validated TEST portal URL; open_until is the application's four-minute opening window, not Stripe's session expiry
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [shop_id, url, open_until, livemode]
+                properties:
+                  shop_id: {type: string, format: uuid}
+                  url: {type: string, format: uri, maxLength: 8192}
+                  open_until: {type: string, format: date-time}
+                  livemode: {type: boolean, const: false}
+        '400': {description: Only one empty JSON object is accepted, maximum 1 KiB}
+        '401': {description: Authentication required}
+        '403': {description: Owner access required, including final check after provider I/O}
+        '409': {description: portal_not_available or billing_not_required; no new Customer/subscription is created}
+        '415': {description: application/json required}
+        '503': {description: portal_not_configured or portal_unavailable; no automatic retry or subscription mutation}
+  offer:
+    parameters:
+      - in: path
+        name: slug
+        required: true
+        schema: {type: string, minLength: 1, maxLength: 100}
+    get:
+      operationId: getTestSubscriptionOffer
+      summary: Owner reviews the server-selected monthly TEST subscription conditions
+      description: >-
+        Self-service shops only. Reads the fixed active BRL monthly Price from Stripe.
+        If a recoverable pending attempt exists, uses its frozen Price and plan instead
+        of the current configuration. No Customer, account or attempt is created.
+        Revalidates owner access and local selection after provider I/O. offer_id is
+        a conditions checksum, not authorization; Checkout always recomputes it.
+        No provider identifier is exposed. Requires test key, Price and webhook secret.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Current conditions; no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [shop_id, offer_id, plan_key, amount_cents, currency, interval, interval_count, livemode, recovering]
+                properties:
+                  shop_id: {type: string, format: uuid}
+                  offer_id: {type: string, pattern: '^[a-f0-9]{64}$'}
+                  plan_key: {type: string}
+                  amount_cents: {type: integer, minimum: 1, maximum: 9007199254740991}
+                  currency: {type: string, const: BRL}
+                  interval: {type: string, const: month}
+                  interval_count: {type: integer, const: 1}
+                  livemode: {type: boolean, const: false}
+                  recovering: {type: boolean}
+        '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+        '409': {description: billing_not_required, subscription_exists, checkout_confirmation_pending, checkout_requires_review or checkout_offer_changed}
+        '503': {description: billing_not_configured or checkout_unavailable; no offer confirmed}
+    options:
+      summary: Unauthenticated preflight allowing GET
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+  webhook:
+    post:
+      operationId: receiveStripeTestWebhook
+      summary: Verify and reconcile a Stripe TEST snapshot event
+      description: >-
+        No Supabase Bearer. Requires Stripe-Signature over the raw body, fresh
+        delivery timestamp within five minutes, configured webhook signing key,
+        livemode=false and snapshot envelope version 2026-09-30.endive or
+        2026-10-28.endive. Provider resource reads stay pinned to 2026-10-28.endive;
+        snapshot financial fields are not trusted. Supports Checkout
+        completed/expired; subscription created/updated/deleted/paused/resumed;
+        invoice paid/payment_failed/payment_action_required/voided/
+        marked_uncollectible/updated. Reads current provider resources and checks
+        local tenant/customer/attempt/session/contract/price associations before
+        projecting paid invoice intervals. Does not publish or book. Supported
+        events remain pending on failure; 503 requires Stripe redelivery or
+        explicit resend. No local retry scheduler yet. Unsupported/unrelated
+        events are durably ignored. Browser billing PII/raw bodies are not kept.
+      security: []
+      parameters:
+        - in: header
+          name: Stripe-Signature
+          required: true
+          schema: {type: string, maxLength: 8192}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Unmodified Stripe snapshot Event; not an application DTO to re-serialize before signing
+      responses:
+        '200':
+          description: Processed, already processed or ignored; durable commit confirmed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [received]
+                properties:
+                  received: {type: boolean, const: true}
+        '400': {description: Invalid signature, envelope, version, environment or colliding event identity}
+        '403': {description: Browser Origin rejected; no Origin is required for Stripe}
+        '413': {description: Raw body exceeds 512 KiB}
+        '415': {description: Content-Type must be application/json}
+        '503': {description: webhook_not_configured or webhook_pending; event is not acknowledged as successfully processed}
+  checkout:
+    parameters:
+      - in: path
+        name: slug
+        required: true
+        schema: {type: string, minLength: 1, maxLength: 100}
+    post:
+      operationId: startTestSubscriptionCheckout
+      summary: Owner opens or recovers the shop's Stripe TEST Checkout
+      description: >-
+        Self-service shops only. Server selects a fixed monthly BRL price and
+        freezes the provider request before network I/O. Repeated requests reuse
+        the pending attempt, even if intent differs; response contains its
+        original intent. No client Idempotency-Key is required. Existing current
+        subscriptions prevent new Checkout. Completion/return never grants paid
+        coverage, publication or a booking. Live mode is disabled. No automatic
+        retry or portal is implemented here. Financial confirmation is performed
+        only by the separate signed webhook, never by this Checkout response.
+        First read billing/offer and explicitly confirm its offer_id. A changed
+        Price, plan, shop or amount requires review again before any external
+        creation. An open Session must have the reviewed BRL subtotal and total.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [intent, offer_id]
+              properties:
+                intent: {type: string, enum: [publish, manual_booking]}
+                offer_id: {type: string, pattern: '^[a-f0-9]{64}$'}
+      responses:
+        '200':
+          description: Confirmed open Session linked locally; response is not cached
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [attempt_id, intent, url, expires_at, livemode]
+                properties:
+                  attempt_id: {type: string, format: uuid}
+                  intent: {type: string, enum: [publish, manual_booking]}
+                  url: {type: string, format: uri, description: HTTPS checkout.stripe.com URL}
+                  expires_at: {type: string, format: date-time}
+                  livemode: {type: boolean, const: false}
+        '400': {description: Invalid JSON, null body, extra JSON or unknown fields}
+        '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+        '409':
+          description: >-
+            checkout_offer_changed requires GET/review and explicit confirmation;
+            billing_not_required for manual shops; subscription_exists for a
+            current contract; checkout_confirmation_pending after completion;
+            checkout_requires_review for ambiguous/legacy/unlinked attempts
+            outside the 20h recovery window; checkout_expired only after Stripe
+            confirms expiry (another explicit request can then start a new one).
+        '413': {description: Request body exceeds 1 KiB}
+        '415': {description: Content-Type must be application/json}
+        '422': {description: invalid_checkout_intent}
+        '503':
+          description: >-
+            billing_not_configured or checkout_unavailable. Repeating the same
+            endpoint recovers the original attempt; do not open an independent
+            subscription. No success is inferred from network or commit failure.
+    options:
+      summary: Unauthenticated preflight allowing POST
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}

@@ -1,5 +1,53 @@
 # Referenced by openapi.yaml; this is a contract fragment, not a separate API.
 paths:
+  staffBookingProfessionals:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+      - {name: service_id, in: query, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: listStaffBookingProfessionals
+      summary: Observe eligible professionals for a private administrative draft
+      description: >-
+        Requires active local staff and same-shop access, revalidated in the booking
+        transaction. Owner reads eligible active professionals; barber receives only
+        their linked active professional, filtered on the server. No subscription or
+        publication requirement for observing a draft. Does not reserve or persist
+        contact data. Public endpoints retain their commercial/publication guards.
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {$ref: '#/paths/professionals/get/responses/200'}
+        '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+        default: {$ref: '#/components/responses/BookingError'}
+    options:
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+  staffBookingAvailability:
+    parameters:
+      - $ref: '#/components/parameters/Slug'
+      - {name: service_id, in: query, required: true, schema: {type: string, format: uuid}}
+      - {name: professional_id, in: query, required: true, schema: {type: string, format: uuid}}
+      - {name: date, in: query, required: true, schema: {type: string, format: date}}
+    get:
+      operationId: listStaffBookingAvailability
+      summary: Observe private booking slots without requiring public publication
+      description: >-
+        Requires same-shop active staff; barber can observe only their linked
+        active professional. Professional calendar lock precedes transactional
+        staff revalidation. Same timezone, booking horizon and availability rules
+        as public booking. No paid coverage is required for this read. Observation
+        creates no reservation; creation still enforces commercial eligibility.
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {$ref: '#/paths/availability/get/responses/200'}
+        '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+        default: {$ref: '#/components/responses/BookingError'}
+    options:
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
   adminAgenda:
     parameters:
       - $ref: '#/components/parameters/Slug'
@@ -37,13 +85,7 @@ paths:
                     type: array
                     maxItems: 100
                     items:
-                      allOf:
-                        - $ref: '#/components/schemas/Receipt'
-                        - type: object
-                          required: [customer_name, customer_phone]
-                          properties:
-                            customer_name: {type: string}
-                            customer_phone: {type: string, description: Private E.164 contact; never returned by public receipt endpoints}
+                      $ref: './appointment-lifecycle-openapi.yaml#/components/schemas/AdminAppointment'
         '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
         '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
         '422': {$ref: '#/components/responses/BookingError'}
@@ -51,7 +93,17 @@ paths:
     post:
       operationId: createStaffAppointment
       summary: Owner books any eligible professional; barber books only their linked professional
-      description: Same booking core, JSON and idempotency as public creation. Current local membership is checked inside the transaction, including on replay. No client role, user ID or shop ID is accepted.
+      description: >-
+        Same booking core, JSON and idempotency as public creation. Current local
+        membership is checked inside the transaction, including on replay. No
+        client role, user ID, shop ID or commercial flag is accepted. New
+        self-service reservations require current paid coverage, not publication.
+        A paid private draft can book manually without enabling its public link.
+        Manual operator-provisioned shops retain legacy access. Recovering a saved
+        matching receipt precedes the commercial check, but never bypasses staff
+        authorization. No booking is automatically retried after payment. The
+        decision uses the local ledger and transaction-bound account lock, not a
+        Stripe call. Subscription is evaluated now, not on the appointment date.
       security:
         - bearerAuth: []
       parameters:
@@ -68,8 +120,13 @@ paths:
         '201': {$ref: '#/components/responses/Created'}
         '200': {$ref: '#/components/responses/Created'}
         '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
-        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+        '402':
+          description: Owner only; shop_subscription_required. Manage the shop subscription before submitting a new booking. No reservation or contact was saved by this denied request.
+        '403':
+          description: Authentication/shop/professional access denied, or shop_subscription_required for a barber. A barber must contact the owner and cannot open Checkout or access billing status.
         '409': {$ref: '#/components/responses/Conflict'}
+        '503':
+          description: Eligibility dependency unavailable or deadline exceeded. Not evidence of missing payment; do not open another subscription or recreate a booking automatically.
         default: {$ref: '#/components/responses/BookingError'}
     options:
       operationId: preflightAdminAgenda

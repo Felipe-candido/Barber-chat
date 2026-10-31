@@ -1,0 +1,123 @@
+# Contract fragment referenced by openapi.yaml.
+paths:
+  commercialStatus:
+    parameters:
+      - in: path
+        name: slug
+        required: true
+        schema: {type: string, minLength: 1, maxLength: 100}
+    get:
+      operationId: getShopCommercialStatus
+      summary: Owner reads local subscription coverage and publication readiness
+      description: >-
+        No Stripe calls. Coherent local snapshot; active owner is revalidated in
+        the transaction. Eligibility does not publish. publication_requested is
+        saved owner intent; public_booking_enabled also requires current paid
+        coverage. can_publish additionally requires a complete address, eligible
+        active service, active linked professional and a recurring working window
+        fitting service duration plus buffer rounded to the slot grid. Readiness
+        is not an availability promise or a slot reservation. Manual shops keep
+        legacy public behavior, publication_managed=false, status=not_required
+        and can_publish=false. Readiness fields are not evaluated for manual shops.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Local commercial snapshot; Cache-Control no-store
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/CommercialStatus'}
+        '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+        '404': {description: Active shop not found}
+        '503': {$ref: './openapi.yaml#/components/responses/Unavailable'}
+    options:
+      summary: Unauthenticated preflight allowing GET
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+  publication:
+    parameters:
+      - in: path
+        name: slug
+        required: true
+        schema: {type: string, minLength: 1, maxLength: 100}
+    put:
+      operationId: setShopPublication
+      summary: Owner explicitly publishes or unpublishes a self-service shop
+      description: >-
+        Explicit desired state, never a toggle. Setting true validates current
+        coverage and all readiness prerequisites within a serializable local
+        transaction, locking the shop and financial account. Setting false
+        requires neither coverage nor readiness. No billing records, subscription,
+        memberships or appointments are created, canceled or deleted. Publication
+        has no effect on the basic settings version. No network calls or automatic
+        retries. After a network/503 failure read commercial-status before choosing
+        a new write, especially if another owner may have changed the intention.
+        Manual shops remain operator managed and return 409 without changes.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requested]
+              properties:
+                requested: {type: boolean}
+      responses:
+        '204': {description: Desired publication state committed; no response body}
+        '400': {description: Missing/non-boolean requested, unknown field, invalid/null or trailing JSON}
+        '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+        '404': {description: Active shop not found}
+        '409': {description: publication_blocked or publication_not_managed; GET commercial-status explains blockers}
+        '413': {description: Body exceeds 1 KiB}
+        '415': {description: Content-Type must be application/json}
+        '503': {description: Dependency, serialization or commit failure; read current status before retrying}
+    options:
+      summary: Unauthenticated preflight allowing PUT
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}
+  schemas:
+    CommercialStatus:
+      type: object
+      required: [shop_id, slug, publication_managed, publication_requested, public_booking_enabled, can_publish, blockers, readiness, subscription]
+      properties:
+        shop_id: {type: string, format: uuid}
+        slug: {type: string}
+        publication_managed: {type: boolean}
+        publication_requested: {type: boolean}
+        public_booking_enabled: {type: boolean}
+        can_publish: {type: boolean}
+        blockers:
+          type: array
+          items:
+            type: string
+            enum: [operator_managed, subscription_required, payment_pending, payment_required, subscription_suspended, subscription_canceled, address_required, service_required, professional_required, schedule_required]
+        readiness:
+          type: object
+          required: [address, service, professional, schedule]
+          properties:
+            address: {type: boolean}
+            service: {type: boolean}
+            professional: {type: boolean}
+            schedule: {type: boolean}
+        subscription:
+          type: object
+          required: [status, plan_key, operation_allowed, reason, coverage_until, cancel_at_period_end]
+          properties:
+            status: {type: string, enum: [none, not_required, pending, active, past_due, suspended, canceled]}
+            plan_key: {type: string, description: Local plan identifier; empty without a contract or for legacy access}
+            operation_allowed: {type: boolean}
+            reason: {type: string, enum: [legacy_access, subscribed, grace_period, subscription_required, payment_pending, payment_required, subscription_suspended, subscription_canceled]}
+            coverage_until:
+              oneOf:
+                - {type: string, format: date-time}
+                - {type: 'null'}
+              description: Exclusive end of current access interval, null when denied or legacy access
+            cancel_at_period_end: {type: boolean}

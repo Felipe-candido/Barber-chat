@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -15,19 +16,24 @@ import (
 )
 
 type Config struct {
-	HTTPAddr               string
-	DatabaseURL            string
-	RabbitMQURL            string
-	SupabaseURL            string
-	SupabaseServiceRoleKey string
-	FrontendOrigin         string
-	HTTPTimeout            time.Duration
-	LogLevel               slog.Level
-	DBTimeout              time.Duration
-	OperationTimeout       time.Duration
-	ShutdownTimeout        time.Duration
-	WorkerInterval         time.Duration
-	DevFrontendOrigin      string
+	HTTPAddr                    string
+	DatabaseURL                 string
+	RabbitMQURL                 string
+	SupabaseURL                 string
+	SupabaseServiceRoleKey      string
+	SupabasePublishableKey      string
+	FrontendOrigin              string
+	HTTPTimeout                 time.Duration
+	LogLevel                    slog.Level
+	DBTimeout                   time.Duration
+	OperationTimeout            time.Duration
+	ShutdownTimeout             time.Duration
+	WorkerInterval              time.Duration
+	DevFrontendOrigin           string
+	StripeSecretKey             string
+	StripeMonthlyPriceID        string
+	StripeWebhookSecret         string
+	StripePortalConfigurationID string
 }
 
 // Load reads the optional .env in the working directory, then validates settings.
@@ -54,13 +60,18 @@ func load(getenv func(string) string) (Config, error) {
 		return fallback
 	}
 	c := Config{
-		HTTPAddr:               value("HTTP_ADDR", "127.0.0.1:8080"),
-		DatabaseURL:            getenv("DATABASE_URL"),
-		RabbitMQURL:            getenv("RABBITMQ_URL"),
-		SupabaseURL:            strings.TrimSpace(getenv("SUPABASE_URL")),
-		SupabaseServiceRoleKey: strings.TrimSpace(getenv("SUPABASE_SERVICE_ROLE_KEY")),
-		FrontendOrigin:         strings.TrimSpace(getenv("FRONTEND_ORIGIN")),
-		DevFrontendOrigin:      strings.TrimSpace(getenv("DEV_FRONTEND_ORIGIN")),
+		HTTPAddr:                    value("HTTP_ADDR", "127.0.0.1:8080"),
+		DatabaseURL:                 getenv("DATABASE_URL"),
+		RabbitMQURL:                 getenv("RABBITMQ_URL"),
+		SupabaseURL:                 strings.TrimSpace(getenv("SUPABASE_URL")),
+		SupabaseServiceRoleKey:      strings.TrimSpace(getenv("SUPABASE_SERVICE_ROLE_KEY")),
+		SupabasePublishableKey:      strings.TrimSpace(getenv("SUPABASE_PUBLISHABLE_KEY")),
+		FrontendOrigin:              strings.TrimSpace(getenv("FRONTEND_ORIGIN")),
+		DevFrontendOrigin:           strings.TrimSpace(getenv("DEV_FRONTEND_ORIGIN")),
+		StripeSecretKey:             strings.TrimSpace(getenv("STRIPE_SECRET_KEY")),
+		StripeMonthlyPriceID:        strings.TrimSpace(getenv("STRIPE_MONTHLY_PRICE_ID")),
+		StripeWebhookSecret:         strings.TrimSpace(getenv("STRIPE_WEBHOOK_SECRET")),
+		StripePortalConfigurationID: strings.TrimSpace(getenv("STRIPE_PORTAL_CONFIGURATION_ID")),
 	}
 	if c.FrontendOrigin == "" {
 		c.FrontendOrigin = c.DevFrontendOrigin
@@ -81,6 +92,28 @@ func load(getenv func(string) string) (Config, error) {
 			if err != nil || n < 1 || n > 65535 {
 				return Config{}, errors.New("FRONTEND_ORIGIN has an invalid port")
 			}
+		}
+	}
+	if c.StripeSecretKey != "" || c.StripeMonthlyPriceID != "" || c.StripePortalConfigurationID != "" {
+		if !regexp.MustCompile(`^sk_test_[A-Za-z0-9_]+$`).MatchString(c.StripeSecretKey) || len(c.StripeSecretKey) > 512 {
+			return Config{}, errors.New("STRIPE_SECRET_KEY must be a server-side sk_test_ key; live Checkout is disabled")
+		}
+		if !regexp.MustCompile(`^price_[A-Za-z0-9]+$`).MatchString(c.StripeMonthlyPriceID) || len(c.StripeMonthlyPriceID) > 255 {
+			return Config{}, errors.New("STRIPE_MONTHLY_PRICE_ID must identify a Stripe test price")
+		}
+		if c.FrontendOrigin == "" {
+			return Config{}, errors.New("FRONTEND_ORIGIN is required for Stripe Checkout")
+		}
+	}
+	if c.StripePortalConfigurationID != "" && (!regexp.MustCompile(`^bpc_[A-Za-z0-9]+$`).MatchString(c.StripePortalConfigurationID) || len(c.StripePortalConfigurationID) > 255) {
+		return Config{}, errors.New("STRIPE_PORTAL_CONFIGURATION_ID must identify a Stripe test portal configuration")
+	}
+	if c.StripeWebhookSecret != "" {
+		if !regexp.MustCompile(`^whsec_[A-Za-z0-9_]+$`).MatchString(c.StripeWebhookSecret) || len(c.StripeWebhookSecret) > 512 {
+			return Config{}, errors.New("STRIPE_WEBHOOK_SECRET must be a valid server-side webhook signing key")
+		}
+		if c.StripeSecretKey == "" {
+			return Config{}, errors.New("STRIPE_SECRET_KEY is required when STRIPE_WEBHOOK_SECRET is configured")
 		}
 	}
 	_, port, err := net.SplitHostPort(c.HTTPAddr)

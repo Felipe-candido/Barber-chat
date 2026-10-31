@@ -19,6 +19,8 @@ import (
 
 	db "github.com/Felipe-candido/Barber-chat/internal/database/sqlc"
 	"github.com/Felipe-candido/Barber-chat/internal/httpapi"
+	billingapp "github.com/Felipe-candido/Barber-chat/internal/modules/billing/application"
+	billingpg "github.com/Felipe-candido/Barber-chat/internal/modules/billing/infra/postgres"
 	booking "github.com/Felipe-candido/Barber-chat/internal/modules/booking/application"
 	bookinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/http"
 	bookingpostgres "github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/postgres"
@@ -27,6 +29,8 @@ import (
 	customers "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra"
 	customerspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra/postgres"
 	identitypostgres "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/postgres"
+	shopsapp "github.com/Felipe-candido/Barber-chat/internal/modules/shops/application"
+	shopshttp "github.com/Felipe-candido/Barber-chat/internal/modules/shops/infra/http"
 	shopspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/shops/infra/postgres"
 	"github.com/Felipe-candido/Barber-chat/internal/platform/postgres"
 	"github.com/google/uuid"
@@ -44,7 +48,7 @@ type bookingFixture struct {
 
 func bindBookingQueries(q *db.Queries) booking.BookingTx {
 	r := bookingpostgres.NewRepository(q)
-	return booking.BookingTx{Staff: identitypostgres.NewRepository(q), Shops: shopspostgres.NewResolver(q), Catalog: catalogpostgres.NewRepository(q), Schedule: r,
+	return booking.BookingTx{StaffEligibility: billingpg.NewBookingEligibility(q, billingapp.ClockFunc(time.Now)), PublicAccess: shopsapp.NewCheckPublicBooking(shopspostgres.NewResolver(q), billingapp.NewGetShopEntitlements(billingpg.NewReader(q), billingapp.ClockFunc(time.Now))), Staff: identitypostgres.NewRepository(q), Shops: shopspostgres.NewResolver(q), Catalog: catalogpostgres.NewRepository(q), Schedule: r,
 		Customers: customerspostgres.NewBookingContacts(q), Appointments: r, Idempotency: r}
 }
 func newBookingFixture(t *testing.T) *bookingFixture {
@@ -88,7 +92,9 @@ func newBookingFixture(t *testing.T) *bookingFixture {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	h := bookinghttp.NewHandler(booking.NewCreateAppointment(tx, customers.ContactNormalizer{}, codes, clock), booking.NewListAvailability(tx, clock),
 		booking.NewListProfessionals(tx, clock), booking.NewManageAppointment(tx, codes, clock), 5*time.Second, logger)
-	f.handler = httpapi.NewHandler(httpapi.HandlerConfig{Booking: h, FrontendOrigin: "http://127.0.0.1:3000", Logger: logger})
+	f.handler = httpapi.NewHandler(httpapi.HandlerConfig{Booking: h,
+		PublicShopGate: shopshttp.PublicBookingGate(shopsapp.NewCheckPublicBooking(shopspostgres.NewResolver(db.New(pool)), billingapp.NewGetShopEntitlements(billingpg.NewReader(db.New(pool)), billingapp.ClockFunc(time.Now))), 5*time.Second, logger),
+		FrontendOrigin: "http://127.0.0.1:3000", Logger: logger})
 	return f
 }
 func bookingKey() string {

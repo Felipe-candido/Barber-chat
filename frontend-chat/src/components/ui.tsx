@@ -1,29 +1,15 @@
 "use client";
-import Image from "next/image";
 import { useEffect, useId, useRef } from "react";
 import { Scissors, X } from "lucide-react";
+import { containDialogFocus } from "./ui/dialog-focus";
 
-export function Brand({ compact = false, light = false }: { compact?: boolean; light?: boolean }) {
-  return (
-    <div className={"brand " + (light ? "brand-light" : "")}>
-      <Image
-        src="/brand/palma-logo.png"
-        width={64}
-        height={64}
-        alt="Logo Palma Barbearia"
-        priority
-        className="brand-logo"
-      />
-      {!compact && (
-        <div>
-          <strong>
-            PALMA<span>BARBEARIA</span>
-          </strong>
-        </div>
-      )}
-    </div>
-  );
-}
+// Compatibility entry point: existing screens keep their imports during migration.
+export { ProductBrand as Brand, ProductBrand, ShopBrand } from "./ui/brand";
+export { Button, buttonClasses } from "./ui/button";
+export { TextField, SelectField, TextareaField } from "./ui/form-field";
+export { Alert } from "./ui/alert";
+export { PageHeader } from "./ui/page-header";
+export { Badge } from "./ui/badge";
 export function Modal({
   open,
   onClose,
@@ -41,10 +27,22 @@ export function Modal({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
+  const subtitleId = useId();
   useEffect(() => {
     const dialog = ref.current;
-    if (open && !dialog?.open) dialog?.showModal();
-    if (!open && dialog?.open) dialog?.close();
+    if (!dialog) return;
+    if (!open) {
+      if (dialog.open) dialog.close();
+      return;
+    }
+    const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (dialog.open && !dialog.matches(":modal")) dialog.close();
+    if (!dialog.open) dialog.showModal();
+    return () => {
+      // Closing before removal also restores focus when the caller unmounts the modal.
+      if (dialog.open) dialog.close();
+      if (trigger?.isConnected) trigger.focus();
+    };
   }, [open]);
   useEffect(() => {
     if (!open) return;
@@ -57,7 +55,10 @@ export function Modal({
   return (
     <dialog
       ref={ref}
+      aria-modal={open || undefined}
+      onKeyDown={containDialogFocus}
       aria-labelledby={titleId}
+      aria-describedby={subtitle ? subtitleId : undefined}
       className={"modal " + (wide ? "modal-wide" : "")}
       onCancel={(event) => {
         event.preventDefault();
@@ -79,10 +80,10 @@ export function Modal({
       <div className="modal-header">
         <div>
           <h2 id={titleId}>{title}</h2>
-          {subtitle && <p>{subtitle}</p>}
+          {subtitle && <p id={subtitleId}>{subtitle}</p>}
         </div>
-        <button className="icon-button" onClick={onClose} aria-label="Fechar janela">
-          <X size={20} />
+        <button type="button" className="icon-button" onClick={onClose} aria-label="Fechar janela">
+          <X size={20} aria-hidden="true" />
         </button>
       </div>
       {open && children}
@@ -91,8 +92,8 @@ export function Modal({
 }
 export function LoadingScreen() {
   return (
-    <div className="loading-screen">
-      <Scissors size={30} />
+    <div className="loading-screen" role="status">
+      <Scissors size={30} aria-hidden="true" />
       <span>Preparando seu espaço…</span>
     </div>
   );
@@ -110,7 +111,7 @@ export function EmptyState({
 }) {
   return (
     <div className="empty-state">
-      <span>{icon ?? <Scissors size={26} />}</span>
+      <span aria-hidden="true">{icon ?? <Scissors size={26} />}</span>
       <h3>{title}</h3>
       <p>{text}</p>
       {children}

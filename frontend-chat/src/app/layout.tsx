@@ -1,17 +1,15 @@
 import type { Metadata } from "next";
 import "@fontsource-variable/dm-sans";
 import "./globals.css";
-import "./booking.css";
 import { FeedbackProvider } from "@/components/feedback-provider";
 import { AdminAccessProvider } from "@/components/admin-access-provider";
 
 export const metadata: Metadata = {
   title: {
-    default: "Palma Barbearia · Seu estilo. Nosso cuidado.",
-    template: "%s · Palma Barbearia",
+    default: "Barber-chat · Agenda e gestão de barbearias",
+    template: "%s · Barber-chat",
   },
-  description:
-    "Agenda, serviços e um cuidado especial com o seu tempo. Palma Barbearia — demonstração de interface.",
+  description: "Agendamento online e gestão da rotina da sua barbearia.",
   robots: { index: false, follow: false },
 };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

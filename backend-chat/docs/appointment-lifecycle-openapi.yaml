@@ -1,0 +1,106 @@
+paths:
+  detail:
+    parameters:
+      - {$ref: '#/components/parameters/Slug'}
+      - {$ref: '#/components/parameters/ID'}
+    get:
+      operationId: getAdminAppointmentLifecycle
+      summary: Owner reads any appointment in the shop; barber reads only its own professional
+      description: Current active user, membership and shop revalidated after the professional lock. Owner can manage inactive professionals. No subscription/publication gate. Returns current private appointment and up to 100 newest status events; no booking code/hash. Does not complete appointments during GET. Query parameters are not supported.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Current appointment and audit; no-store; result_version is current version for reads
+          content: {application/json: {schema: {$ref: '#/components/schemas/Detail'}}}
+        '400': {description: Invalid appointment UUID or query}
+        '401': {description: Authentication required}
+        '403': {description: Current access denied, including barber reading another professional}
+        '404': {description: Appointment not found in this shop}
+        '503': {description: appointment_status_unavailable; retry the read}
+    options:
+      operationId: preflightAppointmentLifecycle
+      responses:
+        '204': {description: Allowed origin/method/headers}
+        '403': {description: Origin or preflight denied}
+  status:
+    parameters:
+      - {$ref: '#/components/parameters/Slug'}
+      - {$ref: '#/components/parameters/ID'}
+    post:
+      operationId: changeAdminAppointmentStatus
+      summary: Owner corrects any appointment in its shop; barber corrects only its own professional
+      description: Body up to 8 KiB. Reason is required and trimmed without controls. Completed requires now >= ends_at; no_show requires now >= starts_at; staff cancellation can correct past records. New status must differ. Cannot revive future reservations as scheduled/confirmed. Restoring a cancelled interval still obeys the exclusion constraint. Booking snapshots and product sales remain unchanged. Source is staff and actor comes from context. Key, transition and append-only audit commit together. Matching key replays without another event; response shows current state even if a later correction occurred, with original result_version. No commercial eligibility gate.
+      security: [{bearerAuth: []}]
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: {type: string, pattern: '^[a-f0-9]{64}$'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [status, expected_version, reason]
+              properties:
+                status: {type: string, enum: [completed, no_show, cancelled]}
+                expected_version: {type: integer, minimum: 1}
+                reason: {type: string, minLength: 1, maxLength: 500}
+      responses:
+        '200':
+          description: Transition committed or original command recovered; no-store; current state plus original command result_version
+          content: {application/json: {schema: {$ref: '#/components/schemas/Detail'}}}
+        '400': {description: Invalid JSON/UUID/query/key or missing required fields}
+        '401': {description: Authentication required}
+        '403': {description: Current user/shop/professional access denied}
+        '404': {description: Appointment not found in this shop}
+        '409': {description: appointment_version_changed, appointment_status_unchanged, appointment_transition_too_early, appointment_interval_conflict, idempotency_conflict or appointment_command_pending}
+        '413': {description: Body exceeds 8 KiB}
+        '415': {description: application/json required}
+        '422': {description: invalid_appointment_status; invalid target, version or reason}
+        '503': {description: appointment_status_unavailable; result may have committed, preserve original key/body and recover explicitly}
+    options:
+      operationId: preflightAppointmentStatus
+      responses:
+        '204': {description: Allowed origin/method/headers, including Idempotency-Key}
+        '403': {description: Origin or preflight denied}
+components:
+  parameters:
+    Slug: {in: path, name: slug, required: true, schema: {type: string}}
+    ID: {in: path, name: appointmentID, required: true, schema: {type: string, format: uuid}}
+  schemas:
+    AdminAppointment:
+      allOf:
+        - {$ref: './booking-openapi.yaml#/components/schemas/Receipt'}
+        - type: object
+          required: [customer_name, customer_phone, version, status_source, status_reason, status_actor_id, updated_at]
+          properties:
+            customer_name: {type: string}
+            customer_phone: {type: string, description: Private current E.164 contact}
+            version: {type: integer, minimum: 1}
+            status_source: {type: string, enum: [legacy, booking, public, staff, automatic]}
+            status_reason: {type: string, description: Private reason; empty for an initial or legacy baseline}
+            status_actor_id: {type: [string, 'null'], format: uuid, description: Staff actor; null for automatic/public/initial/legacy states}
+            updated_at: {type: string, format: date-time}
+    Event:
+      type: object
+      required: [version, previous_status, status, source, actor_id, reason, occurred_at]
+      properties:
+        version: {type: integer, minimum: 2}
+        previous_status: {type: string, enum: [scheduled, confirmed, completed, cancelled, no_show]}
+        status: {type: string, enum: [completed, cancelled, no_show]}
+        source: {type: string, enum: [staff, public, automatic]}
+        actor_id: {type: [string, 'null'], format: uuid}
+        reason: {type: string}
+        occurred_at: {type: string, format: date-time}
+    Detail:
+      type: object
+      required: [appointment, history, history_truncated, replayed, result_version]
+      properties:
+        appointment: {$ref: '#/components/schemas/AdminAppointment'}
+        history: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/Event'}}
+        history_truncated: {type: boolean, description: Only the 100 newest events are included; pre-migration transitions are not fabricated}
+        replayed: {type: boolean}
+        result_version: {type: integer, minimum: 1, description: Original command version on replay; may precede the current appointment version}

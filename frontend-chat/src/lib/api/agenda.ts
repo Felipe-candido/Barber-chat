@@ -1,8 +1,21 @@
 import { ApiError, requestJSON } from "./client";
 import { shopPathSegment } from "./config";
 import type { Appointment } from "./booking";
+import { isID } from "./identity";
 
-export type AdminAppointment = Appointment & { customer_name: string; customer_phone: string };
+export type AppointmentStatusSource = "legacy" | "booking" | "public" | "staff" | "automatic";
+export type AppointmentMetadata = {
+  version: number;
+  status_source: AppointmentStatusSource;
+  status_reason: string;
+  status_actor_id: string | null;
+  updated_at: string;
+};
+
+export type AdminAppointment = Appointment & {
+  customer_name: string;
+  customer_phone: string;
+} & Partial<AppointmentMetadata>;
 export type Agenda = {
   month: string;
   today: string;
@@ -25,7 +38,7 @@ function text(value: unknown): value is string {
 function instant(value: unknown): value is string {
   return text(value) && /(?:Z|[+-]\d{2}:\d{2})$/.test(value) && Number.isFinite(Date.parse(value));
 }
-function appointment(value: unknown): AdminAppointment {
+export function parseAdminAppointment(value: unknown): AdminAppointment {
   const item = value as AdminAppointment;
   if (
     !item ||
@@ -50,7 +63,30 @@ function appointment(value: unknown): AdminAppointment {
     item.currency !== "BRL"
   )
     invalid();
+  if (
+    ["version", "status_source", "status_reason", "status_actor_id", "updated_at"].some(
+      (key) => key in item,
+    ) &&
+    !hasAppointmentMetadata(item)
+  )
+    invalid();
   return item;
+}
+
+export function hasAppointmentMetadata(
+  item: AdminAppointment,
+): item is AdminAppointment & AppointmentMetadata {
+  return (
+    isID(item.id) &&
+    isID(item.professional_id) &&
+    Number.isSafeInteger(item.version) &&
+    (item.version ?? 0) > 0 &&
+    ["legacy", "booking", "public", "staff", "automatic"].includes(item.status_source ?? "") &&
+    typeof item.status_reason === "string" &&
+    instant(item.updated_at) &&
+    (item.status_source === "staff" ? isID(item.status_actor_id) : item.status_actor_id === null) &&
+    (item.status_source !== "automatic" || item.status === "completed")
+  );
 }
 
 export async function listAgenda(
@@ -92,7 +128,7 @@ export async function listAgenda(
   } catch {
     invalid();
   }
-  const items = result.appointments.map(appointment);
+  const items = result.appointments.map(parseAdminAppointment);
   if (new Set(items.map((item) => item.id)).size !== items.length) invalid();
   return { ...result, appointments: items };
 }

@@ -1,0 +1,150 @@
+openapi: 3.1.0
+info:
+  title: Barber-chat self-service registration
+  version: 0.2.0
+paths:
+  registration:
+    post:
+      operationId: registerMyShop
+      summary: Create a private shop and its initial owner atomically
+      description: >-
+        Requires a Supabase ES256 session and a currently confirmed email checked
+        at Auth. No existing local user or shop membership is required. Passwords
+        go only to Supabase. The server chooses user UUID, shop UUID, owner role,
+        active state, provisioning source and publication state. Same key and
+        normalized input returns the current shop with 200 after rechecking access;
+        conflicting input or an occupied slug returns 409. Never reactivate access.
+        An uncertain failure must be retried with the same key and input.
+        Missing SUPABASE_PUBLISHABLE_KEY disables registration with 503.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          description: 32 cryptographically random bytes encoded as lowercase hexadecimal. Never log or place in URLs.
+          schema:
+            type: string
+            pattern: '^[0-9a-f]{64}$'
+            minLength: 64
+            maxLength: 64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [display_name, name, slug, address]
+              properties:
+                display_name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 150
+                slug:
+                  type: string
+                  minLength: 3
+                  maxLength: 100
+                  description: Trimmed and lowercased before validation and fingerprinting; ASCII letters, digits and single hyphen separators.
+                timezone:
+                  type: string
+                  maxLength: 100
+                  default: America/Sao_Paulo
+                  description: Valid IANA timezone; Local is rejected. Empty uses the default.
+                address:
+                  type: object
+                  additionalProperties: false
+                  required: [postal_code, street, number, district, city, state]
+                  description: Required Brazilian business address, stored atomically with the shop.
+                  properties:
+                    postal_code:
+                      type: string
+                      description: Eight digits, optional hyphen after the fifth digit. Stored as digits only.
+                    street:
+                      type: string
+                      minLength: 1
+                      maxLength: 150
+                    number:
+                      type: string
+                      minLength: 1
+                      maxLength: 20
+                      description: Use S/N for an unnumbered property.
+                    complement:
+                      type: string
+                      maxLength: 100
+                      default: ''
+                    district:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+                    city:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+                    state:
+                      type: string
+                      description: Brazilian state abbreviation, trimmed and uppercased before validation.
+      responses:
+        '201':
+          description: User, shop, address, initial owner and retry record committed together. No subscription or publication was activated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedShop'
+        '200':
+          description: Authorized idempotent replay; current shop identity with replayed true.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreatedShop'
+        '400':
+          description: Invalid JSON, unknown fields, null or multiple values. Body limit is 8 KiB.
+        '401':
+          description: Missing, invalid, expired or anonymous session.
+        '403':
+          description: Email confirmation required, inactive identity, revoked ownership or disallowed browser origin.
+        '409':
+          description: shop_slug_taken or idempotency_conflict.
+        '413':
+          description: Body exceeds 8 KiB.
+        '415':
+          description: Content-Type must be application/json.
+        '422':
+          description: Invalid profile/shop data, incomplete address (invalid_shop_address) or idempotency key.
+        '500':
+          description: Verified identity mismatch or other unexpected authentication failure.
+        '503':
+          description: Registration is not configured or dependency unavailable. Database/commit outcome may be unknown; retry identical input and key.
+    options:
+      operationId: preflightShopRegistration
+      summary: Unauthenticated preflight allowing Authorization, Content-Type and Idempotency-Key
+      responses:
+        '204':
+          description: Allowed configured origin and POST method.
+        '403':
+          description: Browser origin, method or headers are not allowed.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    CreatedShop:
+      type: object
+      required: [shop_id, name, slug, timezone, replayed]
+      properties:
+        shop_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        timezone:
+          type: string
+        replayed:
+          type: boolean

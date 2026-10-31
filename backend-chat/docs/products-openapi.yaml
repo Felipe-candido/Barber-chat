@@ -1,0 +1,228 @@
+# Implemented administrative product/stock routes. Sale registration is in sales-openapi.yaml.
+paths:
+  products:
+    parameters:
+      - $ref: '#/components/parameters/slug'
+    get:
+      operationId: listProducts
+      summary: Active product catalog and stock for authorized staff
+      security: [{bearerAuth: []}]
+      parameters:
+        - {in: query, name: search, schema: {type: string, maxLength: 100}}
+        - {in: query, name: include_inactive, schema: {type: boolean, default: false}, description: Owner only when true}
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          description: Descending created_at/id; literal case-insensitive name search; no-store
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/Product'}}
+                  next_cursor: {type: [string, 'null']}
+        '400': {description: Invalid limit, search or cursor; cursor is bound to actor/shop/filters}
+        '401': {description: Authentication required}
+        '403': {description: Active local access required; barber cannot include inactive products}
+        '503': {description: Dependency unavailable}
+    post:
+      operationId: createProduct
+      summary: Owner creates a product and initial stock atomically
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name, price_cents, initial_quantity, minimum_quantity]
+              properties:
+                name: {type: string, minLength: 1, maxLength: 100}
+                description: {type: string, maxLength: 1000, default: ''}
+                price_cents: {type: integer, minimum: 1, maximum: 9007199254740991}
+                initial_quantity: {type: integer, minimum: 0, maximum: 2147483647}
+                minimum_quantity: {type: integer, minimum: 0, maximum: 2147483647}
+      responses:
+        '201': {$ref: '#/components/responses/Mutation'}
+        '200': {$ref: '#/components/responses/Replay'}
+        '400': {description: Invalid JSON or missing/invalid Idempotency-Key}
+        '403': {description: Current owner access required}
+        '409': {description: idempotency_conflict or product_command_pending}
+        '413': {description: JSON body exceeds 8 KiB}
+        '415': {description: application/json required}
+        '422': {description: invalid_product or invalid_stock_movement}
+        '503': {description: Result may have committed; retry same key and normalized input}
+  product:
+    parameters:
+      - $ref: '#/components/parameters/slug'
+      - $ref: '#/components/parameters/productID'
+    put:
+      operationId: replaceProductDetails
+      summary: Owner replaces all editable details with optimistic version control
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name, description, price_cents, active, expected_version]
+              properties:
+                name: {type: string, minLength: 1, maxLength: 100}
+                description: {type: string, maxLength: 1000}
+                price_cents: {type: integer, minimum: 1, maximum: 9007199254740991}
+                active: {type: boolean}
+                expected_version: {type: integer, minimum: 1}
+      responses:
+        '200':
+          description: Current product; no-op preserves version
+          content: {application/json: {schema: {$ref: '#/components/schemas/Product'}}}
+        '400': {description: Invalid ID or JSON; every editable field is required}
+        '403': {description: Owner access required}
+        '404': {description: product_not_found in this shop}
+        '409': {description: product_version_conflict; reload and review before another edit}
+        '422': {description: invalid_product}
+        '503': {description: Read current product before another write}
+  minimum:
+    parameters:
+      - $ref: '#/components/parameters/slug'
+      - $ref: '#/components/parameters/productID'
+    put:
+      operationId: updateProductStockMinimum
+      summary: Owner changes the low-stock threshold without changing quantity
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [minimum_quantity, expected_stock_version]
+              properties:
+                minimum_quantity: {type: integer, minimum: 0, maximum: 2147483647}
+                expected_stock_version: {type: integer, minimum: 1}
+      responses:
+        '200':
+          description: Current product; minimum-only update, no-op preserves stock version
+          content: {application/json: {schema: {$ref: '#/components/schemas/Product'}}}
+        '400': {description: Invalid ID/JSON}
+        '403': {description: Owner access required}
+        '404': {description: Product not found}
+        '409': {description: product_version_conflict}
+        '422': {description: invalid_stock_movement}
+        '503': {description: Read current product before another write}
+  movements:
+    parameters:
+      - $ref: '#/components/parameters/slug'
+      - $ref: '#/components/parameters/productID'
+    get:
+      operationId: listProductStockMovements
+      summary: Owner reads append-only movement history, including inactive products
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/cursor'
+      responses:
+        '200':
+          description: Descending created_at/id; reasons and actors are owner-only
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/Movement'}}
+                  next_cursor: {type: [string, 'null']}
+        '400': {description: Invalid cursor, ID or limit}
+        '403': {description: Owner access required}
+        '404': {description: Product not found in this shop}
+        '503': {description: Dependency unavailable}
+    post:
+      operationId: recordProductStockMovement
+      summary: Owner records receipt or signed adjustment atomically
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/key'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [operation, quantity_delta, reason]
+              properties:
+                operation: {type: string, enum: [receipt, adjustment]}
+                quantity_delta: {type: integer, minimum: -2147483647, maximum: 2147483647, not: {const: 0}}
+                reason: {type: string, minLength: 1, maxLength: 500}
+      responses:
+        '201': {$ref: '#/components/responses/Mutation'}
+        '200': {$ref: '#/components/responses/Replay'}
+        '400': {description: Invalid ID, body or Idempotency-Key}
+        '403': {description: Current owner access required}
+        '404': {description: Product not found in this shop}
+        '409': {description: insufficient_stock, stock_limit_exceeded, idempotency_conflict or product_command_pending}
+        '422': {description: Receipt requires positive delta; adjustment requires nonzero delta; sale/reversal are not manual operations}
+        '503': {description: Retry only the original key and input after checking result}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}
+  parameters:
+    slug: {in: path, name: slug, required: true, schema: {type: string}}
+    productID: {in: path, name: productID, required: true, schema: {type: string, format: uuid}}
+    limit: {in: query, name: limit, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
+    cursor: {in: query, name: cursor, schema: {type: string, maxLength: 1024}}
+    key: {in: header, name: Idempotency-Key, required: true, schema: {type: string, pattern: '^[0-9a-f]{64}$'}}
+  responses:
+    Mutation:
+      description: New mutation committed; initial quantity zero has no opening movement
+      content: {application/json: {schema: {$ref: '#/components/schemas/Mutation'}}}
+    Replay:
+      description: Original resource/movement IDs recovered, replayed=true; product fields reflect current state, without applying another movement
+      content: {application/json: {schema: {$ref: '#/components/schemas/Mutation'}}}
+  schemas:
+    Product:
+      type: object
+      required: [id, shop_id, name, description, price_cents, currency, active, version, quantity_on_hand, minimum_quantity, stock_version, low_stock, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        shop_id: {type: string, format: uuid}
+        name: {type: string}
+        description: {type: string}
+        price_cents: {type: integer, minimum: 1, maximum: 9007199254740991}
+        currency: {type: string, const: BRL}
+        active: {type: boolean}
+        version: {type: integer, minimum: 1}
+        quantity_on_hand: {type: integer, minimum: 0, maximum: 2147483647}
+        minimum_quantity: {type: integer, minimum: 0, maximum: 2147483647}
+        stock_version: {type: integer, minimum: 1}
+        low_stock: {type: boolean}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    Mutation:
+      type: object
+      required: [product, movement_id, replayed]
+      properties:
+        product: {$ref: '#/components/schemas/Product'}
+        movement_id: {type: [string, 'null'], format: uuid}
+        replayed: {type: boolean}
+    Movement:
+      type: object
+      required: [id, product_id, actor_id, kind, quantity_delta, reason, created_at, sale_item_id, reverses_movement_id]
+      properties:
+        id: {type: string, format: uuid}
+        product_id: {type: string, format: uuid}
+        actor_id: {type: string, format: uuid}
+        kind: {type: string, enum: [opening, receipt, adjustment, sale, sale_reversal]}
+        sale_item_id: {type: [string, 'null'], format: uuid}
+        reverses_movement_id: {type: [string, 'null'], format: uuid, description: Original withdrawal ID for a sale reversal; null for other movements}
+        quantity_delta: {type: integer}
+        reason: {type: string}
+        created_at: {type: string, format: date-time}

@@ -13,12 +13,20 @@ import (
 	"github.com/Felipe-candido/Barber-chat/internal/config"
 	db "github.com/Felipe-candido/Barber-chat/internal/database/sqlc"
 	"github.com/Felipe-candido/Barber-chat/internal/httpapi"
+	billingapp "github.com/Felipe-candido/Barber-chat/internal/modules/billing/application"
+	billinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/billing/infra/http"
+	billingpostgres "github.com/Felipe-candido/Barber-chat/internal/modules/billing/infra/postgres"
+	billingstripe "github.com/Felipe-candido/Barber-chat/internal/modules/billing/infra/stripe"
 	bookingapp "github.com/Felipe-candido/Barber-chat/internal/modules/booking/application"
 	bookinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/http"
 	bookingpostgres "github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/postgres"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/security"
 	customersinfra "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra"
 	customerspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra/postgres"
+	salesapp "github.com/Felipe-candido/Barber-chat/internal/modules/sales/application"
+	saleshttp "github.com/Felipe-candido/Barber-chat/internal/modules/sales/infra/http"
+	salespg "github.com/Felipe-candido/Barber-chat/internal/modules/sales/infra/postgres"
+	"github.com/Felipe-candido/Barber-chat/internal/platform/jobs"
 
 	catalogapp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/application"
 	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
@@ -27,6 +35,8 @@ import (
 	identityhttp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/http"
 	identitypostgres "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/postgres"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/supabase"
+	shopsapp "github.com/Felipe-candido/Barber-chat/internal/modules/shops/application"
+	shopshttp "github.com/Felipe-candido/Barber-chat/internal/modules/shops/infra/http"
 	shopspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/shops/infra/postgres"
 
 	"github.com/Felipe-candido/Barber-chat/internal/platform/postgres"
@@ -75,12 +85,79 @@ func run(
 	queries := db.New(pool)
 
 	catalogRepository := catalogpostgres.NewRepository(queries)
+	productTx := catalogpostgres.NewProductTransactor(pool, func(q *db.Queries) catalogapp.ProductTx {
+		store := catalogpostgres.NewProductStore(q)
+		return catalogapp.ProductTx{Access: identitypostgres.NewProductGuard(q), Products: store, Stock: store, Commands: store, Reader: store}
+	})
+	productHandler := cataloghttp.NewProductHandler(catalogapp.NewProductCommands(productTx, time.Now), catalogapp.NewProductQueries(productTx), cfg.OperationTimeout, logger)
+	salesTx := salespg.NewTransactor(pool, func(q *db.Queries) salesapp.SalesTx {
+		store := salespg.NewStore(q)
+		catalog := catalogpostgres.NewSalesCatalog(q)
+		return salesapp.SalesTx{Access: identitypostgres.NewSalesGuard(q), Eligibility: billingpostgres.NewSalesEligibility(q), Catalog: catalog, Appointments: bookingpostgres.NewSalesAppointments(q), Stock: catalog, Sales: store, Commands: store, Cancellation: store, Returns: catalog, Reader: store, Calendar: shopspostgres.NewSalesCalendar(q)}
+	})
+	salesHandler := saleshttp.NewHandler(salesapp.NewRegisterSale(salesTx, time.Now), salesapp.NewCancelSale(salesTx, time.Now), salesapp.NewSaleQueries(salesTx), cfg.OperationTimeout, logger)
 	shopResolver := shopspostgres.NewResolver(queries)
 
 	identityRepository := identitypostgres.NewRepository(queries)
 	authenticate := identityapp.NewAuthenticate(verifier, identityRepository)
 	authorizeShop := identityapp.NewAuthorizeShopAction(identityRepository, shopResolver)
 	listMyShops := identityapp.NewListMyShops(identityRepository, identityRepository)
+	var registrationAccountReader identityapp.RegistrationAccountReader
+	if cfg.SupabasePublishableKey != "" {
+		registrationAccountReader, err = supabase.NewSessionClient(cfg.SupabaseURL, cfg.SupabasePublishableKey, nil)
+		if err != nil {
+			return fmt.Errorf("configure registration: %w", err)
+		}
+	}
+	verifyRegistration := identityapp.NewVerifyRegistrationAccount(verifier, registrationAccountReader)
+	creationTx := shopspostgres.NewCreationTransactor(pool, func(q *db.Queries) shopsapp.ShopCreationTx {
+		return shopsapp.ShopCreationTx{Owners: identitypostgres.NewInitialOwnerStore(q), Shops: shopspostgres.NewCreationStore(q)}
+	})
+	registrationHandler := shopshttp.NewRegistrationHandler(shopsapp.NewCreateShop(creationTx), cfg.OperationTimeout, logger)
+	settingsTx := shopspostgres.NewSettingsTransactor(pool, func(q *db.Queries) shopsapp.ShopSettingsTx {
+		return shopsapp.ShopSettingsTx{Access: identitypostgres.NewSettingsOwnerGuard(q), Shops: shopspostgres.NewSettingsStore(q)}
+	})
+	settingsHandler := shopshttp.NewSettingsHandler(shopsapp.NewGetShopSettings(settingsTx), shopsapp.NewUpdateShopSettings(settingsTx), cfg.OperationTimeout, logger)
+	publicationTx := shopspostgres.NewPublicationTransactor(pool, func(q *db.Queries) shopsapp.PublicationTx {
+		return shopsapp.PublicationTx{
+			Access: identitypostgres.NewSettingsOwnerGuard(q), Shops: shopspostgres.NewPublicationStore(q),
+			Catalog: catalogpostgres.NewRepository(q), Schedule: bookingpostgres.NewRepository(q),
+			Billing: billingpostgres.NewPublicationCoverage(billingpostgres.NewReader(q), time.Now),
+		}
+	})
+	publicationHandler := shopshttp.NewPublicationHandler(shopsapp.NewShopPublication(publicationTx), cfg.OperationTimeout, logger)
+	entitlements := billingapp.NewGetShopEntitlements(billingpostgres.NewReader(queries), billingapp.ClockFunc(time.Now))
+	publicShopGate := shopshttp.PublicBookingGate(shopsapp.NewCheckPublicBooking(shopResolver, entitlements), cfg.OperationTimeout, logger)
+	var checkoutProvider billingapp.CheckoutProvider
+	var portalProvider billingapp.PortalProvider
+	var stripeClient *billingstripe.Client
+	if cfg.StripeSecretKey != "" {
+		stripeClient, err = billingstripe.NewClient(cfg.StripeSecretKey, nil)
+		if err != nil {
+			return fmt.Errorf("configure Stripe test checkout: %w", err)
+		}
+		// The browser flow must have its confirmation channel configured too.
+		// Checkout alone cannot grant access after a payment.
+		if cfg.StripeWebhookSecret != "" {
+			checkoutProvider = stripeClient
+			portalProvider = stripeClient
+		}
+	}
+	var webhookVerifier billingapp.WebhookVerifier
+	var receiveWebhook *billingapp.ReceiveWebhook
+	if cfg.StripeWebhookSecret != "" {
+		webhookVerifier, err = billingstripe.NewWebhookVerifier(cfg.StripeWebhookSecret, billingapp.ClockFunc(time.Now))
+		if err != nil {
+			return fmt.Errorf("configure Stripe test webhook: %w", err)
+		}
+		receiveWebhook = billingapp.NewReceiveWebhook(billingpostgres.NewWebhookStore(pool), stripeClient)
+	}
+	webhookHandler := billinghttp.NewWebhookHandler(webhookVerifier, receiveWebhook, cfg.OperationTimeout, logger)
+	checkoutTx := billingpostgres.NewCheckoutTransactor(pool, func(q *db.Queries) billingapp.CheckoutTx {
+		return billingapp.CheckoutTx{Access: identitypostgres.NewBillingOwnerGuard(q), Shops: shopspostgres.NewResolver(q), Store: billingpostgres.NewCheckoutStore(q)}
+	})
+	checkoutHandler := billinghttp.NewCheckoutHandler(billingapp.NewStartCheckout(checkoutTx, checkoutProvider, billingapp.ClockFunc(time.Now),
+		billingapp.CheckoutPlan{Key: "standard_monthly", PriceID: cfg.StripeMonthlyPriceID, FrontendOrigin: cfg.FrontendOrigin}), cfg.OperationTimeout, logger)
 	var accountProvider identityapp.StaffAccountProvider
 	if cfg.SupabaseServiceRoleKey != "" {
 		accountProvider, err = supabase.NewAdminClient(cfg.SupabaseURL, cfg.SupabaseServiceRoleKey, cfg.FrontendOrigin, nil)
@@ -104,7 +181,9 @@ func run(
 	bookingTransactions := bookingpostgres.NewTransactor(pool, func(q *db.Queries) bookingapp.BookingTx {
 		repository := bookingpostgres.NewRepository(q)
 		return bookingapp.BookingTx{
-			Shops: shopspostgres.NewResolver(q), Catalog: catalogpostgres.NewRepository(q),
+			StaffEligibility: billingpostgres.NewBookingEligibility(q, billingapp.ClockFunc(time.Now)),
+			PublicAccess:     shopsapp.NewCheckPublicBooking(shopspostgres.NewResolver(q), billingapp.NewGetShopEntitlements(billingpostgres.NewReader(q), billingapp.ClockFunc(time.Now))),
+			Shops:            shopspostgres.NewResolver(q), Catalog: catalogpostgres.NewRepository(q),
 			Schedule: repository, Customers: customerspostgres.NewBookingContacts(q),
 			Appointments: repository, Idempotency: repository,
 			Staff: identitypostgres.NewRepository(q),
@@ -121,20 +200,35 @@ func run(
 
 	// Register HTTP adapters and dependency probes.
 	agendaHandler := bookinghttp.NewAgendaHandler(bookingapp.NewListAgenda(shopResolver, bookingpostgres.NewRepository(queries), clock), cfg.OperationTimeout, logger)
+	lifecycleTx := bookingpostgres.NewLifecycleTransactor(pool, func(q *db.Queries) bookingapp.AppointmentLifecycleTx {
+		return bookingapp.AppointmentLifecycleTx{Access: identitypostgres.NewRepository(q), Store: bookingpostgres.NewLifecycleStore(q)}
+	})
+	lifecycleHandler := bookinghttp.NewLifecycleHandler(bookingapp.NewManageAppointmentStatus(lifecycleTx), cfg.OperationTimeout, logger)
 	handler := httpapi.NewHandler(httpapi.HandlerConfig{
-		CheckDB:        pool.Ping,
-		Catalog:        catalogHandler,
-		Professionals:  professionalHandler,
-		Booking:        bookingHandler,
-		Agenda:         agendaHandler,
-		Accounts:       accountHandler,
-		Authenticate:   authenticate,
-		AuthorizeShop:  authorizeShop,
-		ListMyShops:    listMyShops,
-		RequestTimeout: cfg.HTTPTimeout,
-		DBTimeout:      cfg.DBTimeout,
-		Logger:         logger,
-		FrontendOrigin: cfg.FrontendOrigin,
+		CheckDB:              pool.Ping,
+		Catalog:              catalogHandler,
+		Professionals:        professionalHandler,
+		Booking:              bookingHandler,
+		Agenda:               agendaHandler,
+		AppointmentLifecycle: lifecycleHandler,
+		Accounts:             accountHandler,
+		Authenticate:         authenticate,
+		AuthorizeShop:        authorizeShop,
+		ListMyShops:          listMyShops,
+		Registration:         registrationHandler,
+		ShopSettings:         settingsHandler,
+		ShopPublication:      publicationHandler,
+		Products:             productHandler,
+		Sales:                salesHandler,
+		Checkout:             checkoutHandler,
+		Portal:               billinghttp.NewPortalHandler(billingapp.NewOpenPortal(checkoutTx, portalProvider, billingapp.ClockFunc(time.Now), cfg.StripePortalConfigurationID, cfg.FrontendOrigin), cfg.OperationTimeout, logger),
+		StripeWebhook:        webhookHandler,
+		VerifyRegistration:   verifyRegistration,
+		PublicShopGate:       publicShopGate,
+		RequestTimeout:       cfg.HTTPTimeout,
+		DBTimeout:            cfg.DBTimeout,
+		Logger:               logger,
+		FrontendOrigin:       cfg.FrontendOrigin,
 	})
 
 	// Open the HTTP listener.
@@ -153,6 +247,14 @@ func run(
 	)
 
 	// Serve requests until shutdown.
+	jobCtx, stopJobs := context.WithCancel(ctx)
+	jobsDone := make(chan struct{})
+	completion := bookingapp.NewAutoCompleteAppointments(bookingpostgres.NewLifecycleStore(queries))
+	go func() {
+		defer close(jobsDone)
+		jobs.Run(jobCtx, 15*time.Second, cfg.OperationTimeout, completion.Execute, logger)
+	}()
+	defer func() { stopJobs(); <-jobsDone }()
 	return httpapi.Serve(
 		ctx,
 		listener,

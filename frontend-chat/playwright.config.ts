@@ -14,8 +14,10 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
+    // Opt in only after a successful test build; normal runs always compile first.
     command:
-      "npm run build && node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3100",
+      (process.env.BARBER_PLAYWRIGHT_PREBUILT === "1" ? "" : "npm run build && ") +
+      "node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3100",
     url: "http://127.0.0.1:3100",
     reuseExistingServer: false,
     env: {
@@ -24,7 +26,8 @@ export default defineConfig({
       NEXT_PUBLIC_SUPABASE_URL: "https://test-project.supabase.co",
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test_key",
     },
-    timeout: 300000,
+    // Allow production compilation on slower local machines; test assertions keep their limits.
+    timeout: 600000,
   },
   reporter: [["list"]],
 });

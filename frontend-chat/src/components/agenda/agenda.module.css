@@ -1,0 +1,363 @@
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-6);
+}
+.actions > span {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.loading {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  min-height: 120px;
+  color: var(--color-text-secondary);
+  font-size: var(--text-body);
+}
+.refreshing {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+.calendar {
+  min-width: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  margin-block: var(--space-6);
+  overflow: hidden;
+}
+.calendarToolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--color-border);
+}
+.calendarToolbar h2 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+}
+.calendarToolbar h2::first-letter {
+  text-transform: uppercase;
+}
+.monthActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.calendarToggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-height);
+  padding: var(--space-4);
+  border: 0;
+  background: var(--color-surface);
+  color: var(--color-action);
+  font-size: var(--text-small);
+}
+.calendarBody {
+  display: none;
+}
+.calendarExpanded {
+  display: block;
+}
+.monthGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+.weekday {
+  padding: var(--space-3) 0;
+  background: var(--color-surface-subtle);
+  text-align: center;
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+}
+.monthCell {
+  min-width: 0;
+  min-height: 64px;
+  padding: var(--space-1);
+  border-top: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border);
+}
+.monthCell:nth-child(7n) {
+  border-right: 0;
+}
+.outsideMonth {
+  background: var(--color-background);
+}
+.outsideMonth .dayButton {
+  color: var(--color-text-secondary);
+}
+.dayButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  width: 100%;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-small);
+  background: transparent;
+  color: var(--color-text);
+  font-size: var(--text-small);
+}
+.dayButton:hover {
+  background: var(--color-surface-subtle);
+}
+.dayButton[aria-current="date"] {
+  color: var(--color-info-text);
+  background: var(--color-info-surface);
+  font-weight: var(--weight-bold);
+}
+.dayButton[aria-pressed="true"] {
+  border-color: var(--color-action);
+}
+.mobileCount {
+  display: block;
+  text-align: center;
+  font-size: var(--text-caption);
+  color: var(--color-text-secondary);
+}
+.calendarEvent,
+.moreEvents {
+  display: none;
+}
+.calendarFooter {
+  padding: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  line-height: var(--line-body);
+}
+.list {
+  padding-block: var(--space-4);
+}
+.listHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-bottom: var(--space-6);
+}
+.listHeader h2 {
+  font-size: var(--text-subheading);
+  font-weight: var(--weight-semibold);
+  line-height: var(--line-heading);
+}
+.listHeader p {
+  margin-top: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+.filter {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.filter label {
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--text-small);
+  font-weight: var(--weight-medium);
+}
+.filter input {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--text-body);
+}
+.appointmentList {
+  display: grid;
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+}
+.appointment {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-4);
+  width: 100%;
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  text-align: left;
+}
+.appointment:hover {
+  border-color: var(--color-border-control);
+  background: var(--color-background);
+}
+.appointmentTime,
+.appointmentContent {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.appointmentTime {
+  border-right: 1px solid var(--color-border);
+  padding-right: var(--space-3);
+}
+.appointmentTime strong {
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+}
+.appointmentTime > span {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+}
+.appointmentContent > strong {
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+.appointmentContent > span {
+  font-size: var(--text-small);
+  line-height: var(--line-body);
+  overflow-wrap: anywhere;
+}
+.appointmentContent > span:nth-child(3) {
+  color: var(--color-text-secondary);
+}
+.appointmentPrice {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  grid-column: 2;
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+.empty {
+  padding: var(--space-8);
+  border: 1px dashed var(--color-border-control);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: var(--text-body);
+  line-height: var(--line-body);
+}
+.partial {
+  margin-bottom: var(--space-4);
+}
+.details {
+  display: grid;
+  gap: var(--space-6);
+}
+.details dl {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+}
+.details dl > div {
+  display: grid;
+  gap: var(--space-1);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+.details dt {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+.details dd {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: var(--line-body);
+  overflow-wrap: anywhere;
+}
+.details p {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  line-height: var(--line-body);
+}
+@media (min-width: 768px) {
+  .calendarBody {
+    display: block;
+  }
+  .calendarToggle,
+  .mobileCount {
+    display: none;
+  }
+  .monthCell {
+    min-height: 128px;
+    padding: var(--space-2);
+  }
+  .dayButton {
+    min-height: 36px;
+    width: 36px;
+    margin-bottom: var(--space-2);
+  }
+  .calendarEvent {
+    display: grid;
+    gap: var(--space-1);
+    width: 100%;
+    padding: var(--space-2);
+    margin-bottom: var(--space-2);
+    border: 1px solid var(--color-info-border);
+    border-radius: var(--radius-small);
+    background: var(--color-info-surface);
+    color: var(--color-info-text);
+    text-align: left;
+  }
+  .calendarEvent:hover {
+    border-color: var(--color-action);
+  }
+  .calendarEvent strong {
+    font-size: var(--text-caption);
+    font-weight: var(--weight-semibold);
+    overflow-wrap: anywhere;
+  }
+  .calendarEvent span,
+  .calendarEvent small {
+    font-size: var(--text-caption);
+    line-height: var(--line-body);
+    overflow-wrap: anywhere;
+  }
+  .calendarEvent[data-cancelled] {
+    background: var(--color-surface-subtle);
+    color: var(--color-text-secondary);
+    border-color: var(--color-border);
+  }
+  .moreEvents {
+    display: block;
+    border: 0;
+    background: transparent;
+    color: var(--color-action);
+    font-size: var(--text-caption);
+    padding: var(--space-2);
+    min-height: var(--control-height);
+  }
+  .appointment {
+    grid-template-columns: 92px minmax(0, 1fr) auto;
+    padding: var(--space-5);
+  }
+  .appointmentPrice {
+    grid-column: auto;
+  }
+  .details dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

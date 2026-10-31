@@ -29,6 +29,32 @@ export const emptyAgenda = {
 };
 
 export async function mockAdminAccess(page: Page, shops = [testShop]) {
+  await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/commercial-status", (route) => {
+    const slug = new URL(route.request().url()).pathname.split("/").at(-2);
+    const shop = shops.find((item) => item.slug === slug);
+    return shop
+      ? route.fulfill({
+          json: {
+            shop_id: shop.shop_id,
+            slug: shop.slug,
+            publication_managed: false,
+            publication_requested: false,
+            public_booking_enabled: true,
+            can_publish: false,
+            blockers: ["operator_managed"],
+            readiness: { address: false, service: false, professional: false, schedule: false },
+            subscription: {
+              status: "not_required",
+              plan_key: "",
+              operation_allowed: true,
+              reason: "legacy_access",
+              coverage_until: null,
+              cancel_at_period_end: false,
+            },
+          },
+        })
+      : route.fulfill({ status: 403, json: { error: { code: "access_denied" } } });
+  });
   await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/access", (route) =>
     route.fulfill({ json: { role: "owner", professional_id: null } }),
   );

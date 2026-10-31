@@ -3,26 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  AlertCircle,
-  ArrowLeft,
-  ArrowRight,
-  ArrowUpRight,
-  CalendarDays,
-  Check,
-  Eye,
-  EyeOff,
-  KeyRound,
-  LoaderCircle,
-  LockKeyhole,
-  Mail,
-  Scissors,
-  ShieldCheck,
-} from "lucide-react";
-import { Brand, Modal } from "./ui";
+import { ArrowRight, ArrowUpRight, CalendarDays, Eye, EyeOff, Scissors, Users } from "lucide-react";
+import { Alert, Brand, Button, Modal, TextField, buttonClasses } from "./ui";
 import { useFeedback } from "./feedback-provider";
 import { signInWithPassword } from "@/lib/supabase/auth";
+import { ApiError } from "@/lib/api/client";
 import { useAdminAccess } from "./admin-access-provider";
+import styles from "./login-page.module.css";
 
 export function LoginPage() {
   const router = useRouter();
@@ -33,223 +20,165 @@ export function LoginPage() {
   const [recoveryPreview, setRecoveryPreview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loginError, setLoginError] = useState("");
+  const [canCompleteSignup, setCanCompleteSignup] = useState(false);
   function closeHelp() {
     setHelp(null);
     setRecoveryPreview(false);
   }
   return (
-    <div className="login-page">
-      <header className="login-nav">
-        <Link href="/login" aria-label="Palma Barbearia — acesso">
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <Link href="/login" aria-label="Barber-chat — acesso">
           <Brand />
         </Link>
-        <Link href="/chat" className="login-public-link">
-          Quero agendar um horário
-          <ArrowUpRight size={16} />
+        <Link href="/chat" className={styles.publicLink}>
+          Quero agendar um horário <ArrowUpRight size={18} aria-hidden="true" />
         </Link>
       </header>
-      <main className="login-layout">
-        <section className="login-story" aria-label="Gestão da barbearia">
-          <span className="login-story-label">
-            <span />
-            SEU ESPAÇO PARA CRESCER
-          </span>
-          <div className="login-story-copy">
-            <span className="login-scissors">
-              <Scissors size={29} strokeWidth={1.3} />
-            </span>
-            <h1>
-              Seu talento
-              <br />
-              cuida do estilo.
-              <br />
-              <em>
-                A gente cuida
-                <br />
-                da organização.
-              </em>
-            </h1>
-            <p>
-              Agenda, serviços e atendimento.
-              <br />
-              Tudo em um só lugar, no seu ritmo.
-            </p>
-          </div>
-          <div className="login-preview" aria-hidden="true">
-            <div className="login-preview-top">
-              <span>
-                <CalendarDays size={15} />
-                Um dia bem organizado
-              </span>
-              <span className="login-preview-dots">•••</span>
-            </div>
-            <div className="login-preview-row">
-              <span className="preview-time">09:00</span>
-              <span className="preview-service-icon">
-                <Scissors size={16} />
-              </span>
-              <div>
-                <strong>Corte clássico</strong>
-                <small>Cuidado em cada detalhe</small>
-              </div>
-              <Check size={15} />
-            </div>
-            <div className="login-preview-row">
-              <span className="preview-time">10:00</span>
-              <span className="preview-service-icon">
-                <Scissors size={16} />
-              </span>
-              <div>
-                <strong>Cabelo + barba</strong>
-                <small>Um momento para renovar</small>
-              </div>
-              <Check size={15} />
-            </div>
-          </div>
-          <div className="login-story-footer">
-            <ShieldCheck size={17} />
-            <span>
-              Um espaço para sua barbearia.
-              <br />
-              <strong>Um acesso para cada pessoa da equipe.</strong>
-            </span>
-          </div>
-          <div className="login-orbits" aria-hidden="true">
-            <i />
-            <i />
-            <i />
-          </div>
+      <main className={styles.layout}>
+        <section className={styles.introduction} aria-labelledby="login-introduction">
+          <h2 id="login-introduction">
+            Uma rotina organizada.
+            <br />
+            Mais tempo para atender.
+          </h2>
+          <p>
+            Agenda, serviços e equipe no mesmo lugar. Entre na sua conta e escolha a barbearia que
+            quer gerenciar.
+          </p>
+          <ul className={styles.features}>
+            <li>
+              <CalendarDays size={20} aria-hidden="true" />
+              <span>Acompanhe os horários da agenda</span>
+            </li>
+            <li>
+              <Scissors size={20} aria-hidden="true" />
+              <span>Organize os serviços da barbearia</span>
+            </li>
+            <li>
+              <Users size={20} aria-hidden="true" />
+              <span>Cada pessoa com seu próprio acesso</span>
+            </li>
+          </ul>
         </section>
-        <section className="login-form-panel" aria-label="Acesso administrativo">
-          <div className="login-form-content">
-            <span className="login-form-symbol">
-              <KeyRound size={22} strokeWidth={1.5} />
-            </span>
-            <div className="eyebrow">PAINEL DA BARBEARIA</div>
-            <h2>
-              Bem-vindo de volta<span>.</span>
-            </h2>
-            <p className="login-intro">
-              Seu próximo bom dia começa por aqui.
-              <br />
-              Entre para cuidar da sua barbearia.
-            </p>
-            <div className="login-demo-label">
-              <span />
-              Acesso protegido pelo Supabase Auth
-            </div>
-            <form
-              className="login-form"
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (submitting) return;
-                const form = e.currentTarget;
-                const values = new FormData(form);
-                setLoginError("");
-                setSubmitting(true);
-                try {
-                  await signInWithPassword(
-                    String(values.get("email")),
-                    String(values.get("password")),
-                  );
-                  form.reset();
-                  setVisible(false);
-                  await refresh();
-                  notify("Identidade validada. Escolha sua barbearia.");
-                  router.replace("/admin");
-                } catch (error) {
-                  setLoginError(
-                    error instanceof Error
-                      ? error.message
-                      : "Não foi possível entrar. Tente novamente.",
-                  );
-                } finally {
-                  setSubmitting(false);
-                }
-              }}
-            >
-              <label htmlFor="login-email">E-mail</label>
-              <div className="login-input">
-                <Mail size={17} />
-                <input
-                  id="login-email"
-                  name="email"
-                  type="email"
-                  autoComplete="username"
-                  placeholder="voce@barbearia.com"
-                  required
-                  maxLength={254}
-                  disabled={submitting}
-                />
-              </div>
-              <div className="login-password-label">
-                <label htmlFor="login-password">Senha</label>
-                <button type="button" onClick={() => setHelp("recovery")}>
-                  Esqueci minha senha
-                </button>
-              </div>
-              <div className="login-input">
-                <LockKeyhole size={17} />
-                <input
-                  id="login-password"
-                  name="password"
-                  type={visible ? "text" : "password"}
-                  autoComplete="current-password"
-                  placeholder="Sua senha"
-                  required
-                  maxLength={128}
-                  disabled={submitting}
-                />
+        <section className={styles.panel} aria-labelledby="login-title">
+          <div>
+            <h1 id="login-title">Bem-vindo de volta</h1>
+            <p className={styles.description}>Entre com o e-mail e a senha do seu acesso.</p>
+          </div>
+          <form
+            className={styles.form}
+            aria-busy={submitting}
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (submitting) return;
+              const form = e.currentTarget;
+              const values = new FormData(form);
+              setLoginError("");
+              setCanCompleteSignup(false);
+              setSubmitting(true);
+              try {
+                await signInWithPassword(
+                  String(values.get("email")),
+                  String(values.get("password")),
+                );
+                form.reset();
+                setVisible(false);
+                await refresh();
+                notify("Identidade validada. Escolha sua barbearia.");
+                router.replace("/admin");
+              } catch (error) {
+                setCanCompleteSignup(error instanceof ApiError && error.status === 403);
+                setLoginError(
+                  error instanceof Error
+                    ? error.message
+                    : "Não foi possível entrar. Tente novamente.",
+                );
+              } finally {
+                setSubmitting(false);
+              }
+            }}
+          >
+            <TextField
+              id="login-email"
+              label="E-mail"
+              name="email"
+              type="email"
+              autoComplete="username"
+              placeholder="voce@barbearia.com"
+              required
+              maxLength={254}
+              disabled={submitting}
+            />
+            <TextField
+              id="login-password"
+              label="Senha"
+              name="password"
+              type={visible ? "text" : "password"}
+              autoComplete="current-password"
+              required
+              maxLength={128}
+              disabled={submitting}
+              endAdornment={
                 <button
                   type="button"
+                  className="icon-button"
                   onClick={() => setVisible(!visible)}
                   aria-label={visible ? "Ocultar senha" : "Mostrar senha"}
                   aria-pressed={visible}
                   disabled={submitting}
                 >
-                  {visible ? <EyeOff size={18} /> : <Eye size={18} />}
+                  {visible ? (
+                    <EyeOff size={18} aria-hidden="true" />
+                  ) : (
+                    <Eye size={18} aria-hidden="true" />
+                  )}
                 </button>
-              </div>
-              {loginError && (
-                <div className="form-error login-form-error" role="alert">
-                  <AlertCircle size={17} />
-                  {loginError}
-                </div>
-              )}
-              <button className="button button-primary login-submit" disabled={submitting}>
-                {submitting ? "Entrando…" : "Entrar no painel"}
-                {submitting ? <LoaderCircle size={17} /> : <ArrowRight size={17} />}
-              </button>
-            </form>
-            <div className="login-divider">
-              <span />
-              já possui uma sessão?
-              <span />
-            </div>
-            <Link href="/admin" className="button button-secondary login-explore">
-              Continuar com sessão ativa
-              <ArrowUpRight size={15} />
+              }
+            />
+            <button type="button" className={styles.textAction} onClick={() => setHelp("recovery")}>
+              Esqueci minha senha
+            </button>
+            {loginError && (
+              <Alert tone="error" className="login-form-error">
+                {loginError}
+              </Alert>
+            )}
+            <Button type="submit" loading={submitting} className={styles.fullWidth}>
+              {submitting ? "Entrando…" : "Entrar no painel"}
+              {!submitting && <ArrowRight size={18} aria-hidden="true" />}
+            </Button>
+          </form>
+          {canCompleteSignup && (
+            <Link
+              href="/cadastro/barbearia"
+              className={buttonClasses("secondary", styles.fullWidth)}
+            >
+              Concluir cadastro da minha barbearia
             </Link>
-            <p className="login-invitation">
-              Ainda não recebeu seu acesso?
-              <br />
-              <button onClick={() => setHelp("invitation")}>
-                Como obter acesso
-                <ArrowRight size={13} />
-              </button>
-            </p>
-          </div>
-          <p className="login-demo-footer">
-            <LockKeyhole size={13} />
-            Sua senha é enviada diretamente ao Supabase e nunca à API Go.
-            <br />A sessão fornece um token curto para as chamadas administrativas.
+          )}
+          <p className={styles.help}>
+            É proprietário e está começando?{" "}
+            <Link href="/cadastro" className={styles.textAction}>
+              Criar minha conta
+            </Link>
+          </p>
+          <Link href="/admin" className={buttonClasses("secondary", styles.fullWidth)}>
+            Continuar com sessão ativa
+          </Link>
+          <p className={styles.help}>
+            Ainda não recebeu seu acesso?{" "}
+            <button
+              type="button"
+              className={styles.textAction}
+              onClick={() => setHelp("invitation")}
+            >
+              Como obter acesso
+            </button>
           </p>
         </section>
       </main>
-      <footer className="login-footer">
-        <span>PALMA BARBEARIA</span>
-        <span>Seu estilo. Nosso cuidado.</span>
-      </footer>
+      <footer className={styles.footer}>Barber-chat · Agendamento e gestão de barbearias</footer>
       {help && (
         <Modal
           open
@@ -264,81 +193,58 @@ export function LoginPage() {
           subtitle={
             help === "invitation"
               ? "Uma conta pessoal, vinculada à sua barbearia."
-              : "Vamos ajudar você a voltar ao seu espaço."
+              : "A recuperação por e-mail ainda não está disponível nesta tela."
           }
         >
           {help === "invitation" ? (
-            <div className="login-help">
-              <span className="login-help-icon">
-                <Mail size={24} />
-              </span>
+            <div className={styles.form}>
               <p>
-                Por enquanto, o responsável cria sua conta no Supabase Auth e cadastra seu perfil
-                local, a barbearia e o vínculo no banco de dados.
+                Se você é barbeiro, peça ao proprietário para criar seu acesso na área de contas da
+                barbearia. Você receberá um convite para definir sua senha.
               </p>
               <p>
-                Use seu próprio e-mail e senha. Não é necessário compartilhar uma senha: cada pessoa
-                da equipe possui uma conta e os seus vínculos.
+                Se você é proprietário, crie sua conta e cadastre sua barbearia. O acesso da equipe
+                continua sendo criado por você no painel.
               </p>
-              <div className="inline-hint">
-                Não há cadastro automático ou envio de convites nesta tela. Ter uma conta no
-                Supabase não basta: o Go também verifica seu perfil e os vínculos ativos.
-              </div>
-              <button className="button button-primary" onClick={closeHelp}>
-                Voltar ao login
-                <ArrowRight size={16} />
-              </button>
+              <Alert>
+                Use seu próprio e-mail. Não é necessário compartilhar uma senha: cada pessoa da
+                equipe possui sua conta e suas permissões.
+              </Alert>
+              <Button onClick={closeHelp}>Voltar ao login</Button>
             </div>
           ) : recoveryPreview ? (
-            <div className="login-help">
-              <span className="login-help-icon">
-                <Mail size={24} />
-              </span>
-              <p>
-                Na versão integrada, enviaremos as instruções de recuperação se o e-mail tiver uma
-                conta.
-              </p>
-              <div className="inline-hint" role="status">
-                Demonstração: nenhum e-mail foi enviado e nenhum dado foi salvo.
-              </div>
-              <button className="button button-primary" onClick={closeHelp}>
-                Voltar ao login
-                <ArrowLeft size={16} />
-              </button>
+            <div className={styles.form}>
+              <Alert>Prévia: nenhum e-mail foi enviado e nenhum dado foi salvo.</Alert>
+              <p>Para recuperar o acesso agora, fale com o responsável pelo sistema.</p>
+              <Button onClick={closeHelp}>Voltar ao login</Button>
             </div>
           ) : (
             <form
-              className="form-stack"
+              className={styles.form}
               onSubmit={(e) => {
                 e.preventDefault();
                 e.currentTarget.reset();
                 setRecoveryPreview(true);
               }}
             >
-              <p className="dialog-copy">
-                Informe o e-mail usado no seu acesso. Na versão integrada, você poderá criar uma
-                nova senha pelo link de recuperação.
-              </p>
-              <label>
-                E-mail da conta
-                <input
-                  name="recovery-email"
-                  type="email"
-                  autoComplete="email"
-                  placeholder="voce@barbearia.com"
-                  required
-                  maxLength={254}
-                />
-              </label>
-              <p className="inline-hint">Prévia do fluxo. Nenhuma mensagem será enviada.</p>
+              <Alert tone="warning">
+                Esta é apenas uma prévia. Nenhuma mensagem será enviada. Para recuperar o acesso
+                agora, fale com o responsável pelo sistema.
+              </Alert>
+              <TextField
+                label="E-mail da conta"
+                name="recovery-email"
+                type="email"
+                autoComplete="email"
+                placeholder="voce@barbearia.com"
+                required
+                maxLength={254}
+              />
               <div className="modal-actions">
-                <button className="button button-secondary" type="button" onClick={closeHelp}>
+                <Button variant="secondary" onClick={closeHelp}>
                   Voltar
-                </button>
-                <button className="button button-primary">
-                  Simular recuperação
-                  <ArrowRight size={16} />
-                </button>
+                </Button>
+                <Button type="submit">Simular recuperação</Button>
               </div>
             </form>
           )}

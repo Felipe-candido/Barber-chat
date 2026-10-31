@@ -18,6 +18,17 @@ func NewListAvailability(tx BookingTransactor, clock Clock) *ListAvailability {
 }
 
 func (uc *ListAvailability) Execute(ctx context.Context, input ListAvailabilityInput) (AvailabilityOutput, error) {
+	return uc.execute(ctx, input, nil)
+}
+
+func (uc *ListAvailability) ExecuteForStaff(ctx context.Context, input ListAvailabilityInput, scope StaffBookingScope) (AvailabilityOutput, error) {
+	if scope.UserID == uuid.Nil || scope.ShopID == uuid.Nil || (scope.ProfessionalID != uuid.Nil && scope.ProfessionalID != input.ProfessionalID) {
+		return AvailabilityOutput{}, ErrStaffBookingAccessDenied
+	}
+	return uc.execute(ctx, input, &scope)
+}
+
+func (uc *ListAvailability) execute(ctx context.Context, input ListAvailabilityInput, staff *StaffBookingScope) (AvailabilityOutput, error) {
 	input.ShopSlug = strings.TrimSpace(input.ShopSlug)
 	if input.ShopSlug == "" || input.ServiceID == uuid.Nil || input.ProfessionalID == uuid.Nil {
 		return AvailabilityOutput{}, ErrInvalidAvailability
@@ -28,6 +39,9 @@ func (uc *ListAvailability) Execute(ctx context.Context, input ListAvailabilityI
 		if err != nil {
 			return err
 		}
+		if staff != nil && shop.ShopID != staff.ShopID {
+			return ErrStaffBookingAccessDenied
+		}
 		if !validBookingDate(input.LocalDate, shop.Timezone, uc.clock.Now()) {
 			return ErrInvalidAvailability
 		}
@@ -35,6 +49,11 @@ func (uc *ListAvailability) Execute(ctx context.Context, input ListAvailabilityI
 		// the lock ends with this request and never reserves a slot for the browser.
 		if err := tx.Schedule.LockProfessionalSchedule(ctx, shop.ShopID, input.ProfessionalID); err != nil {
 			return err
+		}
+		if staff != nil {
+			if err := requireStaffBookingRead(ctx, tx, *staff, input.ProfessionalID); err != nil {
+				return err
+			}
 		}
 		selection, err := findSelection(ctx, tx.Catalog, shop.ShopID, input.ServiceID, input.ProfessionalID)
 		if err != nil {
@@ -72,6 +91,17 @@ func NewListProfessionals(tx BookingTransactor, clock Clock) *ListProfessionals 
 	return &ListProfessionals{tx, clock}
 }
 func (uc *ListProfessionals) Execute(ctx context.Context, slug string, serviceID uuid.UUID) (ProfessionalsOutput, error) {
+	return uc.execute(ctx, slug, serviceID, nil)
+}
+
+func (uc *ListProfessionals) ExecuteForStaff(ctx context.Context, slug string, serviceID uuid.UUID, scope StaffBookingScope) (ProfessionalsOutput, error) {
+	if scope.UserID == uuid.Nil || scope.ShopID == uuid.Nil {
+		return ProfessionalsOutput{}, ErrStaffBookingAccessDenied
+	}
+	return uc.execute(ctx, slug, serviceID, &scope)
+}
+
+func (uc *ListProfessionals) execute(ctx context.Context, slug string, serviceID uuid.UUID, staff *StaffBookingScope) (ProfessionalsOutput, error) {
 	if serviceID == uuid.Nil {
 		return ProfessionalsOutput{}, ErrInvalidAvailability
 	}
@@ -80,6 +110,19 @@ func (uc *ListProfessionals) Execute(ctx context.Context, slug string, serviceID
 		shop, err := resolveShop(ctx, tx.Shops, strings.TrimSpace(slug))
 		if err != nil {
 			return err
+		}
+		if staff != nil {
+			if shop.ShopID != staff.ShopID {
+				return ErrStaffBookingAccessDenied
+			}
+			if staff.ProfessionalID != uuid.Nil {
+				if err := tx.Schedule.LockProfessionalSchedule(ctx, shop.ShopID, staff.ProfessionalID); err != nil {
+					return err
+				}
+			}
+			if err := requireStaffBookingRead(ctx, tx, *staff, staff.ProfessionalID); err != nil {
+				return err
+			}
 		}
 		items, err := tx.Catalog.ListBookableProfessionals(ctx, shop.ShopID, serviceID)
 		if err != nil {
@@ -95,6 +138,15 @@ func (uc *ListProfessionals) Execute(ctx context.Context, slug string, serviceID
 			}
 			seen[item.ID] = true
 		}
+		if staff != nil && staff.ProfessionalID != uuid.Nil {
+			filtered := make([]Professional, 0, 1)
+			for _, item := range items {
+				if item.ID == staff.ProfessionalID {
+					filtered = append(filtered, item)
+				}
+			}
+			items = filtered
+		}
 		location, _ := time.LoadLocation(shop.Timezone)
 		now := uc.clock.Now().In(location)
 		output = ProfessionalsOutput{ShopName: shop.Name, ShopTimezone: shop.Timezone, Today: now.Format("2006-01-02"),
@@ -105,4 +157,18 @@ func (uc *ListProfessionals) Execute(ctx context.Context, slug string, serviceID
 		return ProfessionalsOutput{}, err
 	}
 	return output, nil
+}
+
+func requireStaffBookingRead(ctx context.Context, tx BookingTx, scope StaffBookingScope, professionalID uuid.UUID) error {
+	if tx.Staff == nil {
+		return ErrStaffBookingAccessDenied
+	}
+	allowed, err := tx.Staff.CanCreateBooking(ctx, scope.UserID, scope.ShopID, professionalID)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return ErrStaffBookingAccessDenied
+	}
+	return nil
 }

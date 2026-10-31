@@ -42,7 +42,30 @@ export async function signInWithPassword(email: string, password: string): Promi
   return result.data.session;
 }
 
-export async function currentAccessToken(): Promise<string | null> {
+// The SDK manages PKCE and exchanges the confirmation code on the fixed page.
+// Metadata is a UI prefill only, never a source of permissions for the Go API.
+export async function signUpOwner(email: string, password: string, displayName: string) {
+  const { data, error } = await getSupabaseBrowserClient().auth.signUp({
+    email: email.trim(),
+    password,
+    options: {
+      emailRedirectTo: new URL("/cadastro/barbearia", window.location.origin).href,
+      data: { display_name: displayName.trim() },
+    },
+  });
+  if (error) {
+    const message =
+      error.code === "weak_password"
+        ? "A senha não atende à política de segurança. Use uma senha longa e exclusiva."
+        : error.status === 429
+          ? "Muitas tentativas. Aguarde alguns minutos antes de tentar novamente."
+          : "Não foi possível confirmar o cadastro. Confira seu e-mail antes de tentar novamente; se já possui conta, entre pelo login.";
+    throw new AuthenticationError(message, error.code ?? "signup_failed");
+  }
+  return { hasSession: !!data.session?.access_token };
+}
+
+export async function currentAccessToken(expectedUserID?: string): Promise<string | null> {
   let client;
   try {
     client = getSupabaseBrowserClient();
@@ -54,6 +77,12 @@ export async function currentAccessToken(): Promise<string | null> {
     throw new AuthenticationError(
       "Não foi possível restaurar a sessão. Entre novamente.",
       "session_unavailable",
+    );
+  }
+  if (expectedUserID && data.session?.user.id !== expectedUserID) {
+    throw new AuthenticationError(
+      "A conta mudou. Entre com a conta que iniciou este cadastro.",
+      "session_changed",
     );
   }
   return data.session?.access_token ?? null;

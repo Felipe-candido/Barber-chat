@@ -112,11 +112,16 @@ export async function listProfessionals(
   slug: string,
   serviceId: string,
   signal?: AbortSignal,
+  staffUserID?: string,
 ): Promise<Professionals> {
   const result = record(
     await requestJSON(
-      base(slug) + "/professionals?" + new URLSearchParams({ service_id: serviceId }),
-      { signal },
+      (staffUserID === undefined
+        ? base(slug)
+        : "/api/v1/admin/shops/" + shopPathSegment(slug) + "/booking") +
+        "/professionals?" +
+        new URLSearchParams({ service_id: serviceId }),
+      { signal, authenticated: staffUserID !== undefined, expectedUserID: staffUserID },
     ),
   );
   if (
@@ -148,13 +153,23 @@ export async function listAvailability(
   professionalId: string,
   date: string,
   signal?: AbortSignal,
+  staffUserID?: string,
 ): Promise<Availability> {
   const query = new URLSearchParams({
     service_id: serviceId,
     professional_id: professionalId,
     date,
   });
-  const result = record(await requestJSON(base(slug) + "/availability?" + query, { signal }));
+  const result = record(
+    await requestJSON(
+      (staffUserID === undefined
+        ? base(slug)
+        : "/api/v1/admin/shops/" + shopPathSegment(slug) + "/booking") +
+        "/availability?" +
+        query,
+      { signal, authenticated: staffUserID !== undefined, expectedUserID: staffUserID },
+    ),
+  );
   if (!timezone(result.shop_timezone) || !Array.isArray(result.slots)) invalid();
   return { shop_timezone: result.shop_timezone, slots: result.slots.map(interval) };
 }
@@ -169,14 +184,16 @@ export async function createStaffAppointment(
   slug: string,
   input: BookingInput,
   key: string,
+  userID?: string,
 ): Promise<BookingResult> {
-  return createBooking(slug, input, key, true);
+  return createBooking(slug, input, key, true, userID);
 }
 async function createBooking(
   slug: string,
   input: BookingInput,
   key: string,
   staff: boolean,
+  userID?: string,
 ): Promise<BookingResult> {
   const result = record(
     await requestJSON(
@@ -186,6 +203,7 @@ async function createBooking(
         body: input,
         idempotencyKey: key,
         authenticated: staff,
+        expectedUserID: userID,
       },
     ),
   );

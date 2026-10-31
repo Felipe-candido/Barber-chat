@@ -48,7 +48,7 @@ func TestLoadEnvFile(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Chdir(t.TempDir())
-			for _, key := range []string{"HTTP_ADDR", "DATABASE_URL", "RABBITMQ_URL", "LOG_LEVEL", "DB_TIMEOUT", "OPERATION_TIMEOUT", "SHUTDOWN_TIMEOUT", "WORKER_INTERVAL", "DEV_SHOP_SLUG", "DEV_FRONTEND_ORIGIN", "SUPABASE_URL", "FRONTEND_ORIGIN", "HTTP_TIMEOUT"} {
+			for _, key := range []string{"HTTP_ADDR", "DATABASE_URL", "RABBITMQ_URL", "LOG_LEVEL", "DB_TIMEOUT", "OPERATION_TIMEOUT", "SHUTDOWN_TIMEOUT", "WORKER_INTERVAL", "DEV_SHOP_SLUG", "DEV_FRONTEND_ORIGIN", "SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SERVICE_ROLE_KEY", "FRONTEND_ORIGIN", "HTTP_TIMEOUT", "STRIPE_SECRET_KEY", "STRIPE_MONTHLY_PRICE_ID", "STRIPE_WEBHOOK_SECRET", "STRIPE_PORTAL_CONFIGURATION_ID"} {
 				// Register restoration before unsetting inherited configuration.
 				t.Setenv(key, "")
 				if err := os.Unsetenv(key); err != nil {
@@ -147,9 +147,31 @@ func loadConfig(t *testing.T, getenv func(string) string) (config.Config, error)
 		"HTTP_ADDR", "DATABASE_URL", "RABBITMQ_URL", "LOG_LEVEL",
 		"DB_TIMEOUT", "OPERATION_TIMEOUT", "SHUTDOWN_TIMEOUT", "WORKER_INTERVAL",
 		"DEV_SHOP_SLUG", "DEV_FRONTEND_ORIGIN",
-		"SUPABASE_URL", "FRONTEND_ORIGIN", "HTTP_TIMEOUT",
+		"SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SERVICE_ROLE_KEY", "FRONTEND_ORIGIN", "HTTP_TIMEOUT",
+		"STRIPE_SECRET_KEY", "STRIPE_MONTHLY_PRICE_ID",
+		"STRIPE_WEBHOOK_SECRET", "STRIPE_PORTAL_CONFIGURATION_ID",
 	} {
 		t.Setenv(key, getenv(key))
 	}
 	return config.Load()
+}
+
+func TestRegistrationPublishableKeyIsOptional(t *testing.T) {
+	for _, key := range []string{"", "public-project-test-key"} {
+		t.Run(key, func(t *testing.T) {
+			cfg, err := loadConfig(t, func(name string) string {
+				switch name {
+				case "DATABASE_URL":
+					return "postgres://localhost/test"
+				case "SUPABASE_PUBLISHABLE_KEY":
+					return key
+				default:
+					return ""
+				}
+			})
+			if err != nil || cfg.SupabasePublishableKey != key {
+				t.Fatalf("registration key loading failed: %v", err)
+			}
+		})
+	}
 }

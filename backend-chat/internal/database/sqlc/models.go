@@ -28,6 +28,112 @@ type Appointment struct {
 	CodeHash         []byte             `json:"code_hash"`
 	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	StatusSource     string             `json:"status_source"`
+	StatusReason     string             `json:"status_reason"`
+	StatusActorID    pgtype.UUID        `json:"status_actor_id"`
+}
+
+type AppointmentCompletionPolicy struct {
+	ID          bool               `json:"id"`
+	ActivatedAt pgtype.Timestamptz `json:"activated_at"`
+}
+
+type AppointmentStatusCommand struct {
+	ShopID        uuid.UUID   `json:"shop_id"`
+	ActorID       uuid.UUID   `json:"actor_id"`
+	KeyDigest     []byte      `json:"key_digest"`
+	Fingerprint   []byte      `json:"fingerprint"`
+	AppointmentID pgtype.UUID `json:"appointment_id"`
+	ResultVersion pgtype.Int8 `json:"result_version"`
+	Completed     bool        `json:"completed"`
+}
+
+type AppointmentStatusEvent struct {
+	ShopID         uuid.UUID          `json:"shop_id"`
+	AppointmentID  uuid.UUID          `json:"appointment_id"`
+	Version        int64              `json:"version"`
+	PreviousStatus string             `json:"previous_status"`
+	Status         string             `json:"status"`
+	Source         string             `json:"source"`
+	ActorID        pgtype.UUID        `json:"actor_id"`
+	Reason         string             `json:"reason"`
+	OccurredAt     pgtype.Timestamptz `json:"occurred_at"`
+}
+
+type BillingAccount struct {
+	ShopID                 uuid.UUID          `json:"shop_id"`
+	StripeCustomerID       pgtype.Text        `json:"stripe_customer_id"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	StripeMode             string             `json:"stripe_mode"`
+	ReconciliationRevision int64              `json:"reconciliation_revision"`
+}
+
+type BillingCheckoutAttempt struct {
+	ID              uuid.UUID          `json:"id"`
+	ShopID          uuid.UUID          `json:"shop_id"`
+	Intent          string             `json:"intent"`
+	PlanKey         string             `json:"plan_key"`
+	State           string             `json:"state"`
+	StripeSessionID pgtype.Text        `json:"stripe_session_id"`
+	ExpiresAt       pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt       pgtype.Timestamptz `json:"updated_at"`
+	ProtocolVersion int16              `json:"protocol_version"`
+	StripePriceID   pgtype.Text        `json:"stripe_price_id"`
+	ReturnUrl       pgtype.Text        `json:"return_url"`
+	CheckoutUrl     pgtype.Text        `json:"checkout_url"`
+}
+
+type BillingPaidInvoice struct {
+	StripeInvoiceID      string             `json:"stripe_invoice_id"`
+	ShopID               uuid.UUID          `json:"shop_id"`
+	StripeSubscriptionID string             `json:"stripe_subscription_id"`
+	StripePriceID        string             `json:"stripe_price_id"`
+	PaidFrom             pgtype.Timestamptz `json:"paid_from"`
+	PaidUntil            pgtype.Timestamptz `json:"paid_until"`
+	AmountPaid           int64              `json:"amount_paid"`
+	Currency             string             `json:"currency"`
+	Eligible             bool               `json:"eligible"`
+	ConfirmedAt          pgtype.Timestamptz `json:"confirmed_at"`
+}
+
+type BillingSubscription struct {
+	ID                     uuid.UUID          `json:"id"`
+	ShopID                 uuid.UUID          `json:"shop_id"`
+	StripeCustomerID       string             `json:"stripe_customer_id"`
+	StripeSubscriptionID   string             `json:"stripe_subscription_id"`
+	PlanKey                string             `json:"plan_key"`
+	Status                 string             `json:"status"`
+	PaidFrom               pgtype.Timestamptz `json:"paid_from"`
+	PaidUntil              pgtype.Timestamptz `json:"paid_until"`
+	GraceUntil             pgtype.Timestamptz `json:"grace_until"`
+	CancelAtPeriodEnd      bool               `json:"cancel_at_period_end"`
+	Version                int64              `json:"version"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	ReconciliationProtocol int16              `json:"reconciliation_protocol"`
+	CheckoutAttemptID      pgtype.UUID        `json:"checkout_attempt_id"`
+	StripePriceID          pgtype.Text        `json:"stripe_price_id"`
+}
+
+type BillingWebhookEvent struct {
+	StripeEventID   string             `json:"stripe_event_id"`
+	ShopID          pgtype.UUID        `json:"shop_id"`
+	EventType       string             `json:"event_type"`
+	Livemode        bool               `json:"livemode"`
+	Payload         []byte             `json:"payload"`
+	State           string             `json:"state"`
+	Attempts        int32              `json:"attempts"`
+	NextAttemptAt   pgtype.Timestamptz `json:"next_attempt_at"`
+	FailureCode     pgtype.Text        `json:"failure_code"`
+	ReceivedAt      pgtype.Timestamptz `json:"received_at"`
+	ProcessedAt     pgtype.Timestamptz `json:"processed_at"`
+	ReceiptProtocol int16              `json:"receipt_protocol"`
+	ResourceKind    pgtype.Text        `json:"resource_kind"`
+	ResourceID      pgtype.Text        `json:"resource_id"`
+	EventCreatedAt  pgtype.Timestamptz `json:"event_created_at"`
+	ApiVersion      pgtype.Text        `json:"api_version"`
 }
 
 type BookingRequest struct {
@@ -47,6 +153,53 @@ type Customer struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type Product struct {
+	ID          uuid.UUID          `json:"id"`
+	ShopID      uuid.UUID          `json:"shop_id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
+	PriceCents  int64              `json:"price_cents"`
+	Currency    string             `json:"currency"`
+	Active      bool               `json:"active"`
+	Version     int64              `json:"version"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ProductCommand struct {
+	ShopID      uuid.UUID          `json:"shop_id"`
+	ActorID     uuid.UUID          `json:"actor_id"`
+	Operation   string             `json:"operation"`
+	KeyDigest   []byte             `json:"key_digest"`
+	Fingerprint []byte             `json:"fingerprint"`
+	Completed   bool               `json:"completed"`
+	ProductID   pgtype.UUID        `json:"product_id"`
+	MovementID  pgtype.UUID        `json:"movement_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type ProductStock struct {
+	ShopID          uuid.UUID `json:"shop_id"`
+	ProductID       uuid.UUID `json:"product_id"`
+	QuantityOnHand  int32     `json:"quantity_on_hand"`
+	MinimumQuantity int32     `json:"minimum_quantity"`
+	Version         int64     `json:"version"`
+}
+
+type ProductStockMovement struct {
+	ID                 uuid.UUID          `json:"id"`
+	ShopID             uuid.UUID          `json:"shop_id"`
+	ProductID          uuid.UUID          `json:"product_id"`
+	ActorID            uuid.UUID          `json:"actor_id"`
+	Kind               string             `json:"kind"`
+	QuantityDelta      int32              `json:"quantity_delta"`
+	Reason             string             `json:"reason"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	SaleItemID         pgtype.UUID        `json:"sale_item_id"`
+	ReversesMovementID pgtype.UUID        `json:"reverses_movement_id"`
+	SaleQuantity       pgtype.Int4        `json:"sale_quantity"`
+}
+
 type Professional struct {
 	ID     uuid.UUID `json:"id"`
 	ShopID uuid.UUID `json:"shop_id"`
@@ -58,6 +211,48 @@ type ProfessionalService struct {
 	ShopID         uuid.UUID `json:"shop_id"`
 	ProfessionalID uuid.UUID `json:"professional_id"`
 	ServiceID      uuid.UUID `json:"service_id"`
+}
+
+type Sale struct {
+	ID                       uuid.UUID          `json:"id"`
+	ShopID                   uuid.UUID          `json:"shop_id"`
+	RecordedByUserID         uuid.UUID          `json:"recorded_by_user_id"`
+	ProfessionalID           pgtype.UUID        `json:"professional_id"`
+	AppointmentID            pgtype.UUID        `json:"appointment_id"`
+	ProfessionalNameSnapshot string             `json:"professional_name_snapshot"`
+	Status                   string             `json:"status"`
+	Currency                 string             `json:"currency"`
+	TotalCents               int64              `json:"total_cents"`
+	Version                  int64              `json:"version"`
+	SoldAt                   pgtype.Timestamptz `json:"sold_at"`
+	CreatedAt                pgtype.Timestamptz `json:"created_at"`
+	CancelledByUserID        pgtype.UUID        `json:"cancelled_by_user_id"`
+	CancellationReason       pgtype.Text        `json:"cancellation_reason"`
+	Restock                  pgtype.Bool        `json:"restock"`
+	CancelledAt              pgtype.Timestamptz `json:"cancelled_at"`
+}
+
+type SaleCommand struct {
+	ShopID      uuid.UUID          `json:"shop_id"`
+	ActorID     uuid.UUID          `json:"actor_id"`
+	Operation   string             `json:"operation"`
+	KeyDigest   []byte             `json:"key_digest"`
+	Fingerprint []byte             `json:"fingerprint"`
+	Completed   bool               `json:"completed"`
+	SaleID      pgtype.UUID        `json:"sale_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type SaleItem struct {
+	ID                  uuid.UUID   `json:"id"`
+	ShopID              uuid.UUID   `json:"shop_id"`
+	SaleID              uuid.UUID   `json:"sale_id"`
+	ProductID           uuid.UUID   `json:"product_id"`
+	ProductNameSnapshot string      `json:"product_name_snapshot"`
+	Quantity            int32       `json:"quantity"`
+	UnitPriceCents      int64       `json:"unit_price_cents"`
+	Currency            string      `json:"currency"`
+	LineTotalCents      pgtype.Int8 `json:"line_total_cents"`
 }
 
 type ScheduleBlock struct {
@@ -89,14 +284,40 @@ type Service struct {
 }
 
 type Shop struct {
-	ID        uuid.UUID          `json:"id"`
-	Name      string             `json:"name"`
-	Slug      string             `json:"slug"`
-	Timezone  string             `json:"timezone"`
-	Phone     pgtype.Text        `json:"phone"`
-	Active    bool               `json:"active"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID                   uuid.UUID          `json:"id"`
+	Name                 string             `json:"name"`
+	Slug                 string             `json:"slug"`
+	Timezone             string             `json:"timezone"`
+	Phone                pgtype.Text        `json:"phone"`
+	Active               bool               `json:"active"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	PublicationRequested bool               `json:"publication_requested"`
+	ProvisioningSource   string             `json:"provisioning_source"`
+	Description          string             `json:"description"`
+	SettingsVersion      int64              `json:"settings_version"`
+}
+
+type ShopAddress struct {
+	ShopID      uuid.UUID          `json:"shop_id"`
+	CountryCode string             `json:"country_code"`
+	PostalCode  string             `json:"postal_code"`
+	Street      string             `json:"street"`
+	Number      string             `json:"number"`
+	Complement  string             `json:"complement"`
+	District    string             `json:"district"`
+	City        string             `json:"city"`
+	State       string             `json:"state"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ShopCreationRequest struct {
+	UserID      uuid.UUID          `json:"user_id"`
+	KeyHash     []byte             `json:"key_hash"`
+	Fingerprint []byte             `json:"fingerprint"`
+	ShopID      uuid.UUID          `json:"shop_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
 type ShopMembership struct {

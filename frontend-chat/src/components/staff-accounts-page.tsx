@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { RefreshCw, UserRoundKey } from "lucide-react";
 import { useSelectedShop, useSelectedShopAccess } from "./shop-panel";
 import { listStaffProfessionals, type StaffProfessional } from "@/lib/api/professionals";
 import {
@@ -14,14 +15,19 @@ import {
 } from "@/lib/api/staff-accounts";
 import { errorMessage } from "@/lib/api/client";
 import { adminShopPath } from "@/lib/api/config";
+import { AccountItem } from "./accounts/account-item";
+import { Alert, Button, PageHeader, SelectField, TextField } from "./ui";
+import styles from "./admin/management.module.css";
 
 export function StaffAccountsPage() {
   const access = useSelectedShopAccess();
   if (access.role !== "owner")
     return (
-      <section className="api-error">
-        <h1>Acesso restrito ao proprietário</h1>
-        <p>Você pode consultar e criar seus agendamentos pela agenda.</p>
+      <section className={styles.page}>
+        <PageHeader
+          title="Acesso restrito ao proprietário"
+          description="Você pode consultar e criar seus agendamentos pela agenda."
+        />
       </section>
     );
   return <OwnerAccounts />;
@@ -38,9 +44,6 @@ function OwnerAccounts() {
   const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [recovery, setRecovery] = useState<Record<string, string>>({});
-  const [replacementEmail, setReplacementEmail] = useState<Record<string, string>>({});
-  const [replacementConfirmed, setReplacementConfirmed] = useState<Record<string, boolean>>({});
   const inFlight = useRef(false);
   const request = useRef<AbortController | null>(null);
   const reload = useCallback(async () => {
@@ -69,10 +72,13 @@ function OwnerAccounts() {
     return () => request.current?.abort();
   }, [reload]);
   const available = professionals.filter(
-    (p) => p.active && !accounts.some((a) => a.professional_id === p.id),
+    (professional) =>
+      professional.active &&
+      !accounts.some((account) => account.professional_id === professional.id),
   );
+  const disabled = saving || loading || !!loadError;
   async function mutate(operation: () => Promise<unknown>, message: string) {
-    if (inFlight.current) return;
+    if (inFlight.current || loading || loadError) return;
     inFlight.current = true;
     setSaving(true);
     setError("");
@@ -89,245 +95,153 @@ function OwnerAccounts() {
     }
   }
   return (
-    <section className="professionals-page">
-      <header className="page-heading">
-        <div>
-          <p className="eyebrow">ACESSO DA EQUIPE</p>
-          <h1>Contas dos barbeiros</h1>
-          <p>Um login individual, vinculado a um barbeiro já cadastrado.</p>
-        </div>
-        <button
-          className="button button-secondary"
-          disabled={loading || saving}
-          onClick={() => void reload()}
-        >
-          Atualizar contas
-        </button>
-      </header>
-      <p className="booking-note">
+    <section className={styles.page}>
+      <PageHeader
+        title="Contas dos barbeiros"
+        description={`Logins individuais para a equipe de ${shop.name}.`}
+        actions={
+          <Button variant="secondary" disabled={loading || saving} onClick={() => void reload()}>
+            <RefreshCw size={16} aria-hidden="true" />
+            Atualizar contas
+          </Button>
+        }
+      />
+      <p className={styles.hint}>
         O barbeiro vê a própria agenda e cria agendamentos para si. Serviços, preços e equipe
         continuam sob gestão do proprietário.
       </p>
       {error && (
-        <p className="form-error" role="alert">
-          {error} Confira a lista antes de repetir qualquer envio.
-        </p>
+        <Alert tone="error">{error} Confira a lista antes de repetir qualquer envio.</Alert>
       )}
-      {success && (
-        <p className="professional-success" role="status">
-          {success}
-        </p>
-      )}
+      {success && <Alert tone="success">{success}</Alert>}
       {loadError && (
-        <p className="form-error" role="alert">
-          {loadError}
-        </p>
+        <Alert tone="error">
+          {loadError} Atualize as contas para conferir os vínculos antes de fazer alterações.
+        </Alert>
       )}
-      <div className="professionals-layout">
-        <section className="professional-card">
-          <h2>Acessos cadastrados</h2>
-          {loading && <p role="status">Carregando contas…</p>}
-          {!loading && !loadError && !accounts.length && (
-            <p>Nenhuma conta de barbeiro criada nesta unidade.</p>
+      <div className={styles.layout}>
+        <section className={styles.panel} aria-labelledby="staff-accounts-title">
+          <h2 id="staff-accounts-title">Acessos cadastrados</h2>
+          {loading && (
+            <p className={styles.loading} role="status">
+              Carregando contas…
+            </p>
           )}
-          <ul className="professional-list">
-            {accounts.map((a) => (
-              <li key={a.id}>
-                <strong>
-                  {professionals.find((p) => p.id === a.professional_id)?.name ?? "Barbeiro"}
-                </strong>
-                <span>{a.email}</span>
-                <span>
-                  {a.state === "linked"
-                    ? a.active
-                      ? "Acesso ativo"
-                      : "Acesso inativo"
-                    : "Vínculo precisa ser conferido"}
-                </span>
-                {a.state === "linked" && (
-                  <button
-                    className="button button-secondary"
-                    disabled={saving || loading || !!loadError}
-                    onClick={() =>
-                      void mutate(
-                        () => setStaffAccountActive(shop.slug, a.id, !a.active),
-                        a.active
-                          ? "Acesso desativado nesta barbearia."
-                          : "Acesso ativado nesta barbearia.",
-                      )
-                    }
-                  >
-                    {a.active ? "Desativar acesso" : "Ativar acesso"}
-                  </button>
-                )}
-                {a.state !== "linked" && (
-                  <details>
-                    <summary>Conferir conta existente no Supabase</summary>
-                    <p>
-                      Confira se o e-mail existe em Authentication → Users. Cole o UUID dessa conta
-                      para concluir o vínculo. O backend confere se o e-mail coincide. Se ela ainda
-                      não existir, crie ou convide no Supabase antes de vincular aqui.
-                    </p>
-                    <label className="booking-field">
-                      UUID da conta Supabase
-                      <input
-                        value={recovery[a.id] ?? ""}
-                        onChange={(e) =>
-                          setRecovery((v) => ({ ...v, [a.id]: e.target.value.trim() }))
-                        }
-                        disabled={saving}
-                      />
-                    </label>
-                    <button
-                      className="button button-secondary"
-                      disabled={saving || loading || !recovery[a.id] || !!loadError}
-                      onClick={() =>
-                        void mutate(
-                          () => linkStaffAccount(shop.slug, a.id, recovery[a.id]),
-                          "Conta conferida e vinculada ao barbeiro.",
-                        )
-                      }
-                    >
-                      Concluir vínculo
-                    </button>
-                  </details>
-                )}
-                {!a.active && (
-                  <details>
-                    <summary>Substituir conta</summary>
-                    <form
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        const newEmail = replacementEmail[a.id]?.trim().toLowerCase();
-                        if (
-                          !newEmail ||
-                          newEmail === a.email.toLowerCase() ||
-                          !replacementConfirmed[a.id]
-                        )
-                          return;
-                        void mutate(
-                          () => replaceStaffAccount(shop.slug, a.id, newEmail),
-                          "Conta substituída. O Supabase recebeu a solicitação de convite para o novo e-mail.",
-                        );
-                      }}
-                    >
-                      <p>
-                        O acesso antigo será desvinculado somente desta barbearia. O barbeiro e seus
-                        agendamentos serão preservados. A conta antiga no Supabase não será apagada.
-                        Se o convite falhar, confira o novo vínculo na lista.
-                      </p>
-                      <label className="booking-field">
-                        Novo e-mail de acesso
-                        <input
-                          type="email"
-                          required
-                          maxLength={254}
-                          autoComplete="off"
-                          value={replacementEmail[a.id] ?? ""}
-                          disabled={saving || loading || !!loadError}
-                          onChange={(e) => {
-                            setReplacementEmail((v) => ({ ...v, [a.id]: e.target.value }));
-                            setReplacementConfirmed((v) => ({ ...v, [a.id]: false }));
-                          }}
-                        />
-                      </label>
-                      <label>
-                        <input
-                          type="checkbox"
-                          required
-                          checked={replacementConfirmed[a.id] ?? false}
-                          disabled={saving || loading || !!loadError}
-                          onChange={(e) =>
-                            setReplacementConfirmed((v) => ({ ...v, [a.id]: e.target.checked }))
-                          }
-                        />{" "}
-                        Confirmo a remoção do vínculo antigo nesta barbearia.
-                      </label>
-                      <button
-                        className="button button-secondary"
-                        disabled={
-                          saving ||
-                          loading ||
-                          !!loadError ||
-                          !replacementConfirmed[a.id] ||
-                          !replacementEmail[a.id]?.trim() ||
-                          replacementEmail[a.id].trim().toLowerCase() === a.email.toLowerCase()
-                        }
-                      >
-                        Substituir e enviar convite
-                      </button>
-                    </form>
-                  </details>
-                )}
-              </li>
+          {!loading && !loadError && !accounts.length && (
+            <div className={styles.empty}>
+              <UserRoundKey size={28} aria-hidden="true" />
+              <h3>Nenhuma conta de barbeiro</h3>
+              <p>Crie um acesso individual para um barbeiro já cadastrado nesta unidade.</p>
+            </div>
+          )}
+          {/* Keep recovery inputs mounted during a refresh; never expose stale controls after a failed read. */}
+          <ul className={styles.list} hidden={!!loadError || !accounts.length}>
+            {accounts.map((account) => (
+              <AccountItem
+                key={account.id}
+                account={account}
+                professionalName={
+                  professionals.find((professional) => professional.id === account.professional_id)
+                    ?.name ?? "Barbeiro"
+                }
+                disabled={disabled}
+                onStatus={() =>
+                  void mutate(
+                    () => setStaffAccountActive(shop.slug, account.id, !account.active),
+                    account.active
+                      ? "Acesso desativado nesta barbearia."
+                      : "Acesso ativado nesta barbearia.",
+                  )
+                }
+                onLink={(userID) =>
+                  void mutate(
+                    () => linkStaffAccount(shop.slug, account.id, userID),
+                    "Conta conferida e vinculada ao barbeiro.",
+                  )
+                }
+                onReplace={(newEmail) =>
+                  void mutate(
+                    () => replaceStaffAccount(shop.slug, account.id, newEmail),
+                    "Conta substituída. O Supabase recebeu a solicitação de convite para o novo e-mail.",
+                  )
+                }
+              />
             ))}
           </ul>
         </section>
-        <form
-          className="professional-card"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void mutate(
-              () => inviteStaffAccount(shop.slug, professionalID, email.trim()),
-              "Conta vinculada. O Supabase recebeu a solicitação de convite; peça ao barbeiro para conferir o e-mail e definir a senha.",
-            );
-          }}
-        >
-          <h2>Criar conta de acesso</h2>
-          <p>O cadastro do barbeiro e o login são separados.</p>
-          <label className="booking-field">
-            Barbeiro vinculado
-            <select
-              required
-              value={professionalID}
-              onChange={(e) => setProfessionalID(e.target.value)}
-              disabled={saving || loading || !!loadError}
-            >
-              <option value="">Selecione um barbeiro</option>
-              {available.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="booking-field">
-            E-mail do barbeiro
-            <input
-              type="email"
-              autoComplete="email"
-              required
-              maxLength={254}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={saving || loading}
-            />
-          </label>
-          <p className="booking-note">
-            Ele receberá um link para definir a própria senha. O proprietário não informa nem recebe
-            a senha.
-          </p>
-          <button
-            className="button button-primary"
-            disabled={
-              saving ||
-              loading ||
-              !!loadError ||
-              !available.some((p) => p.id === professionalID) ||
-              !email.trim()
-            }
+        <section className={styles.panel} aria-labelledby="staff-invite-title">
+          <div>
+            <h2 id="staff-invite-title">Criar conta de acesso</h2>
+            <p className={styles.hint}>
+              Vincule o login a um barbeiro. Esse processo não cria outro profissional.
+            </p>
+          </div>
+          <form
+            className={styles.form}
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (
+                disabled ||
+                !available.some((professional) => professional.id === professionalID) ||
+                !email.trim()
+              )
+                return;
+              void mutate(
+                () => inviteStaffAccount(shop.slug, professionalID, email.trim()),
+                "Conta vinculada. O Supabase recebeu a solicitação de convite; peça ao barbeiro para conferir o e-mail e definir a senha.",
+              );
+            }}
           >
-            {saving ? "Processando…" : "Criar conta e enviar convite"}
-          </button>
+            <fieldset className={styles.fields} disabled={disabled || !available.length}>
+              <SelectField
+                label="Barbeiro vinculado"
+                required
+                value={professionalID}
+                onChange={(event) => setProfessionalID(event.target.value)}
+              >
+                <option value="">Selecione um barbeiro</option>
+                {available.map((professional) => (
+                  <option key={professional.id} value={professional.id}>
+                    {professional.name}
+                  </option>
+                ))}
+              </SelectField>
+              <TextField
+                label="E-mail do barbeiro"
+                type="email"
+                autoComplete="email"
+                required
+                maxLength={254}
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                hint="Confira o endereço antes de enviar o convite."
+              />
+            </fieldset>
+            <p className={styles.hint}>
+              Ele receberá um link para definir a própria senha. O proprietário não informa nem
+              recebe a senha.
+            </p>
+            <Button
+              type="submit"
+              loading={saving}
+              disabled={
+                disabled ||
+                !available.some((professional) => professional.id === professionalID) ||
+                !email.trim()
+              }
+            >
+              {saving ? "Processando…" : "Criar conta e enviar convite"}
+            </Button>
+          </form>
           {!loading && !loadError && !available.length && (
-            <p>
+            <p className={styles.hint}>
               Todos os barbeiros ativos já têm conta ou vínculo pendente. Para corrigir um e-mail,
               desative o acesso e use “Substituir conta” na lista. Para um novo barbeiro, faça o
               cadastro primeiro.
             </p>
           )}
           <Link href={adminShopPath(shop.slug) + "/barbeiros"}>Ir para cadastro de barbeiros</Link>
-        </form>
+        </section>
       </div>
     </section>
   );

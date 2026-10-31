@@ -20,9 +20,6 @@ const IdempotencyRetention = 24 * time.Hour
 
 var ErrStaffBookingAccessDenied = errors.New("staff booking access denied")
 
-// Authority is supplied by the authenticated adapter, never by public JSON.
-type staffBookingScope struct{ UserID, ShopID, ProfessionalID uuid.UUID }
-
 type CreateAppointment struct {
 	transactions BookingTransactor
 	contacts     CustomerNormalizer
@@ -42,10 +39,10 @@ func (uc *CreateAppointment) ExecuteForStaff(ctx context.Context, input CreateAp
 	if userID == uuid.Nil || shopID == uuid.Nil || (allowedProfessionalID != uuid.Nil && input.ProfessionalID != allowedProfessionalID) {
 		return CreateAppointmentOutput{}, ErrStaffBookingAccessDenied
 	}
-	return uc.execute(ctx, input, &staffBookingScope{userID, shopID, allowedProfessionalID})
+	return uc.execute(ctx, input, &StaffBookingScope{userID, shopID, allowedProfessionalID})
 }
 
-func (uc *CreateAppointment) execute(ctx context.Context, input CreateAppointmentInput, staff *staffBookingScope) (CreateAppointmentOutput, error) {
+func (uc *CreateAppointment) execute(ctx context.Context, input CreateAppointmentInput, staff *StaffBookingScope) (CreateAppointmentOutput, error) {
 	input.ShopSlug = strings.TrimSpace(input.ShopSlug)
 	input.StartsAt = input.StartsAt.UTC()
 	key, err := hex.DecodeString(input.IdempotencyKey)
@@ -103,6 +100,30 @@ func (uc *CreateAppointment) execute(ctx context.Context, input CreateAppointmen
 		if replayed {
 			output = CreateAppointmentOutput{Appointment: previous.Appointment, Code: previous.Code, Replayed: true}
 			return nil
+		}
+		if staff != nil && shop.SelfService {
+			if tx.StaffEligibility == nil {
+				return ErrBookingEligibilityUnavailable
+			}
+			allowed, err := tx.StaffEligibility.CanCreateStaffBooking(ctx, shop.ShopID)
+			if err != nil {
+				return fmt.Errorf("%w: %w", ErrBookingEligibilityUnavailable, err)
+			}
+			if !allowed {
+				return ErrBookingSubscriptionRequired
+			}
+		}
+		if staff == nil && shop.SelfService {
+			if tx.PublicAccess == nil {
+				return ErrShopNotFound
+			}
+			allowed, err := tx.PublicAccess.CanCreatePublicBooking(ctx, shop.Slug)
+			if err != nil {
+				return err
+			}
+			if !allowed {
+				return ErrShopNotFound
+			}
 		}
 		if staff == nil {
 			if err := tx.Schedule.LockProfessionalSchedule(ctx, shop.ShopID, input.ProfessionalID); err != nil {

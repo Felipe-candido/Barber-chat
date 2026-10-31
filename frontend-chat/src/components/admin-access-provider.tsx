@@ -23,6 +23,7 @@ type AdminAccess = {
   state: AccessState;
   refresh: () => Promise<VerifiedAccess>;
   logout: () => Promise<void>;
+  syncShopName: (shopID: string, name: string, expectedUserID: string) => void;
 };
 const AccessContext = createContext<AdminAccess | null>(null);
 
@@ -36,6 +37,24 @@ export function AdminAccessProvider({ children }: { children: React.ReactNode })
     generation.current++;
     request.current?.abort();
     setState({ status: "idle" });
+  }, []);
+
+  // Cosmetic cache update from a verified settings response. Never adds shops,
+  // changes slugs, identity or permissions, or treats browser state as authority.
+  const syncShopName = useCallback((shopID: string, name: string, expectedUserID: string) => {
+    setState((current) => {
+      if (
+        current.status !== "ready" ||
+        current.identity.user_id !== expectedUserID ||
+        (sessionUser.current !== undefined && sessionUser.current !== expectedUserID) ||
+        !current.shops.some((shop) => shop.shop_id === shopID && shop.name !== name)
+      )
+        return current;
+      return {
+        ...current,
+        shops: current.shops.map((shop) => (shop.shop_id === shopID ? { ...shop, name } : shop)),
+      };
+    });
   }, []);
 
   const refresh = useCallback(async (): Promise<VerifiedAccess> => {
@@ -115,7 +134,10 @@ export function AdminAccessProvider({ children }: { children: React.ReactNode })
     };
   }, [invalidate]);
 
-  const value = useMemo(() => ({ state, refresh, logout }), [state, refresh, logout]);
+  const value = useMemo(
+    () => ({ state, refresh, logout, syncShopName }),
+    [state, refresh, logout, syncShopName],
+  );
   return <AccessContext.Provider value={value}>{children}</AccessContext.Provider>;
 }
 

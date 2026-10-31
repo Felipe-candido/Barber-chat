@@ -12,6 +12,12 @@ type ShopResolver interface {
 	ResolveActiveShop(context.Context, string) (ShopContext, bool, error)
 }
 
+// Only needed for self-service units. Replay and existing appointment management
+// do not create new reservations and must not be blocked by later suspension.
+type PublicBookingAuthorizer interface {
+	CanCreatePublicBooking(context.Context, string) (bool, error)
+}
+
 // Read-only projections for the authorized administrative agenda. These do not
 // acquire booking locks or expose customer contact through public booking ports.
 type AgendaShopReader interface {
@@ -63,19 +69,28 @@ type AppointmentCodes interface {
 }
 
 // Identity implements this read-only port using the same transaction as booking.
-// Call after the professional lock, including on an idempotent replay.
+// When a professional lock is needed, acquire it first, including on replay.
 type StaffBookingAuthorizer interface {
 	CanCreateBooking(context.Context, uuid.UUID, uuid.UUID, uuid.UUID) (bool, error)
 }
 
+// Billing implements this transaction-bound guard. Check only new self-service
+// staff reservations, after staff authorization and receipt recovery. This is
+// commercial eligibility, not publication or permission to access billing.
+type StaffBookingEligibility interface {
+	CanCreateStaffBooking(context.Context, uuid.UUID) (bool, error)
+}
+
 type BookingTx struct {
-	Staff        StaffBookingAuthorizer
-	Shops        ShopResolver
-	Catalog      BookableCatalogReader
-	Schedule     ScheduleGuard
-	Customers    CustomerResolver
-	Appointments AppointmentRepository
-	Idempotency  IdempotencyRepository
+	PublicAccess     PublicBookingAuthorizer
+	Staff            StaffBookingAuthorizer
+	StaffEligibility StaffBookingEligibility
+	Shops            ShopResolver
+	Catalog          BookableCatalogReader
+	Schedule         ScheduleGuard
+	Customers        CustomerResolver
+	Appointments     AppointmentRepository
+	Idempotency      IdempotencyRepository
 }
 
 // The callback runs exactly once. A nil result requires a successful commit;

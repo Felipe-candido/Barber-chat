@@ -162,3 +162,43 @@ func (q *Queries) ListMembershipsByUser(ctx context.Context, userID uuid.UUID) (
 	}
 	return items, nil
 }
+
+const lockBillingOwner = `-- name: LockBillingOwner :one
+SELECT m.user_id FROM public.shop_memberships m
+JOIN public.users u ON u.id = m.user_id
+WHERE m.user_id = $1 AND m.shop_id = $2 AND m.active = TRUE AND u.active = TRUE AND m.role = 'owner'
+FOR SHARE OF m, u
+`
+
+type LockBillingOwnerParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	ShopID uuid.UUID `json:"shop_id"`
+}
+
+func (q *Queries) LockBillingOwner(ctx context.Context, arg LockBillingOwnerParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockBillingOwner, arg.UserID, arg.ShopID)
+	var user_id uuid.UUID
+	err := row.Scan(&user_id)
+	return user_id, err
+}
+
+const lockShopSettingsOwner = `-- name: LockShopSettingsOwner :one
+SELECT m.user_id FROM public.shop_memberships m
+JOIN public.users u ON u.id = m.user_id
+WHERE m.user_id = $1 AND m.shop_id = $2 AND m.active = TRUE AND u.active = TRUE AND m.role = 'owner'
+FOR SHARE OF m, u
+`
+
+type LockShopSettingsOwnerParams struct {
+	UserID uuid.UUID `json:"user_id"`
+	ShopID uuid.UUID `json:"shop_id"`
+}
+
+// Do not lock shops here: the settings CAS obtains its own write lock. Shared
+// shop locks followed by upgrades would deadlock simultaneous settings writes.
+func (q *Queries) LockShopSettingsOwner(ctx context.Context, arg LockShopSettingsOwnerParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockShopSettingsOwner, arg.UserID, arg.ShopID)
+	var user_id uuid.UUID
+	err := row.Scan(&user_id)
+	return user_id, err
+}

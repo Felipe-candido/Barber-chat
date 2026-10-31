@@ -1,26 +1,14 @@
 "use client";
-import Link from "next/link";
+import { useCallback, useId, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import {
-  CalendarDays,
-  Scissors,
-  MessageCircle,
-  ArrowUpRight,
-  Copy,
-  PanelLeftClose,
-  Menu,
-  LogOut,
-  Building2,
-  Users,
-  UserRoundCog,
-} from "lucide-react";
-import { useState } from "react";
-import { publicBookingPath, adminShopPath } from "@/lib/api/config";
+import { LogOut, Menu } from "lucide-react";
 import type { AccessibleShop, StaffIdentity, ShopAccess } from "@/lib/api/identity";
 import { errorMessage } from "@/lib/api/client";
 import { useAdminAccess } from "./admin-access-provider";
-import { Brand } from "./ui";
 import { useFeedback } from "./feedback-provider";
+import { AdminNavigation, adminDestinations } from "./admin/navigation";
+import { NavigationDrawer } from "./admin/navigation-drawer";
+import styles from "./admin-shell.module.css";
 
 export function AdminShell({
   children,
@@ -38,150 +26,53 @@ export function AdminShell({
   const { logout } = useAdminAccess();
   const { notify } = useFeedback();
   const [open, setOpen] = useState(false);
-  const panelPath = adminShopPath(shop.slug);
-  const bookingPath = publicBookingPath(shop.slug);
-  const initials = identity.display_name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => Array.from(part)[0])
-    .join("")
-    .toLocaleUpperCase("pt-BR");
-  async function copyLink() {
-    try {
-      await navigator.clipboard.writeText(window.location.origin + bookingPath);
-      notify("Link de agendamento copiado!");
-    } catch {
-      notify("Acesse o chat e copie o endereço na barra do navegador.");
-    }
-  }
+  const drawerId = useId();
+  const contentId = useId();
+  const closeMenu = useCallback(() => setOpen(false), []);
+  const section =
+    adminDestinations(shop.slug, access.role).find((item) => item.href === pathname)?.label ??
+    "Painel";
   return (
-    <div className="admin-layout">
-      {open && (
-        <button
-          className="sidebar-backdrop"
-          aria-label="Fechar navegação"
-          onClick={() => setOpen(false)}
-        />
-      )}
-      <aside className={"sidebar " + (open ? "sidebar-open" : "")}>
-        <Link href={panelPath} className="brand-link" aria-label={shop.name + " — agenda"}>
-          <Brand light />
-        </Link>
-        <button
-          className="mobile-close icon-button"
-          aria-label="Fechar menu"
-          onClick={() => setOpen(false)}
-        >
-          <PanelLeftClose size={20} />
-        </button>
-        <div className="sidebar-caption">SEU ESPAÇO DE GESTÃO</div>
-        <nav aria-label="Navegação principal">
-          <Link
-            className={"nav-item " + (pathname === panelPath ? "active" : "")}
-            href={panelPath}
-            onClick={() => setOpen(false)}
-          >
-            <CalendarDays size={20} />
-            Agenda
-            <span className="nav-dot" />
-          </Link>
-          <Link
-            className={"nav-item " + (pathname === panelPath + "/servicos" ? "active" : "")}
-            href={panelPath + "/servicos"}
-            onClick={() => setOpen(false)}
-          >
-            <Scissors size={20} />
-            Serviços
-          </Link>
-          <Link className="nav-item" href="/admin" onClick={() => setOpen(false)}>
-            <Building2 size={20} />
-            Trocar barbearia
-          </Link>
-          {access.role === "owner" && (
-            <Link
-              className={"nav-item " + (pathname === panelPath + "/barbeiros" ? "active" : "")}
-              href={panelPath + "/barbeiros"}
-              onClick={() => setOpen(false)}
-            >
-              <Users size={20} />
-              Barbeiros
-            </Link>
-          )}
-          {access.role === "owner" && (
-            <Link
-              className={"nav-item " + (pathname === panelPath + "/contas" ? "active" : "")}
-              href={panelPath + "/contas"}
-              onClick={() => setOpen(false)}
-            >
-              <UserRoundCog size={20} />
-              Contas de acesso
-            </Link>
-          )}
-        </nav>
-        <div className="sidebar-booking">
-          <span className="sidebar-booking-icon">
-            <MessageCircle size={22} />
-          </span>
-          <h3>
-            Menos mensagens.
-            <br />
-            Mais tempo para cuidar.
-          </h3>
-          <p>Seu cliente escolhe o serviço, o barbeiro e reserva um horário pelo chat.</p>
-          <Link href={bookingPath}>
-            Abrir chat de agendamento
-            <ArrowUpRight size={16} />
-          </Link>
-          <button onClick={copyLink}>
-            <Copy size={14} />
-            Copiar link do chat
-          </button>
-        </div>
-        <div className="sidebar-bottom">
-          <div className="demo-note">
-            <span />
-            Catálogo conectado à API
-          </div>
-          <div className="profile">
-            <span className="avatar">{initials}</span>
-            <div>
-              <strong>{identity.display_name}</strong>
-              <small>{shop.name}</small>
-            </div>
-            <span className="profile-dot" />
-          </div>
-        </div>
+    <div className={styles.layout}>
+      <a href={"#" + contentId} className={styles.skipLink}>
+        Ir para o conteúdo
+      </a>
+      <aside className={styles.desktopSidebar} aria-label="Navegação do painel">
+        <AdminNavigation shop={shop} identity={identity} access={access} pathname={pathname} />
       </aside>
-      <div className="admin-workspace">
-        <header className="topbar">
-          <div className="flex items-center gap-3">
+      <NavigationDrawer open={open} onClose={closeMenu} id={drawerId}>
+        <AdminNavigation
+          shop={shop}
+          identity={identity}
+          access={access}
+          pathname={pathname}
+          onNavigate={closeMenu}
+        />
+      </NavigationDrawer>
+      <div className={styles.workspace}>
+        <header className={styles.topbar + " topbar"}>
+          <div className={styles.location}>
             <button
-              className="mobile-menu icon-button"
+              type="button"
+              className={styles.menuButton + " icon-button"}
               aria-label="Abrir menu"
+              aria-controls={drawerId}
+              aria-expanded={open}
               onClick={() => setOpen(true)}
             >
-              <Menu size={21} />
+              <Menu size={22} aria-hidden="true" />
             </button>
-            <span className="shop-breadcrumb">
-              {shop.name} <span className="breadcrumb-separator">/</span>{" "}
-              <strong>
-                {pathname.includes("servicos")
-                  ? "Serviços"
-                  : pathname.includes("barbeiros")
-                    ? "Barbeiros"
-                    : pathname.includes("contas")
-                      ? "Contas de acesso"
-                      : "Agenda"}
-              </strong>
-            </span>
+            <div>
+              <strong>{shop.name}</strong>
+              <span>{section}</span>
+            </div>
           </div>
-          <div className="topbar-right">
-            <span className="demo-pill">
-              <span />
+          <div className={styles.account}>
+            <span className={styles.role}>
               {access.role === "owner" ? "Proprietário" : "Barbeiro"}
             </span>
             <button
+              type="button"
               className="icon-button"
               aria-label="Sair da conta"
               onClick={async () => {
@@ -189,18 +80,20 @@ export function AdminShell({
                   await logout();
                   router.replace("/login");
                 } catch (error) {
-                  notify(errorMessage(error));
+                  notify(errorMessage(error), { tone: "error" });
                 }
               }}
             >
-              <LogOut size={20} />
+              <LogOut size={20} aria-hidden="true" />
             </button>
           </div>
         </header>
-        <main className="main-content">{children}</main>
-        <footer className="admin-footer">
+        <main id={contentId} tabIndex={-1} className={styles.main}>
+          {children}
+        </main>
+        <footer className={styles.footer}>
           <span>{shop.name}</span>
-          <span>Cuidado em cada detalhe.</span>
+          <span>Barber-chat</span>
         </footer>
       </div>
     </div>
