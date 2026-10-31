@@ -42,9 +42,9 @@ test("selects and switches units, restores a direct route and logs out", async (
   await expect(page.getByRole("heading", { name: "Nenhum serviço ativo" })).toBeVisible();
   await expect(page.getByRole("heading", { name: service.name, exact: true })).toHaveCount(0);
   expect(requests.at(-1)).toBe("/api/v1/admin/shops/" + testShop.slug + "/services");
-  await expect(page.getByRole("link", { name: "Abrir chat de agendamento" })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: "Gerenciar link de agendamento" })).toHaveAttribute(
     "href",
-    "/b/" + testShop.slug,
+    "/admin/" + testShop.slug + "/configuracoes#publication",
   );
   await page.getByRole("button", { name: "Sair da conta" }).click();
   await expect(page).toHaveURL(/\/login$/);

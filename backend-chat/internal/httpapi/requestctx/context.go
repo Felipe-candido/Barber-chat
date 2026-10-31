@@ -10,6 +10,17 @@ import (
 
 type staffIdentityKey struct{}
 type shopScopeKey struct{}
+type registrationIdentityKey struct{}
+
+// Registration identity cannot satisfy staff authentication or a shop scope.
+func WithRegistrationIdentity(ctx context.Context, identity identityapp.RegistrationIdentity) context.Context {
+	return context.WithValue(ctx, registrationIdentityKey{}, identity)
+}
+
+func RegistrationIdentityFromContext(ctx context.Context) (identityapp.RegistrationIdentity, bool) {
+	identity, ok := ctx.Value(registrationIdentityKey{}).(identityapp.RegistrationIdentity)
+	return identity, ok
+}
 
 // WithStaffIdentity returns a child context containing a copy of identity.
 // The caller must obtain identity from successful authentication first.

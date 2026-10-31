@@ -141,14 +141,15 @@ func (q *Queries) ListBookableProfessionals(ctx context.Context, arg ListBookabl
 }
 
 const resolveBookingShop = `-- name: ResolveBookingShop :one
-SELECT id,slug,name,timezone FROM shops WHERE slug = $1 AND active = TRUE FOR SHARE
+SELECT id,slug,name,timezone,provisioning_source FROM shops WHERE slug = $1 AND active = TRUE FOR SHARE
 `
 
 type ResolveBookingShopRow struct {
-	ID       uuid.UUID `json:"id"`
-	Slug     string    `json:"slug"`
-	Name     string    `json:"name"`
-	Timezone string    `json:"timezone"`
+	ID                 uuid.UUID `json:"id"`
+	Slug               string    `json:"slug"`
+	Name               string    `json:"name"`
+	Timezone           string    `json:"timezone"`
+	ProvisioningSource string    `json:"provisioning_source"`
 }
 
 func (q *Queries) ResolveBookingShop(ctx context.Context, slug string) (ResolveBookingShopRow, error) {
@@ -159,6 +160,7 @@ func (q *Queries) ResolveBookingShop(ctx context.Context, slug string) (ResolveB
 		&i.Slug,
 		&i.Name,
 		&i.Timezone,
+		&i.ProvisioningSource,
 	)
 	return i, err
 }

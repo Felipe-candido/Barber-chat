@@ -15,6 +15,69 @@ export class ApiError extends Error {
   }
 }
 const messages: Record<string, string> = {
+  invalid_appointment_status: "Escolha uma situação válida e informe o motivo em uma única linha.",
+  appointment_version_changed:
+    "O atendimento mudou, possivelmente pela conclusão automática. Atualize os detalhes e revise a alteração.",
+  appointment_status_unchanged:
+    "O atendimento já está nessa situação. Atualize os detalhes antes de corrigir.",
+  appointment_transition_too_early:
+    "Ausência só pode ser registrada após o início. Marcar como realizado exige que o horário reservado tenha terminado.",
+  appointment_interval_conflict:
+    "Outro agendamento ocupa esse intervalo. A situação não foi alterada; confira a agenda.",
+  appointment_command_pending:
+    "A alteração ainda precisa ser confirmada. Recupere a tentativa original.",
+  appointment_status_unavailable:
+    "Não foi possível confirmar a alteração. Confira o atendimento e recupere a tentativa original.",
+  invalid_product: "Revise o nome, a descrição e o preço positivo do produto.",
+  invalid_stock_movement: "Informe quantidade inteira, motivo e movimentação válidos.",
+  product_not_found: "Produto não encontrado nesta barbearia. Atualize o catálogo.",
+  product_version_conflict:
+    "O produto ou estoque mudou. Atualize a lista antes de editar novamente.",
+  product_command_pending:
+    "A movimentação ainda precisa ser confirmada. Recupere a tentativa original.",
+  invalid_sale: "Revise os produtos, as quantidades e os dados da anulação.",
+  sale_price_changed:
+    "O preço ou cadastro de um produto mudou. Atualize os produtos e revise a venda antes de confirmar.",
+  sale_product_unavailable:
+    "Um produto não está mais disponível. Atualize o catálogo e revise a seleção.",
+  insufficient_stock:
+    "O estoque é insuficiente para esta operação. Nenhuma venda ou retirada parcial foi registrada.",
+  sale_appointment_unavailable:
+    "Este atendimento não pode receber a venda. Confira o profissional e a situação do agendamento.",
+  sale_not_found: "Venda não encontrada no seu acesso a esta barbearia.",
+  sale_version_changed: "A venda mudou. Consulte seus detalhes novamente antes de anular.",
+  sale_already_cancelled:
+    "A venda já foi anulada com outra decisão de estoque ou motivo. Atualize os detalhes.",
+  stock_limit_exceeded: "A devolução ultrapassa o limite de estoque. A operação não foi salva.",
+  sale_command_pending: "A confirmação desta venda está pendente. Recupere a tentativa original.",
+  invalid_sales_query:
+    "Confira as datas, os filtros e o período de até um ano. Atualize a lista para reiniciar a paginação.",
+  sale_unavailable:
+    "Não foi possível confirmar a operação. Confira as vendas e recupere a tentativa original se o resultado for incerto.",
+  product_unavailable:
+    "Não foi possível confirmar a operação de estoque. Confira o histórico e recupere a tentativa original.",
+  billing_not_configured:
+    "A assinatura de teste ainda não está habilitada. Confira STRIPE_SECRET_KEY, STRIPE_MONTHLY_PRICE_ID e STRIPE_WEBHOOK_SECRET no backend.",
+  billing_not_required:
+    "Esta barbearia mantém o acesso anterior. Não abra uma assinatura para ela sem orientação do responsável pela plataforma.",
+  subscription_exists:
+    "Já existe uma assinatura para esta barbearia. Confira a situação atual; não abra outra cobrança.",
+  checkout_offer_changed:
+    "As condições mudaram. Consulte e revise o plano novamente antes de continuar.",
+  checkout_confirmation_pending:
+    "O Checkout já foi concluído e aguarda confirmação financeira. Confira a assinatura, sem abrir outra tentativa.",
+  checkout_requires_review:
+    "A tentativa precisa de conferência pelo responsável pela plataforma. Não crie outra assinatura por fora.",
+  checkout_expired:
+    "A Stripe confirmou que o Checkout expirou. Consulte as condições; uma nova tentativa exige sua confirmação.",
+  checkout_unavailable:
+    "Não foi possível confirmar o Checkout. Consulte as condições novamente para recuperar a mesma tentativa.",
+  portal_not_configured:
+    "O portal de teste ainda não foi configurado pelo responsável pela plataforma.",
+  portal_not_available:
+    "A assinatura ainda não está disponível para gerenciamento. Atualize a situação; se o pagamento já foi feito, aguarde a confirmação.",
+  portal_unavailable:
+    "Não foi possível abrir o portal. Nenhuma alteração da assinatura foi solicitada por esta ação. Você pode preparar um novo acesso.",
   shop_not_found: "Barbearia não encontrada ou inativa. Volte à seleção de barbearias.",
   invalid_body: "A API rejeitou o formato do cadastro. Revise os campos.",
   unsupported_media_type: "A API exige o corpo da requisição em JSON.",
@@ -32,6 +95,24 @@ const messages: Record<string, string> = {
     "Acesso não liberado. Confira com o responsável o cadastro do seu usuário e o vínculo ativo com a barbearia.",
   origin_not_allowed:
     "A origem do frontend não está autorizada no backend. Confira FRONTEND_ORIGIN.",
+  invalid_shop_registration:
+    "Confira seu nome, o nome da barbearia, o endereço do link e o fuso horário.",
+  invalid_shop_address:
+    "Informe o endereço completo: CEP, rua, número (ou S/N), bairro, cidade e estado.",
+  invalid_shop_settings:
+    "Confira o nome, o telefone brasileiro com DDD e a descrição de até 1000 caracteres.",
+  shop_settings_conflict:
+    "As configurações mudaram desde que você abriu esta tela. Confira a versão atual antes de salvar novamente.",
+  shop_slug_taken: "Esse endereço de link já está em uso. Escolha outro para sua barbearia.",
+  email_confirmation_required: "Confirme seu e-mail antes de cadastrar a barbearia.",
+  registration_not_configured:
+    "O cadastro ainda não está habilitado na API. Confira SUPABASE_PUBLISHABLE_KEY no backend.",
+  publication_blocked:
+    "A barbearia ainda não pode ser publicada. Confira a situação atual e complete as pendências.",
+  publication_not_managed:
+    "A publicação desta barbearia é gerenciada pelo responsável pela plataforma.",
+  shop_subscription_required:
+    "A assinatura precisa ser regularizada para criar novos agendamentos ou vendas. O proprietário gerencia a assinatura em Configurações.",
   booking_option_not_found:
     "Este serviço ou profissional não está mais disponível. Escolha novamente.",
   appointment_not_found:
@@ -54,7 +135,7 @@ const messages: Record<string, string> = {
   invalid_appointment: "Confira o horário e os dados da reserva. O início precisa estar no futuro.",
   slot_unavailable: "Esse horário não está mais disponível. Atualize os horários e escolha outro.",
   idempotency_conflict:
-    "Esta tentativa já foi usada com outros dados. Consulte a reserva antes de recomeçar.",
+    "Esta tentativa já foi usada com outros dados. Confira o histórico antes de iniciar outra operação.",
   idempotency_expired:
     "A tentativa expirou. Consulte pelo código ou contate a barbearia antes de fazer outra reserva.",
   cancellation_closed:
@@ -87,11 +168,13 @@ function abortable<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
 export async function requestJSON(
   path: string,
   options: {
-    method?: "GET" | "POST";
+    method?: "GET" | "POST" | "PUT";
     body?: unknown;
     signal?: AbortSignal;
     authenticated?: boolean;
     idempotencyKey?: string;
+    expectedUserID?: string;
+    expectedNoContent?: boolean;
   } = {},
 ): Promise<unknown> {
   const method = options.method ?? "GET";
@@ -120,7 +203,7 @@ export async function requestJSON(
           (async () => {
             const auth = await import("../supabase/auth");
             signal.throwIfAborted();
-            return auth.currentAccessToken();
+            return auth.currentAccessToken(options.expectedUserID);
           })(),
           signal,
         );
@@ -144,6 +227,15 @@ export async function requestJSON(
       credentials: "omit",
       headers: Object.keys(headers).length ? headers : undefined,
     });
+    if (response.ok && options.expectedNoContent) {
+      if (response.status !== 204)
+        throw new ApiError(
+          "invalid_response",
+          "A API não confirmou a atualização no formato esperado.",
+          response.status,
+        );
+      return undefined;
+    }
     let payload: unknown;
     try {
       payload = await response.json();
@@ -174,7 +266,7 @@ export async function requestJSON(
     throw new ApiError(
       timeout.signal.aborted ? "timeout" : "network_error",
       reason +
-        (method === "POST"
+        (method !== "GET"
           ? options.idempotencyKey
             ? " O resultado é incerto. Use Repetir confirmação para recuperar a mesma tentativa."
             : " O resultado do envio é incerto: consulte o estado antes de iniciar outra operação."

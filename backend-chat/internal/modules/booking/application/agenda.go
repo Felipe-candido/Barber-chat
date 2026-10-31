@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"github.com/Felipe-candido/Barber-chat/internal/modules/booking/domain"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,6 +33,11 @@ type AdminAppointment struct {
 	Appointment   AppointmentReceipt
 	CustomerName  string
 	CustomerPhone string
+	Version       int64
+	StatusSource  domain.StatusSource
+	StatusReason  string
+	StatusActorID uuid.UUID
+	UpdatedAt     time.Time
 }
 
 type AgendaOutput struct {

@@ -119,10 +119,24 @@ func TestAdminAgendaReadsPublicBookingAndIsolatesTenants(t *testing.T) {
 		t.Fatal("cancellation missing from agenda", w.Body.String())
 	}
 	// Equal timestamps exercise the UUID tie-breaker across page boundaries.
-	if _, err := f.pool.Exec(f.ctx, `INSERT INTO appointments
+	tx, err := f.pool.Begin(f.ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(f.ctx)
+	for i := 0; i < 100; i++ {
+		clone := uuid.New()
+		if _, err := tx.Exec(f.ctx, `INSERT INTO appointments
 		(id,shop_id,customer_id,service_id,professional_id,service_name,duration_minutes,price_cents,currency,professional_name,shop_timezone,starts_at,ends_at,status,version,created_at,updated_at,code_hash)
-		SELECT gen_random_uuid(),shop_id,customer_id,service_id,professional_id,service_name,duration_minutes,price_cents,currency,professional_name,shop_timezone,starts_at,ends_at,'cancelled',1,created_at,updated_at,decode(md5(gen_random_uuid()::text)||md5(gen_random_uuid()::text),'hex')
-		FROM appointments CROSS JOIN generate_series(1,100) WHERE id=$1`, created.Appointment.ID); err != nil {
+		SELECT $2,shop_id,customer_id,service_id,professional_id,service_name,duration_minutes,price_cents,currency,professional_name,shop_timezone,starts_at,ends_at,'scheduled',1,created_at,created_at,decode(md5(gen_random_uuid()::text)||md5(gen_random_uuid()::text),'hex')
+		FROM appointments WHERE id=$1`, created.Appointment.ID, clone); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tx.Exec(f.ctx, `UPDATE appointments SET status='cancelled',version=2,status_source='public',status_reason='Pagination fixture',updated_at=clock_timestamp() WHERE id=$1`, clone); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := tx.Commit(f.ctx); err != nil {
 		t.Fatal(err)
 	}
 	w = request(f.slug, query, true)

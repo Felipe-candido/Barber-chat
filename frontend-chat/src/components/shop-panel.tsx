@@ -11,6 +11,9 @@ import {
   type StaffIdentity,
 } from "@/lib/api/identity";
 import { errorMessage } from "@/lib/api/client";
+import { AccessPage } from "./ui/access-page";
+import { Button, buttonClasses } from "./ui";
+import styles from "./ui/access-page.module.css";
 
 const SelectedShopContext = createContext<AccessibleShop | null>(null);
 const ShopAccessContext = createContext<ShopAccess | null>(null);
@@ -21,17 +24,15 @@ export function ShopPanel({ slug, children }: { slug: string; children: React.Re
   const shop = state.shops.find((item) => item.slug === slug);
   if (!shop) {
     return (
-      <main className="access-screen">
-        <section className="api-error" role="alert">
-          <h1>Barbearia não disponível para sua conta</h1>
-          <p>
-            Escolha uma unidade vinculada ao seu usuário. Um slug digitado na URL não libera acesso.
-          </p>
-          <Link href="/admin" className="button button-primary">
-            Escolher barbearia
-          </Link>
-        </section>
-      </main>
+      <AccessPage title="Barbearia não disponível para sua conta" error>
+        <p className={styles.text}>
+          Escolha uma unidade vinculada ao seu usuário. O endereço informado não libera acesso a
+          outra barbearia.
+        </p>
+        <Link href="/admin" className={buttonClasses()}>
+          Escolher barbearia
+        </Link>
+      </AccessPage>
     );
   }
   return (
@@ -72,22 +73,26 @@ function AuthorizedPanel({
   }, [shop.slug, revision]);
   if (!access)
     return (
-      <main className="access-screen">
-        <section className="api-error">
-          {error ? (
-            <>
-              <h1>Não foi possível verificar seu acesso</h1>
-              <p role="alert">{error}</p>
-              <button className="button button-secondary" onClick={() => setRevision((v) => v + 1)}>
-                Verificar novamente
-              </button>
-              <Link href="/admin">Escolher barbearia</Link>
-            </>
-          ) : (
-            <p role="status">Verificando seu perfil na barbearia…</p>
-          )}
-        </section>
-      </main>
+      <AccessPage
+        title={error ? "Não foi possível verificar seu acesso" : "Verificando sua barbearia"}
+        error={!!error}
+      >
+        {error ? (
+          <>
+            <p className={styles.text}>{error}</p>
+            <Button variant="primary" onClick={() => setRevision((v) => v + 1)}>
+              Verificar novamente
+            </Button>
+            <Link href="/admin" className={buttonClasses("secondary")}>
+              Escolher barbearia
+            </Link>
+          </>
+        ) : (
+          <p role="status" className={styles.loading}>
+            Verificando seu perfil na barbearia…
+          </p>
+        )}
+      </AccessPage>
     );
   return (
     <SelectedShopContext.Provider value={shop}>

@@ -84,8 +84,12 @@ test("lists API data, creates with the real payload and reloads the list", async
   await page.reload();
   await expect(page.getByRole("heading", { name: "Corte novo", exact: true })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("palma-barbearia-demo-v1"))).toBeNull();
-  await expect(page.getByRole("button", { name: "Editar serviço" }).first()).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Excluir Corte novo" })).toBeDisabled();
+  // Unsupported API actions are explained, not presented as unusable controls.
+  await expect(page.getByRole("button", { name: "Editar serviço" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Excluir Corte novo" })).toHaveCount(0);
+  await expect(
+    page.getByText("Edição e exclusão ainda não estão disponíveis.", { exact: false }),
+  ).toBeVisible();
 });
 test("empty and failed lists never restore legacy demonstration data", async ({ page }) => {
   await installSupabaseSession(page);
@@ -219,6 +223,8 @@ test("pending requests disable duplicate submissions; a failed refresh keeps cre
 test("agenda and responsive screens display a real empty API result without mock appointments", async ({
   page,
 }) => {
+  // Five navigations and screenshots need a larger total budget on slower machines.
+  test.setTimeout(120000);
   await installSupabaseSession(page);
   await intercept(page, () => ({ json: [sample] }));
   await page.setViewportSize({ width: 390, height: 844 });
@@ -229,7 +235,15 @@ test("agenda and responsive screens display a real empty API result without mock
     "/b/barbearia-do-felipe",
   ]) {
     await page.goto(path);
-    await page.getByRole("heading").first().waitFor();
+    const title =
+      path === "/admin"
+        ? "Escolha sua barbearia"
+        : path.endsWith("/servicos")
+          ? "Serviços"
+          : path.startsWith("/b/")
+            ? "Reserve seu horário"
+            : "Agenda";
+    await expect(page.getByRole("heading", { name: title, exact: true })).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
     ).toBeTruthy();

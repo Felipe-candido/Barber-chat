@@ -1,0 +1,111 @@
+# Contract fragment referenced by openapi.yaml.
+paths:
+  settings:
+    parameters:
+      - in: path
+        name: slug
+        required: true
+        schema: {type: string, minLength: 1, maxLength: 100}
+    get:
+      operationId: getShopSettings
+      summary: Owner reads the shop's basic configuration
+      description: Requires current active owner access. Legacy shops without an address return address null. No subscription is needed to configure the shop. Responses are never cached.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Current settings and optimistic-lock version
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ShopSettings'}
+        '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+        '404': {description: Active shop not found}
+        '503': {$ref: './openapi.yaml#/components/responses/Unavailable'}
+    put:
+      operationId: updateShopSettings
+      summary: Owner replaces the shop's basic information and address atomically
+      description: >-
+        Send the version returned by GET. Name, phone, description and address are
+        a complete replacement. Empty phone/description clear those fields.
+        Address is always required, including legacy shops. Slug, timezone, IDs,
+        role, publication and financial state cannot be changed here. User and
+        owner membership are rechecked and locked inside the transaction.
+        Success increments version. A stale or repeated version returns 409;
+        reload and review instead of overwriting automatically. After a network
+        or 503 failure, read current settings before deciding whether to save.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version, name, phone, description, address]
+              properties:
+                version: {type: integer, minimum: 1, maximum: 9007199254740990}
+                name: {type: string, minLength: 1, maxLength: 150}
+                phone:
+                  type: string
+                  maxLength: 40
+                  description: Optional Brazilian business phone. Empty string clears it. Accepts local format with DDD or +55 and normalizes to E.164; rejects extensions and other countries.
+                description:
+                  type: string
+                  maxLength: 1000
+                  description: Plain text; line breaks allowed, no HTML interpretation.
+                address: {$ref: '#/components/schemas/ShopAddress'}
+      responses:
+        '200':
+          description: Shop and address committed together; includes new version
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ShopSettings'}
+        '400': {description: Invalid JSON, unknown fields, null body or trailing JSON}
+        '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+        '404': {description: Active shop not found}
+        '409': {description: shop_settings_conflict; reload current settings and review changes}
+        '413': {description: Request body exceeds 8 KiB}
+        '415': {description: Content-Type must be application/json}
+        '422': {description: invalid_shop_settings or invalid_shop_address; no changes saved}
+        '503': {description: Dependency or commit unavailable; outcome may be uncertain, read current settings before retrying}
+    options:
+      summary: Unauthenticated preflight allowing GET and PUT
+      responses:
+        '204': {$ref: './openapi.yaml#/components/responses/Preflight'}
+        '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}
+  schemas:
+    ShopSettings:
+      type: object
+      required: [shop_id, name, slug, timezone, phone, description, address, version]
+      properties:
+        shop_id: {type: string, format: uuid, readOnly: true}
+        name: {type: string}
+        slug: {type: string, readOnly: true}
+        timezone: {type: string, readOnly: true}
+        phone: {type: string}
+        description: {type: string}
+        address:
+          oneOf:
+            - {$ref: '#/components/schemas/ShopAddress'}
+            - {type: 'null'}
+        version: {type: integer, minimum: 1, maximum: 9007199254740991}
+    ShopAddress:
+      type: object
+      additionalProperties: false
+      required: [postal_code, street, number, district, city, state]
+      properties:
+        postal_code:
+          type: string
+          description: Eight digits; hyphens are removed during normalization.
+        street: {type: string, minLength: 1, maxLength: 150}
+        number: {type: string, minLength: 1, maxLength: 20, description: Use S/N for an unnumbered property}
+        complement: {type: string, maxLength: 100, default: ''}
+        district: {type: string, minLength: 1, maxLength: 100}
+        city: {type: string, minLength: 1, maxLength: 100}
+        state:
+          type: string
+          description: Brazilian state abbreviation, trimmed and uppercased before validation.

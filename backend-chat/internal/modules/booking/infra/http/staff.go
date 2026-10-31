@@ -12,6 +12,41 @@ import (
 	"github.com/google/uuid"
 )
 
+func (h *Handler) ListProfessionalsForStaff(w http.ResponseWriter, r *http.Request) {
+	h.guard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		scope, ok := staffBookingAuthority(r)
+		if !ok {
+			response.Error(w, 403, "access_denied", "staff shop access is required")
+			return
+		}
+		h.professionalsWithScope(w, r, &scope)
+	})).ServeHTTP(w, r)
+}
+
+func (h *Handler) ListAvailabilityForStaff(w http.ResponseWriter, r *http.Request) {
+	h.guard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		scope, ok := staffBookingAuthority(r)
+		if !ok {
+			response.Error(w, 403, "access_denied", "staff shop access is required")
+			return
+		}
+		h.availabilityWithScope(w, r, &scope)
+	})).ServeHTTP(w, r)
+}
+
+func staffBookingAuthority(r *http.Request) (application.StaffBookingScope, bool) {
+	actor, authenticated := requestctx.StaffIdentityFromContext(r.Context())
+	scope, authorized := requestctx.ShopScopeFromContext(r.Context())
+	if !authenticated || !authorized || actor.UserID == uuid.Nil || scope.UserID != actor.UserID || scope.ShopID == uuid.Nil || !scope.Role.Valid() || (scope.Role == identity.RoleBarber && scope.ProfessionalID == uuid.Nil) {
+		return application.StaffBookingScope{}, false
+	}
+	allowed := uuid.Nil
+	if scope.Role == identity.RoleBarber {
+		allowed = scope.ProfessionalID
+	}
+	return application.StaffBookingScope{UserID: actor.UserID, ShopID: scope.ShopID, ProfessionalID: allowed}, true
+}
+
 func (h *Handler) CreateForStaff(w http.ResponseWriter, r *http.Request) {
 	h.guard(http.HandlerFunc(h.createForStaff)).ServeHTTP(w, r)
 }
@@ -48,6 +83,12 @@ func (h *Handler) createForStaff(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, application.ErrStaffBookingAccessDenied) {
 			response.Error(w, 403, "access_denied", "professional booking access is required")
+		} else if errors.Is(err, application.ErrBookingSubscriptionRequired) {
+			if scope.Role == identity.RoleOwner {
+				response.Error(w, http.StatusPaymentRequired, "shop_subscription_required", "an active shop subscription is required; manage billing in shop settings")
+			} else {
+				response.Error(w, http.StatusForbidden, "shop_subscription_required", "contact the shop owner to enable new appointments")
+			}
 		} else {
 			h.failure(w, err, "staff_create")
 		}

@@ -6,6 +6,20 @@ SELECT
 FROM public.users
 WHERE id = $1;
 
+-- name: LockShopSettingsOwner :one
+-- Do not lock shops here: the settings CAS obtains its own write lock. Shared
+-- shop locks followed by upgrades would deadlock simultaneous settings writes.
+SELECT m.user_id FROM public.shop_memberships m
+JOIN public.users u ON u.id = m.user_id
+WHERE m.user_id = $1 AND m.shop_id = $2 AND m.active = TRUE AND u.active = TRUE AND m.role = 'owner'
+FOR SHARE OF m, u;
+
+
+-- name: LockBillingOwner :one
+SELECT m.user_id FROM public.shop_memberships m
+JOIN public.users u ON u.id = m.user_id
+WHERE m.user_id = $1 AND m.shop_id = $2 AND m.active = TRUE AND u.active = TRUE AND m.role = 'owner'
+FOR SHARE OF m, u;
 
 -- name: GetMembership :one
 SELECT

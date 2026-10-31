@@ -1,20 +1,24 @@
 import Link from "next/link";
+import { AccessPage } from "@/components/ui/access-page";
+import { buttonClasses } from "@/components/ui/button";
+import styles from "@/components/ui/access-page.module.css";
 export default function Page() {
   return (
-    <main className="access-screen">
-      <section className="api-error">
-        <h1>Abra o link da sua barbearia</h1>
-        <p>
-          Peça à barbearia o endereço do catálogo, no formato /b/slug-da-barbearia. Este endereço
-          genérico não seleciona uma unidade.
-        </p>
-        <p>
-          Os serviços já podem ser consultados; o agendamento de horários ainda não está disponível.
-        </p>
-        <Link className="button button-secondary" href="/login">
-          Acesso da equipe
-        </Link>
-      </section>
-    </main>
+    <AccessPage
+      title="Abra o link da sua barbearia"
+      description="Cada barbearia tem seu próprio link de agendamento."
+    >
+      <p className={styles.text}>
+        Peça à barbearia o endereço do catálogo, no formato /b/slug-da-barbearia. Este endereço
+        genérico não seleciona uma unidade.
+      </p>
+      <p className={styles.text}>
+        No link da unidade, você pode escolher um serviço e reservar um horário. Se já agendou, use
+        seu código para consultar ou cancelar a reserva.
+      </p>
+      <Link className={buttonClasses("secondary")} href="/login">
+        Acesso da equipe
+      </Link>
+    </AccessPage>
   );
 }

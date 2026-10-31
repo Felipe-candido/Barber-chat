@@ -1,0 +1,268 @@
+.layout {
+  min-height: 100dvh;
+  background: var(--color-background);
+}
+.skipLink {
+  position: fixed;
+  left: var(--space-4);
+  top: var(--space-4);
+  z-index: 110;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface);
+  color: var(--color-action);
+  border-radius: var(--radius-control);
+  transform: translateY(-200%);
+}
+.skipLink:focus {
+  transform: none;
+}
+.desktopSidebar {
+  display: none;
+}
+.workspace {
+  min-width: 0;
+}
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 80px;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+.location {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.location > div {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.location strong {
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+.location span {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+}
+.account {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-shrink: 0;
+}
+.role {
+  display: none;
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+.menuButton {
+  flex-shrink: 0;
+}
+.main {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+  padding: var(--space-8) var(--space-4);
+  min-width: 0;
+  outline: none;
+}
+.footer {
+  width: min(100%, 1440px);
+  margin-inline: auto;
+  padding: var(--space-4);
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+}
+.brandLink {
+  display: inline-flex;
+  align-self: flex-start;
+  margin-bottom: var(--space-8);
+}
+.unit {
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+  display: grid;
+  gap: var(--space-2);
+}
+.unit > span {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+}
+.unit strong {
+  font-size: var(--text-body);
+  line-height: var(--line-body);
+  font-weight: var(--weight-semibold);
+  overflow-wrap: anywhere;
+}
+.unit a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+.unit a:hover {
+  color: var(--color-action);
+}
+.navigation {
+  display: grid;
+  gap: var(--space-1);
+  margin-block: var(--space-6);
+}
+.navItem {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-height);
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-control);
+  border-left: 3px solid transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+}
+.navItem:hover {
+  color: var(--color-text);
+  background: var(--color-surface-subtle);
+}
+.navItem[aria-current="page"] {
+  border-left-color: var(--color-action);
+  background: var(--color-info-surface);
+  color: var(--color-info-text);
+  font-weight: var(--weight-semibold);
+}
+.bookingLink {
+  display: grid;
+  gap: var(--space-3);
+  padding-block: var(--space-6);
+  border-top: 1px solid var(--color-border);
+}
+.bookingLink h2 {
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
+}
+.bookingLink p {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  line-height: var(--line-body);
+}
+.bookingLink a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  font-size: var(--text-small);
+  color: var(--color-action);
+}
+.bookingLink button {
+  width: 100%;
+}
+.profile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-6);
+  margin-top: auto;
+  border-top: 1px solid var(--color-border);
+}
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: var(--space-10);
+  height: var(--space-10);
+  border-radius: 50%;
+  background: var(--color-surface-subtle);
+  font-weight: var(--weight-semibold);
+  font-size: var(--text-small);
+}
+.profile > div {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  font-size: var(--text-small);
+  overflow-wrap: anywhere;
+}
+.profile strong {
+  font-weight: var(--weight-medium);
+}
+.profile div span {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+}
+.drawer {
+  position: fixed;
+  inset: 0 auto 0 0;
+  margin: 0;
+  padding: var(--space-4);
+  width: min(340px, calc(100% - 24px));
+  max-width: none;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow: auto;
+  border: 0;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.drawer::backdrop {
+  background: var(--color-overlay);
+}
+.drawerHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+.drawerHeading h2 {
+  font-size: var(--text-small);
+  font-weight: var(--weight-medium);
+}
+.drawerContent {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100dvh - 108px);
+}
+@media (min-width: 600px) {
+  .topbar,
+  .main,
+  .footer {
+    padding-inline: var(--space-8);
+  }
+  .role {
+    display: block;
+  }
+}
+@media (min-width: 1024px) {
+  .desktopSidebar {
+    display: flex;
+    flex-direction: column;
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: 248px;
+    padding: var(--space-8) var(--space-5) var(--space-6);
+    overflow-y: auto;
+    background: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+  }
+  .workspace {
+    margin-left: 248px;
+  }
+  .topbar .menuButton {
+    display: none;
+  }
+}

@@ -33,6 +33,8 @@ func (r *Repository) ListAgendaAppointments(ctx context.Context, query applicati
 				ProfessionalID: row.ProfessionalID, ProfessionalName: row.ProfessionalName,
 				StartsAt: row.StartsAt.Time.UTC(), EndsAt: row.EndsAt.Time.UTC(), ShopTimezone: row.ShopTimezone,
 			}, CustomerName: row.CustomerName, CustomerPhone: row.PhoneE164,
+			Version: row.Version, StatusSource: domain.StatusSource(row.StatusSource), StatusReason: row.StatusReason,
+			UpdatedAt: row.UpdatedAt.Time.UTC(), StatusActorID: uuid.UUID(row.StatusActorID.Bytes),
 		})
 	}
 	return items, nil

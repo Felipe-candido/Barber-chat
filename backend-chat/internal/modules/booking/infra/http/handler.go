@@ -38,7 +38,7 @@ func NewHandler(create *application.CreateAppointment, availability *application
 	return &Handler{create: create, availability: availability, professionals: professionals, manage: manage, timeout: timeout, logger: logger, limiter: newRequestLimiter()}
 }
 
-func (h *Handler) Register(router chi.Router) {
+func (h *Handler) Register(router chi.Router, publicGates ...func(http.Handler) http.Handler) {
 	base := "/api/v1/public/shops/{slug}"
 	for _, route := range []struct {
 		path, method string
@@ -49,7 +49,11 @@ func (h *Handler) Register(router chi.Router) {
 		{"/appointments/cancel", http.MethodPost, h.cancelAppointment},
 	} {
 		router.Options(base+route.path, access.Preflight(route.method))
-		router.With(h.guard).MethodFunc(route.method, base+route.path, route.handler)
+		gates := []func(http.Handler) http.Handler{h.guard}
+		if route.path == "/professionals" || route.path == "/availability" {
+			gates = append(gates, publicGates...)
+		}
+		router.With(gates...).MethodFunc(route.method, base+route.path, route.handler)
 	}
 }
 
@@ -94,12 +98,21 @@ type detailsResponse struct {
 }
 
 func (h *Handler) listProfessionals(w http.ResponseWriter, r *http.Request) {
+	h.professionalsWithScope(w, r, nil)
+}
+
+func (h *Handler) professionalsWithScope(w http.ResponseWriter, r *http.Request, staff *application.StaffBookingScope) {
 	id, err := uuid.Parse(r.URL.Query().Get("service_id"))
 	if err != nil {
 		h.failure(w, application.ErrInvalidAvailability, "professionals")
 		return
 	}
-	result, err := h.professionals.Execute(r.Context(), chi.URLParam(r, "slug"), id)
+	var result application.ProfessionalsOutput
+	if staff == nil {
+		result, err = h.professionals.Execute(r.Context(), chi.URLParam(r, "slug"), id)
+	} else {
+		result, err = h.professionals.ExecuteForStaff(r.Context(), chi.URLParam(r, "slug"), id, *staff)
+	}
 	if err != nil {
 		h.failure(w, err, "professionals")
 		return
@@ -122,6 +135,10 @@ func (h *Handler) listProfessionals(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listAvailability(w http.ResponseWriter, r *http.Request) {
+	h.availabilityWithScope(w, r, nil)
+}
+
+func (h *Handler) availabilityWithScope(w http.ResponseWriter, r *http.Request, staff *application.StaffBookingScope) {
 	serviceID, err := uuid.Parse(r.URL.Query().Get("service_id"))
 	if err != nil {
 		h.failure(w, application.ErrInvalidAvailability, "availability")
@@ -132,7 +149,13 @@ func (h *Handler) listAvailability(w http.ResponseWriter, r *http.Request) {
 		h.failure(w, application.ErrInvalidAvailability, "availability")
 		return
 	}
-	result, err := h.availability.Execute(r.Context(), application.ListAvailabilityInput{ShopSlug: chi.URLParam(r, "slug"), ServiceID: serviceID, ProfessionalID: professionalID, LocalDate: r.URL.Query().Get("date")})
+	input := application.ListAvailabilityInput{ShopSlug: chi.URLParam(r, "slug"), ServiceID: serviceID, ProfessionalID: professionalID, LocalDate: r.URL.Query().Get("date")}
+	var result application.AvailabilityOutput
+	if staff == nil {
+		result, err = h.availability.Execute(r.Context(), input)
+	} else {
+		result, err = h.availability.ExecuteForStaff(r.Context(), input, *staff)
+	}
 	if err != nil {
 		h.failure(w, err, "availability")
 		return
@@ -266,6 +289,8 @@ func decode(w http.ResponseWriter, r *http.Request, target any) bool {
 func (h *Handler) failure(w http.ResponseWriter, err error, operation string) {
 	status, code, message := 500, "internal_error", "could not complete booking operation"
 	switch {
+	case errors.Is(err, application.ErrStaffBookingAccessDenied):
+		response.Error(w, 403, "access_denied", "staff booking access is required")
 	case errors.Is(err, application.ErrShopNotFound):
 		status, code, message = 404, "shop_not_found", "active shop not found"
 	case errors.Is(err, application.ErrBookingOptionNotFound):
@@ -286,7 +311,7 @@ func (h *Handler) failure(w http.ResponseWriter, err error, operation string) {
 		status, code, message = 409, "idempotency_expired", "request key expired; check the original appointment"
 	case errors.Is(err, domain.ErrCancellationClosed):
 		status, code, message = 409, "cancellation_closed", "appointment can no longer be cancelled"
-	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, application.ErrBookingEligibilityUnavailable), errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 		status, code, message = 503, "temporarily_unavailable", "booking request could not be completed"
 	default:
 		h.logger.Error("booking operation failed", "operation", operation)

@@ -10,29 +10,43 @@ import (
 	"time"
 
 	accessmiddleware "github.com/Felipe-candido/Barber-chat/internal/httpapi/middleware"
+	billinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/billing/infra/http"
 	bookinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/http"
 	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
 	identityapp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/application"
 	identityhttp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/http"
+	saleshttp "github.com/Felipe-candido/Barber-chat/internal/modules/sales/infra/http"
+	shopshttp "github.com/Felipe-candido/Barber-chat/internal/modules/shops/infra/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 )
 
 type HandlerConfig struct {
-	CheckDB        func(context.Context) error
-	Catalog        *cataloghttp.Handler
-	Professionals  *cataloghttp.ProfessionalHandler
-	Booking        *bookinghttp.Handler
-	Agenda         *bookinghttp.AgendaHandler
-	Accounts       *identityhttp.AccountHandler
-	Authenticate   *identityapp.Authenticate
-	AuthorizeShop  *identityapp.AuthorizeShopAction
-	ListMyShops    *identityapp.ListMyShops
-	RequestTimeout time.Duration
-	DBTimeout      time.Duration
-	Logger         *slog.Logger
-	FrontendOrigin string
+	CheckDB              func(context.Context) error
+	Catalog              *cataloghttp.Handler
+	Products             *cataloghttp.ProductHandler
+	Sales                *saleshttp.Handler
+	Professionals        *cataloghttp.ProfessionalHandler
+	Booking              *bookinghttp.Handler
+	Agenda               *bookinghttp.AgendaHandler
+	AppointmentLifecycle *bookinghttp.LifecycleHandler
+	Accounts             *identityhttp.AccountHandler
+	Authenticate         *identityapp.Authenticate
+	AuthorizeShop        *identityapp.AuthorizeShopAction
+	ListMyShops          *identityapp.ListMyShops
+	Registration         *shopshttp.RegistrationHandler
+	ShopSettings         *shopshttp.SettingsHandler
+	ShopPublication      *shopshttp.PublicationHandler
+	Checkout             *billinghttp.CheckoutHandler
+	Portal               *billinghttp.PortalHandler
+	StripeWebhook        *billinghttp.WebhookHandler
+	VerifyRegistration   *identityapp.VerifyRegistrationAccount
+	PublicShopGate       func(http.Handler) http.Handler
+	RequestTimeout       time.Duration
+	DBTimeout            time.Duration
+	Logger               *slog.Logger
+	FrontendOrigin       string
 }
 
 func NewHandler(cfg HandlerConfig) http.Handler {
@@ -50,6 +64,9 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	router.Use(middleware.Recoverer)
 	router.Use(accessmiddleware.CORS(cfg.FrontendOrigin))
 	router.Use(accessmiddleware.RequestTimeout(cfg.RequestTimeout))
+	if cfg.StripeWebhook != nil {
+		router.Post("/api/v1/webhooks/stripe", cfg.StripeWebhook.Receive)
+	}
 	router.Get("/health", func(w http.ResponseWriter, r *http.Request) {
 		writeStatus(w, http.StatusOK, "ok")
 	})
@@ -68,11 +85,67 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	authenticate := accessmiddleware.Authentication(cfg.Authenticate, cfg.Logger)
 	router.With(authenticate).Get("/api/v1/admin/me", identityhttp.Me)
 	router.With(authenticate).Get("/api/v1/admin/shops", identityhttp.ListShops(cfg.ListMyShops, cfg.DBTimeout, cfg.Logger))
+	if cfg.Registration != nil {
+		router.Options("/api/v1/onboarding/shops", accessmiddleware.Preflight(http.MethodPost))
+		router.With(accessmiddleware.RegistrationAuthentication(cfg.VerifyRegistration, cfg.Logger)).Post("/api/v1/onboarding/shops", cfg.Registration.Create)
+	}
+	publicGates := []func(http.Handler) http.Handler{}
+	if cfg.PublicShopGate != nil {
+		publicGates = append(publicGates, cfg.PublicShopGate)
+	}
 	shopAccess := accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)
+	if cfg.Sales != nil {
+		base := "/api/v1/admin/shops/{slug}/sales"
+		router.Options(base, accessmiddleware.Preflight(http.MethodGet, http.MethodPost))
+		router.With(authenticate, shopAccess).Post(base, cfg.Sales.Register)
+		router.With(authenticate, shopAccess).Get(base, cfg.Sales.List)
+		router.Options(base+"/{saleID}", accessmiddleware.Preflight(http.MethodGet))
+		router.With(authenticate, shopAccess).Get(base+"/{saleID}", cfg.Sales.Get)
+		router.Options(base+"/{saleID}/cancel", accessmiddleware.Preflight(http.MethodPost))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base+"/{saleID}/cancel", cfg.Sales.Cancel)
+	}
+	if cfg.Products != nil {
+		base := "/api/v1/admin/shops/{slug}/products"
+		router.Options(base, accessmiddleware.Preflight(http.MethodGet, http.MethodPost))
+		router.With(authenticate, shopAccess).Get(base, cfg.Products.List)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base, cfg.Products.Create)
+		router.Options(base+"/{productID}", accessmiddleware.Preflight(http.MethodPut))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Put(base+"/{productID}", cfg.Products.Update)
+		router.Options(base+"/{productID}/stock-minimum", accessmiddleware.Preflight(http.MethodPut))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Put(base+"/{productID}/stock-minimum", cfg.Products.SetMinimum)
+		router.Options(base+"/{productID}/stock-movements", accessmiddleware.Preflight(http.MethodGet, http.MethodPost))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Get(base+"/{productID}/stock-movements", cfg.Products.Movements)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base+"/{productID}/stock-movements", cfg.Products.RecordStock)
+	}
 	router.Options("/api/v1/admin/shops/{slug}/access", accessmiddleware.Preflight(http.MethodGet))
 	router.With(authenticate, shopAccess).Get("/api/v1/admin/shops/{slug}/access", identityhttp.Access)
+	if cfg.ShopSettings != nil {
+		base := "/api/v1/admin/shops/{slug}/settings"
+		router.Options(base, accessmiddleware.Preflight(http.MethodGet, http.MethodPut))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Get(base, cfg.ShopSettings.Get)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Put(base, cfg.ShopSettings.Update)
+	}
+	if cfg.Checkout != nil {
+		base := "/api/v1/admin/shops/{slug}/billing/checkout"
+		router.Options(base, accessmiddleware.Preflight(http.MethodPost))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base, cfg.Checkout.Start)
+		router.Options("/api/v1/admin/shops/{slug}/billing/offer", accessmiddleware.Preflight(http.MethodGet))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Get("/api/v1/admin/shops/{slug}/billing/offer", cfg.Checkout.Offer)
+	}
+	if cfg.Portal != nil {
+		base := "/api/v1/admin/shops/{slug}/billing/portal"
+		router.Options(base, accessmiddleware.Preflight(http.MethodPost))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base, cfg.Portal.Open)
+	}
+	if cfg.ShopPublication != nil {
+		base := "/api/v1/admin/shops/{slug}"
+		router.Options(base+"/commercial-status", accessmiddleware.Preflight(http.MethodGet))
+		router.Options(base+"/publication", accessmiddleware.Preflight(http.MethodPut))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Get(base+"/commercial-status", cfg.ShopPublication.Get)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Put(base+"/publication", cfg.ShopPublication.Set)
+	}
 	if cfg.Catalog != nil {
-		cataloghttp.RegisterPublicRoutes(router, cfg.Catalog)
+		cataloghttp.RegisterPublicRoutes(router, cfg.Catalog, publicGates...)
 		router.Options("/api/v1/public/shops/{slug}/services", accessmiddleware.Preflight(http.MethodGet))
 		router.Options("/api/v1/admin/shops/{slug}/services", accessmiddleware.Preflight(http.MethodGet, http.MethodPost))
 		router.With(authenticate, shopAccess).
@@ -81,7 +154,12 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 			Post("/api/v1/admin/shops/{slug}/services", cfg.Catalog.CreateService)
 	}
 	if cfg.Booking != nil {
-		cfg.Booking.Register(router)
+		cfg.Booking.Register(router, publicGates...)
+		for _, path := range []string{"/booking/professionals", "/booking/availability"} {
+			router.Options("/api/v1/admin/shops/{slug}"+path, accessmiddleware.Preflight(http.MethodGet))
+		}
+		router.With(authenticate, shopAccess).Get("/api/v1/admin/shops/{slug}/booking/professionals", cfg.Booking.ListProfessionalsForStaff)
+		router.With(authenticate, shopAccess).Get("/api/v1/admin/shops/{slug}/booking/availability", cfg.Booking.ListAvailabilityForStaff)
 		router.With(authenticate, shopAccess).Post("/api/v1/admin/shops/{slug}/appointments", cfg.Booking.CreateForStaff)
 	}
 	if cfg.Agenda != nil || cfg.Booking != nil {
@@ -97,6 +175,13 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	if cfg.Agenda != nil {
 		router.With(authenticate, shopAccess).
 			Get("/api/v1/admin/shops/{slug}/appointments", cfg.Agenda.List)
+	}
+	if cfg.AppointmentLifecycle != nil {
+		base := "/api/v1/admin/shops/{slug}/appointments/{appointmentID}"
+		router.Options(base, accessmiddleware.Preflight(http.MethodGet))
+		router.With(authenticate, shopAccess).Get(base, cfg.AppointmentLifecycle.Get)
+		router.Options(base+"/status", accessmiddleware.Preflight(http.MethodPost))
+		router.With(authenticate, shopAccess).Post(base+"/status", cfg.AppointmentLifecycle.Change)
 	}
 	if cfg.Accounts != nil {
 		base := "/api/v1/admin/shops/{slug}/accounts"

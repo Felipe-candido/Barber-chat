@@ -1,0 +1,193 @@
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+.brand strong {
+  font-size: var(--text-subheading);
+  font-weight: var(--weight-bold);
+  letter-spacing: -0.035em;
+  line-height: var(--line-heading);
+  overflow-wrap: anywhere;
+}
+.brandMark,
+.shopMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--control-height);
+  height: var(--control-height);
+  flex-shrink: 0;
+  border-radius: var(--radius-control);
+}
+.brandMark {
+  color: var(--color-on-action);
+  background: var(--color-action);
+}
+.shopMark {
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
+}
+.brandLight {
+  color: var(--color-on-action);
+}
+.field {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.field > label {
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
+  color: var(--color-text);
+}
+.hint {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  line-height: var(--line-body);
+}
+.controlWrap {
+  position: relative;
+  min-width: 0;
+}
+.control {
+  width: 100%;
+  min-height: var(--control-height);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-control);
+  border-radius: var(--radius-control);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-body);
+  line-height: var(--line-body);
+}
+.control::placeholder {
+  color: var(--color-text-placeholder);
+}
+.control[aria-invalid="true"] {
+  border-color: var(--color-danger-text);
+}
+.control:disabled {
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
+  cursor: not-allowed;
+}
+.textarea {
+  resize: vertical;
+  min-height: 7rem;
+}
+.withAdornment {
+  padding-right: var(--space-12);
+}
+.adornment {
+  position: absolute;
+  inset: 0 var(--space-1) 0 auto;
+  display: flex;
+  align-items: center;
+}
+.fieldError {
+  font-size: var(--text-small);
+  line-height: var(--line-body);
+  color: var(--color-danger-text);
+}
+.fieldErrorSpace {
+  /* Keep blur validation from moving a button between pointer-down and click. */
+  min-height: 3em;
+}
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid;
+  border-radius: var(--radius-control);
+  font-size: var(--text-small);
+  line-height: var(--line-body);
+  overflow-wrap: anywhere;
+}
+.alert > svg {
+  margin-top: 1px;
+}
+.info {
+  color: var(--color-info-text);
+  background: var(--color-info-surface);
+  border-color: var(--color-info-border);
+}
+.success {
+  color: var(--color-success-text);
+  background: var(--color-success-surface);
+  border-color: var(--color-success-border);
+}
+.warning {
+  color: var(--color-warning-text);
+  background: var(--color-warning-surface);
+  border-color: var(--color-warning-border);
+}
+.error {
+  color: var(--color-danger-text);
+  background: var(--color-danger-surface);
+  border-color: var(--color-danger-border);
+}
+.pageHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-6);
+  margin-bottom: var(--space-8);
+}
+.pageHeader > div {
+  min-width: 0;
+}
+.pageHeader h1 {
+  font-size: clamp(var(--text-heading), 4vw, var(--text-title));
+  font-weight: var(--weight-semibold);
+  line-height: var(--line-heading);
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+.pageHeader p {
+  max-width: 65ch;
+  margin-top: var(--space-3);
+  color: var(--color-text-secondary);
+  font-size: var(--text-body);
+  line-height: var(--line-body);
+}
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  width: fit-content;
+  padding: var(--space-1) var(--space-2);
+  border-width: 1px;
+  border-style: solid;
+  border-radius: var(--radius-small);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  line-height: var(--line-body);
+}
+.neutral {
+  color: var(--color-text-secondary);
+  background: var(--color-surface-subtle);
+  border-color: var(--color-border);
+}

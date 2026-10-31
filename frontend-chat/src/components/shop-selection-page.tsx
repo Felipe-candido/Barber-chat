@@ -7,6 +7,8 @@ import { useAdminAccess } from "./admin-access-provider";
 import { adminShopPath } from "@/lib/api/config";
 import { errorMessage } from "@/lib/api/client";
 import { useFeedback } from "./feedback-provider";
+import { Brand, Button, EmptyState, PageHeader, buttonClasses } from "./ui";
+import styles from "./shop-selection-page.module.css";
 
 export function ShopSelectionPage() {
   const { state, refresh, logout } = useAdminAccess();
@@ -14,66 +16,67 @@ export function ShopSelectionPage() {
   const { notify } = useFeedback();
   if (state.status !== "ready") return null;
   return (
-    <main className="shop-selection-page">
-      <header className="shop-selection-header">
-        <span className="eyebrow">BARBER-CHAT · SEU ESPAÇO DE GESTÃO</span>
-        <button
-          className="button button-secondary"
+    <main className={styles.page}>
+      <header className={styles.header}>
+        <Brand />
+        <Button
+          variant="quiet"
           onClick={async () => {
             try {
               await logout();
               router.replace("/login");
             } catch (error) {
-              notify(errorMessage(error));
+              notify(errorMessage(error), { tone: "error" });
             }
           }}
         >
-          <LogOut size={16} />
+          <LogOut size={18} aria-hidden="true" />
           Sair da conta
-        </button>
+        </Button>
       </header>
-      <div className="page-heading">
-        <div>
-          <h1>
-            Escolha sua barbearia<span className="heading-dot">.</span>
-          </h1>
-          <p>Olá, {state.identity.display_name}. Em qual unidade você quer trabalhar?</p>
-        </div>
-        <button className="button button-secondary" onClick={() => void refresh().catch(() => {})}>
-          <RefreshCw size={16} />
-          Atualizar vínculos
-        </button>
-      </div>
+      <PageHeader
+        title="Escolha sua barbearia"
+        description={`Olá, ${state.identity.display_name}. Em qual unidade você quer trabalhar?`}
+        actions={
+          <Button variant="secondary" onClick={() => void refresh().catch(() => {})}>
+            <RefreshCw size={18} aria-hidden="true" />
+            Atualizar vínculos
+          </Button>
+        }
+      />
       {state.shops.length ? (
-        <div className="service-grid shop-selection-grid">
+        <div className={styles.grid}>
           {state.shops.map((shop) => (
-            <article key={shop.shop_id} className="service-card">
-              <span className="service-symbol">
-                <Scissors size={25} />
+            <article key={shop.shop_id} className={styles.shop}>
+              <span className={styles.shopIcon}>
+                <Scissors size={24} aria-hidden="true" />
               </span>
               <h2>{shop.name}</h2>
-              <p>Endereço: {shop.slug}</p>
-              <Link className="button button-primary" href={adminShopPath(shop.slug) + "/servicos"}>
+              <p>
+                Link de agendamento: <span>/b/{shop.slug}</span>
+              </p>
+              <Link
+                className={buttonClasses("secondary", styles.enter)}
+                href={adminShopPath(shop.slug) + "/servicos"}
+              >
                 Entrar em {shop.name}
-                <ArrowRight size={16} />
+                <ArrowRight size={18} aria-hidden="true" />
               </Link>
             </article>
           ))}
         </div>
       ) : (
-        <section className="api-error" role="status">
-          <Scissors size={28} />
-          <h2>Nenhuma barbearia vinculada</h2>
-          <p>
-            Seu usuário foi reconhecido, mas não possui vínculo ativo com uma barbearia ativa. Peça
-            ao responsável para cadastrar o vínculo no banco e depois atualize esta lista.
-          </p>
-        </section>
+        <EmptyState
+          title="Nenhuma barbearia vinculada"
+          text="Sua conta foi reconhecida, mas não possui acesso ativo a uma barbearia. Peça ao proprietário ou ao responsável pelo sistema para conferir seu vínculo e atualize a lista."
+        />
       )}
-      <p className="inline-hint integration-note">
-        Somente suas unidades ativas aparecem aqui. Usuários, barbearias e vínculos continuam sendo
-        criados manualmente; esta tela não cria cadastros.
+      <p className={styles.note}>
+        Somente as barbearias com acesso ativo para sua conta aparecem aqui.
       </p>
+      <Link href="/cadastro/barbearia" className={buttonClasses("quiet")}>
+        Cadastrar minha barbearia
+      </Link>
     </main>
   );
 }

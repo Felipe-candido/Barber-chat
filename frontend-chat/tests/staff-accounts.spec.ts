@@ -139,7 +139,7 @@ test("barber sees a simple menu, cannot open accounts, and creates only for thei
     ends_at: "2026-10-05T13:30:00Z",
     shop_timezone: "America/Sao_Paulo",
   };
-  await page.route("http://127.0.0.1:8080/api/v1/public/shops/" + testShop.slug + "/**", (r) =>
+  await page.route(base + "/booking/**", (r) =>
     r.fulfill({
       json: r.request().url().includes("/professionals?")
         ? {
@@ -217,15 +217,22 @@ test("invitation opens in a fresh browser and password goes only to Supabase", a
       session.accessToken +
       "&refresh_token=test-refresh-token&expires_in=3600&token_type=bearer&type=invite",
   );
-  await page.getByLabel("Nova senha", { exact: true }).fill("strong-test-password-123!");
-  await page.getByLabel("Confirmar senha", { exact: true }).fill("strong-test-password-123!");
+  const password = page.getByLabel("Nova senha", { exact: true });
+  const confirmation = page.getByLabel("Confirmar senha", { exact: true });
+  await expect(password).toHaveAttribute("minlength", "8");
+  await expect(confirmation).toHaveAttribute("minlength", "8");
+  await password.fill("Ab1!xyz");
+  await confirmation.fill("Ab1!xyz");
+  await page.getByRole("button", { name: "Salvar senha" }).click();
+  await expect(password).toHaveAttribute("aria-invalid", "true");
+  expect(submitted).toBeUndefined();
+  await password.fill("Ab1!xyzQ");
+  await confirmation.fill("Ab1!xyzQ");
   await page.getByRole("button", { name: "Salvar senha" }).click();
   await expect(page.getByRole("status")).toContainText("Senha definida");
-  expect(submitted).toMatchObject({ password: "strong-test-password-123!" });
+  expect(submitted).toMatchObject({ password: "Ab1!xyzQ" });
   expect(await page.evaluate(() => location.hash)).toBe("");
-  expect(await page.evaluate(() => JSON.stringify({ ...localStorage }))).not.toContain(
-    "strong-test-password-123!",
-  );
+  expect(await page.evaluate(() => JSON.stringify({ ...localStorage }))).not.toContain("Ab1!xyzQ");
 });
 
 test("owner replaces an inactive login without recreating the professional", async ({ page }) => {

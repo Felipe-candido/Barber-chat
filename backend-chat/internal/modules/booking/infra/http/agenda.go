@@ -36,9 +36,24 @@ func NewAgendaHandler(list *application.ListAgenda, timeout time.Duration, logge
 
 type adminAppointmentResponse struct {
 	receiptResponse
-	CustomerName  string `json:"customer_name"`
-	CustomerPhone string `json:"customer_phone"`
+	CustomerName  string     `json:"customer_name"`
+	CustomerPhone string     `json:"customer_phone"`
+	Version       int64      `json:"version"`
+	StatusSource  string     `json:"status_source"`
+	StatusReason  string     `json:"status_reason"`
+	StatusActorID *uuid.UUID `json:"status_actor_id"`
+	UpdatedAt     time.Time  `json:"updated_at"`
 }
+
+func adminReceipt(a application.AdminAppointment) adminAppointmentResponse {
+	var actor *uuid.UUID
+	if a.StatusActorID != uuid.Nil {
+		id := a.StatusActorID
+		actor = &id
+	}
+	return adminAppointmentResponse{receiptResponse: receipt(a.Appointment), CustomerName: a.CustomerName, CustomerPhone: a.CustomerPhone, Version: a.Version, StatusSource: string(a.StatusSource), StatusReason: a.StatusReason, StatusActorID: actor, UpdatedAt: a.UpdatedAt}
+}
+
 type agendaResponse struct {
 	Month        string                     `json:"month"`
 	Today        string                     `json:"today"`
@@ -104,7 +119,7 @@ func (h *AgendaHandler) List(w http.ResponseWriter, r *http.Request) {
 	result := agendaResponse{Month: output.Month, Today: output.Today, FromDate: output.FromDate,
 		UntilDate: output.UntilDate, ShopTimezone: output.ShopTimezone, Appointments: make([]adminAppointmentResponse, 0, len(output.Appointments))}
 	for _, item := range output.Appointments {
-		result.Appointments = append(result.Appointments, adminAppointmentResponse{receipt(item.Appointment), item.CustomerName, item.CustomerPhone})
+		result.Appointments = append(result.Appointments, adminReceipt(item))
 	}
 	if output.Next != nil {
 		encoded := base64.RawURLEncoding.EncodeToString([]byte(output.Next.StartsAt.UTC().Format(time.RFC3339Nano) + "|" + output.Next.ID.String()))

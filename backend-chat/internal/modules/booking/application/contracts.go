@@ -14,7 +14,14 @@ type ShopContext struct {
 	Slug     string
 	Name     string
 	Timezone string
+	// Derived from persisted provisioning source, never request JSON. Self-service
+	// units require coverage for new bookings, and publication for public ones.
+	SelfService bool
 }
+
+// Built by the authenticated adapter. Zero ProfessionalID represents an owner;
+// barber reads and writes are restricted to their linked active professional.
+type StaffBookingScope struct{ UserID, ShopID, ProfessionalID uuid.UUID }
 
 // BookableSelection is the effective catalog data for exactly one shop/service/
 // professional pair. Readers must verify all three resources are active and the

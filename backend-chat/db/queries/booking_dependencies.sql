@@ -1,5 +1,5 @@
 -- name: ResolveBookingShop :one
-SELECT id,slug,name,timezone FROM shops WHERE slug = $1 AND active = TRUE FOR SHARE;
+SELECT id,slug,name,timezone,provisioning_source FROM shops WHERE slug = $1 AND active = TRUE FOR SHARE;
 
 -- name: FindBookableSelection :one
 SELECT s.shop_id,s.id AS service_id,p.id AS professional_id,p.name AS professional_name,

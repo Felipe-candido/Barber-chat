@@ -1,30 +1,59 @@
 "use client";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
-import { Check, X } from "lucide-react";
+import { X } from "lucide-react";
+import { feedbackIcons, type FeedbackTone } from "./ui/alert";
+import styles from "./feedback-provider.module.css";
 
-const FeedbackContext = createContext<((text: string) => void) | null>(null);
+type Notice = { text: string; tone: FeedbackTone };
+type Notify = (text: string, options?: { tone?: FeedbackTone }) => void;
+const FeedbackContext = createContext<Notify | null>(null);
 export function FeedbackProvider({ children }: { children: React.ReactNode }) {
-  const [message, setMessage] = useState("");
-  const notify = useCallback((text: string) => setMessage(text), []);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [paused, setPaused] = useState(false);
+  const notify = useCallback<Notify>((text, options) => {
+    setNotice({ text, tone: options?.tone ?? "success" });
+  }, []);
   useEffect(() => {
-    if (!message) return;
-    const timer = setTimeout(() => setMessage(""), 6000);
+    if (!notice || paused || notice.tone === "error" || notice.tone === "warning") return;
+    const timer = setTimeout(() => setNotice(null), 6000);
     return () => clearTimeout(timer);
-  }, [message]);
+  }, [notice, paused]);
+  const Icon = feedbackIcons[notice?.tone ?? "info"];
   return (
     <FeedbackContext.Provider value={notify}>
       {children}
-      {message && (
-        <div className="toast" role="status">
-          <span className="toast-icon">
-            <Check size={17} />
-          </span>
-          {message}
-          <button aria-label="Fechar aviso" onClick={() => setMessage("")}>
-            <X size={16} />
-          </button>
-        </div>
-      )}
+      <div
+        role={notice ? (notice.tone === "error" ? "alert" : "status") : undefined}
+        aria-live={notice?.tone === "error" ? "assertive" : "polite"}
+        aria-atomic="true"
+      >
+        {notice && (
+          <div
+            className={`${styles.toast} ${styles[notice.tone]}`}
+            onMouseEnter={() => setPaused(true)}
+            onMouseLeave={() => setPaused(false)}
+            onFocusCapture={() => setPaused(true)}
+            onBlurCapture={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+                setPaused(false);
+            }}
+          >
+            <Icon size={20} aria-hidden="true" />
+            <span>{notice.text}</span>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Fechar aviso"
+              onClick={() => {
+                setNotice(null);
+                setPaused(false);
+              }}
+            >
+              <X size={18} aria-hidden="true" />
+            </button>
+          </div>
+        )}
+      </div>
     </FeedbackContext.Provider>
   );
 }

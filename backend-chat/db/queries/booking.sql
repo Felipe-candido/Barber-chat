@@ -25,7 +25,8 @@ VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18);
 SELECT * FROM appointments WHERE shop_id = $1 AND code_hash = $2;
 
 -- name: CancelAppointment :execrows
-UPDATE appointments SET status = 'cancelled', version = $3, updated_at = $4
+UPDATE appointments SET status = 'cancelled', version = $3, updated_at = $4,
+    status_source='public',status_reason='Cancelled by booking code',status_actor_id=NULL
 WHERE shop_id = $1 AND id = $2 AND version = $3 - 1 AND status IN ('scheduled','confirmed');
 
 -- name: ClaimBookingRequest :execrows

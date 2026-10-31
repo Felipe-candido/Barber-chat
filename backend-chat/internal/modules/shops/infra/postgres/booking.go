@@ -30,5 +30,5 @@ func (r *Resolver) ResolveActiveShop(ctx context.Context, slug string) (booking.
 	if err != nil {
 		return booking.ShopContext{}, false, err
 	}
-	return booking.ShopContext{ShopID: row.ID, Slug: row.Slug, Name: row.Name, Timezone: row.Timezone}, true, nil
+	return booking.ShopContext{ShopID: row.ID, Slug: row.Slug, Name: row.Name, Timezone: row.Timezone, SelfService: row.ProvisioningSource != "manual"}, true, nil
 }

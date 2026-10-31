@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { LoginPage } from "@/components/login-page";
-import "./login.css";
 
 export const metadata: Metadata = { title: "Acesso administrativo" };
 
