@@ -1,0 +1,75 @@
+name: barber-chat-evolution
+services:
+  postgres:
+    image: postgres:18.6-bookworm
+    environment:
+      POSTGRES_USER: evolution_local
+      POSTGRES_PASSWORD: ${EVOLUTION_DB_PASSWORD:?Run Initialize-Local.ps1}
+      POSTGRES_DB: evolution
+    volumes: [evolution_postgres:/var/lib/postgresql]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U evolution_local -d evolution']
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  redis:
+    image: redis:8-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
+    command: [redis-server, --appendonly, 'yes']
+    volumes: [evolution_redis:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+  evolution:
+    image: barberchat/evolution-local:e273b904
+    build:
+      context: .
+      dockerfile: Dockerfile
+      additional_contexts:
+        evolution_source: https://github.com/evolution-foundation/evolution-api.git#e273b904d53f5726970fd6a244ed9caa61dfeb9a
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    ports: ['127.0.0.1:${EVOLUTION_PORT:-8081}:8080']
+    environment:
+      SERVER_TYPE: http
+      SERVER_PORT: '8080'
+      SERVER_URL: http://127.0.0.1:${EVOLUTION_PORT:-8081}
+      # Upstream rejects server requests without Origin with a restricted list.
+      # This local-only service uses API-key auth, no cookies, and loopback ports.
+      CORS_ORIGIN: '*'
+      CORS_CREDENTIALS: 'false'
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:?Run Initialize-Local.ps1}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: 'false'
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution_local:${EVOLUTION_DB_PASSWORD}@postgres:5432/evolution?schema=public
+      DATABASE_SAVE_DATA_INSTANCE: 'true'
+      DATABASE_SAVE_DATA_NEW_MESSAGE: 'false'
+      DATABASE_SAVE_MESSAGE_UPDATE: 'false'
+      DATABASE_SAVE_DATA_CONTACTS: 'false'
+      DATABASE_SAVE_DATA_CHATS: 'false'
+      DATABASE_SAVE_DATA_LABELS: 'false'
+      DATABASE_SAVE_DATA_HISTORIC: 'false'
+      CACHE_REDIS_ENABLED: 'true'
+      CACHE_REDIS_URI: redis://redis:6379/0
+      CACHE_REDIS_PREFIX_KEY: barberchat_evolution
+      CACHE_REDIS_SAVE_INSTANCES: 'true'
+      DEL_INSTANCE: 'false'
+      LOG_LEVEL: ERROR,WARN
+      LOG_BAILEYS: error
+      TELEMETRY_ENABLED: 'false'
+      SENTRY_DSN: ''
+      WEBHOOK_GLOBAL_ENABLED: 'false'
+      RABBITMQ_ENABLED: 'false'
+    volumes: [evolution_instances:/evolution/instances]
+    healthcheck:
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:8080/license/status").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 30s
+volumes:
+  evolution_postgres:
+  evolution_redis:
+  evolution_instances:

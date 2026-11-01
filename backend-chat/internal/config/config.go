@@ -16,24 +16,32 @@ import (
 )
 
 type Config struct {
-	HTTPAddr                    string
-	DatabaseURL                 string
-	RabbitMQURL                 string
-	SupabaseURL                 string
-	SupabaseServiceRoleKey      string
-	SupabasePublishableKey      string
-	FrontendOrigin              string
-	HTTPTimeout                 time.Duration
-	LogLevel                    slog.Level
-	DBTimeout                   time.Duration
-	OperationTimeout            time.Duration
-	ShutdownTimeout             time.Duration
-	WorkerInterval              time.Duration
-	DevFrontendOrigin           string
-	StripeSecretKey             string
-	StripeMonthlyPriceID        string
-	StripeWebhookSecret         string
-	StripePortalConfigurationID string
+	HTTPAddr                       string
+	DatabaseURL                    string
+	RabbitMQURL                    string
+	SupabaseURL                    string
+	SupabaseServiceRoleKey         string
+	SupabasePublishableKey         string
+	FrontendOrigin                 string
+	HTTPTimeout                    time.Duration
+	LogLevel                       slog.Level
+	DBTimeout                      time.Duration
+	OperationTimeout               time.Duration
+	ShutdownTimeout                time.Duration
+	WorkerInterval                 time.Duration
+	DevFrontendOrigin              string
+	StripeSecretKey                string
+	StripeMonthlyPriceID           string
+	StripeWebhookSecret            string
+	StripePortalConfigurationID    string
+	NotificationPlanningEnabled    bool
+	NotificationPayloadActiveKeyID string
+	NotificationPayloadKeys        map[string][]byte
+	EvolutionBaseURL               string
+	EvolutionAPIKey                string
+	EvolutionWebhookURL            string
+	EvolutionWebhookSecret         string
+	EvolutionWebhookAddr           string
 }
 
 // Load reads the optional .env in the working directory, then validates settings.
@@ -77,6 +85,12 @@ func load(getenv func(string) string) (Config, error) {
 		c.FrontendOrigin = c.DevFrontendOrigin
 	} else if c.DevFrontendOrigin != "" && c.FrontendOrigin != c.DevFrontendOrigin {
 		return Config{}, errors.New("FRONTEND_ORIGIN and DEV_FRONTEND_ORIGIN must match when both are set")
+	}
+	if err := c.loadNotifications(getenv); err != nil {
+		return Config{}, err
+	}
+	if err := c.loadEvolution(getenv); err != nil {
+		return Config{}, err
 	}
 	if c.FrontendOrigin != "" {
 		u, err := url.Parse(c.FrontendOrigin)

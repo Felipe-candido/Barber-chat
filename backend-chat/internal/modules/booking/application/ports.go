@@ -91,6 +91,7 @@ type BookingTx struct {
 	Customers        CustomerResolver
 	Appointments     AppointmentRepository
 	Idempotency      IdempotencyRepository
+	Notifications    BookingNotificationPlanner
 }
 
 // The callback runs exactly once. A nil result requires a successful commit;

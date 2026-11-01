@@ -1,16 +1,25 @@
-# Identidade visual Palma
+# Identidade visual Barber-chat
 
-Paleta baseada na imagem fornecida: azul-marinho #10243F, azul #315B92, branco e fundos claros #F6F8FB. Tipografia DM Sans nas interfaces e serifada nos destaques do chat.
+Visual genérico de "barbearia clássica", sem logo de nenhuma barbearia específica. Os tokens ficam em `src/styles/tokens.css`; as telas usam apenas os aliases semânticos (`--color-*`, `--space-*`, `--radius-*`).
 
-- `public/brand/palma-original.png`: imagem original fornecida pelo usuário, preservada.
-- `public/brand/palma-logo.png`: reconstrução em PNG com definição maior, utilizada nas telas.
-- `src/app/icon.png`: mesma marca como ícone do aplicativo.
+## Cores
 
-A imagem foi recriada com a ferramenta integrada de geração/edição de imagens do Codex, referenciando a logo original. É uma reconstrução raster, não um arquivo vetorial; pode haver pequenas diferenças tipográficas. A imagem original permanece disponível para comparação.
+| Papel          | Claro                    | Escuro            |
+| -------------- | ------------------------ | ----------------- |
+| Fundo          | `#F4F4F2` (papel frio)   | `#121415`         |
+| Superfície     | `#FFFFFF`                | `#1A1D1F`         |
+| Texto          | `#1C1F22` (grafite)      | `#ECEAE4`         |
+| Ação principal | `#1C1F22` sólido         | `#C9A463` (latão) |
+| Acento         | `#B08A4A` (latão)        | `#C9A463`         |
+| Links          | `#7A5C2A` (latão escuro) | `#D8BD86`         |
 
-## Prompt utilizado
+O latão aparece com moderação: o traço curto acima dos títulos de página, o dia atual, o item ativo da navegação e a borda dos agendamentos. O modo escuro segue o tema do sistema (`prefers-color-scheme`).
 
-```text
-Use case: precise-object-edit. Asset type: production-ready high-resolution barbershop logo for website.
-Input image 1 is the edit target, the existing PALMA BARBEARIA logo. Reconstruct this exact logo faithfully at 2048x2048 with very sharp clean typography and smooth concentric circular outlines. Keep the same proportions: navy blue circular center with a restrained brighter blue at top left, narrow white inner ring, black outer ring and pale silver-gray outside border. Center the exact large white serif word "PALMA" with the same distinctive thin barber-tool detail integrated near the first A, and the exact small widely spaced uppercase "BARBEARIA" beneath it. Preserve this brand identity, letter spacing and positions. Text must be spelled exactly P A L M A and B A R B E A R I A. Make the ring perfectly circular and all letters readable without pixelation or blur. Flat graphic logo, no photograph, no mockup, no bevel or 3D, no extra words, no new symbols. Keep a very small clean margin around the complete round badge. Outside the round badge use a transparent background, preserving true alpha if possible. The blue circular center stays opaque. Deliver only the single restored logo.
-```
+## Tipografia
+
+- Títulos de página, de janelas e preços: **Fraunces** (serifada, `@fontsource-variable/fraunces`).
+- Interface e textos: **DM Sans**.
+
+## Marca
+
+A marca do produto é o ícone de tesoura em um quadrado grafite com o nome "Barber-chat". As barbearias aparecem pelo nome cadastrado, sem logo. Os arquivos em `public/brand/` são do protótipo anterior e não são usados nas telas.

@@ -80,32 +80,12 @@ func (r *Reader) ListActivityHistory(ctx context.Context, in application.Activit
 			AppointmentStatus: domain.AppointmentStatus(v.AppointmentStatus), AppointmentStatusSource: domain.AppointmentStatusSource(v.StatusSource),
 			SaleStatus: domain.ProductSaleStatus(v.SaleStatus), CustomerName: v.CustomerName, CustomerPhone: v.CustomerPhone,
 			OccurredAt: v.OccurredAt.Time.UTC(), Quantity: v.Quantity, UnitPriceCents: v.UnitPriceCents, ValueCents: v.ValueCents}
-		if err := validateHistoryRow(in.ActivityQuery, row); err != nil {
+		if err := row.ValidateFor(in); err != nil {
 			return nil, err
 		}
 		out = append(out, row)
 	}
 	return out, nil
-}
-
-func validateHistoryRow(q application.ActivityQuery, r application.ActivityHistoryRow) error {
-	if _, err := r.RecordedValueCents(); err != nil {
-		return err
-	}
-	if r.ShopID != q.ShopID || r.RecordID == uuid.Nil || strings.TrimSpace(r.Label) == "" || r.Currency != "BRL" ||
-		r.OccurredAt.Before(q.Period.From()) || !r.OccurredAt.Before(q.Period.Until()) ||
-		(q.Filters.ProfessionalID != uuid.Nil && r.ProfessionalID != q.Filters.ProfessionalID) || r.Quantity <= 0 || r.UnitPriceCents < 0 ||
-		r.ValueCents%r.Quantity != 0 || r.ValueCents/r.Quantity != r.UnitPriceCents {
-		return application.ErrInconsistentData
-	}
-	if r.Source == domain.ActivityServices {
-		if r.ItemID != uuid.Nil || r.ServiceID == uuid.Nil || r.ProductID != uuid.Nil || r.ProfessionalID == uuid.Nil || r.Quantity != 1 {
-			return application.ErrInconsistentData
-		}
-	} else if r.ItemID == uuid.Nil || r.ProductID == uuid.Nil || r.ServiceID != uuid.Nil || r.UnitPriceCents == 0 {
-		return application.ErrInconsistentData
-	}
-	return nil
 }
 
 func (r *Reader) ReadActivityOverview(ctx context.Context, in application.ActivityQuery) (application.ActivityOverview, error) {

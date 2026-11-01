@@ -1,6 +1,6 @@
 # Produtos, vendas, estoque e relatório unificado — plano de implementação
 
-Atualização: 2026-10-31. Estado: entregas A–F implementadas; primeira parte de G (contratos e regras dos indicadores) revisada. Consultas, casos de uso e rotas de G e interface de H ainda pendentes.
+Atualização: 2026-10-31. Estado: entregas A–H implementadas. Relatórios e histórico estão ligados às rotas da API no painel, preservando o redesign existente. Ver [ADR 0037](adr/0037-activity-report-panel.md) para a interface e sua validação.
 
 Decisão confirmada pelo usuário: incluir catálogo, registro de vendas e controle de estoque desde a primeira versão. Implementar em partes, explicando os arquivos e validando cada entrega antes da seguinte. Cortesia fica adiada.
 
@@ -191,7 +191,7 @@ Navegação inicial: Produtos, Vendas e Relatórios, respeitando o escopo do per
 - Agenda: ação “Registrar venda” abre o mesmo formulário com atendimento/profissional preenchidos.
 - Relatórios: período e origem no topo, três valores principais, gráfico diário e lista detalhada/paginada. Consulta de receita geral permanece exclusiva do owner.
 
-Rotas administrativas propostas, ainda não registradas:
+Rotas administrativas implementadas (nomes definitivos):
 
 - GET/POST /api/v1/admin/shops/{slug}/products
 - PUT /api/v1/admin/shops/{slug}/products/{productID}
@@ -200,12 +200,12 @@ Rotas administrativas propostas, ainda não registradas:
 - GET/POST /api/v1/admin/shops/{slug}/sales
 - GET /api/v1/admin/shops/{slug}/sales/{saleID}
 - POST /api/v1/admin/shops/{slug}/sales/{saleID}/cancel
-- POST /api/v1/admin/shops/{slug}/appointments/{appointmentID}/complete
-- POST /api/v1/admin/shops/{slug}/appointments/{appointmentID}/no-show
+- GET /api/v1/admin/shops/{slug}/appointments/{appointmentID}
+- POST /api/v1/admin/shops/{slug}/appointments/{appointmentID}/status
 - GET /api/v1/admin/shops/{slug}/reports/activity
 - GET /api/v1/admin/shops/{slug}/reports/activity/history
 
-Contratos finais definirão escopo, versão esperada, idempotência e paginação antes de registrar as rotas. Rota acessível por barber sempre impõe profissional do contexto no servidor. Não aceitar actor_id/shop_id/status/totais como autoridade vinda do JSON.
+Os contratos específicos documentam escopo, versão esperada, idempotência e paginação. Rota acessível por barber sempre impõe o profissional autorizado no servidor. Não aceitar ator/unidade/papel/totais enviados pelo cliente como autoridade; comandos de situação possuem validação própria no caso de uso.
 
 ## 9. Entregas em ordem, para estudar e implementar
 
@@ -220,11 +220,45 @@ Contratos finais definirão escopo, versão esperada, idempotência e paginaçã
 | G — API de histórico/relatórios | Casos de uso e SQL read-only de reporting, filtros, agregações e paginação | Exemplo R$190 confere; joins não duplicam; datas/fuso, anulações, produtos inativos e escopo pessoal estão testados |
 | H — Relatório no painel | Filtros de origem/período/profissional/produto, cartões, gráfico e detalhes | Fluxo venda/atendimento → relatório confere; troca de unidade, vazio/erro, filtros e responsividade validados |
 
-Entregas A–F concluídas, migrations até 00019, testes PostgreSQL e Playwright. Ver [ADR 0027](adr/0027-product-stock-sales-foundation.md), [ADR 0028](adr/0028-products-and-transactional-stock.md), [ADR 0029](adr/0029-recorded-sales-and-stock-atomicity.md), [ADR 0030](adr/0030-sale-cancellation-and-scoped-history.md), [ADR 0031](adr/0031-products-stock-and-sales-panel.md) e [ADR 0032](adr/0032-automatic-appointment-completion.md). A primeira parte de G consolidou os contratos Activity*, as regras de valores/contagens e a origem automática, conforme o [ADR 0033](adr/0033-unified-activity-report-contracts.md). Próxima parte: consultas SQL e leitura concreta com testes PostgreSQL; depois casos de uso/HTTP. Não implementar tudo de uma vez; explicar os arquivos antes de prosseguir. Não criar adapters vazios, novo go.mod, pool ou dependências sem uso concreto.
+Entregas A–H concluídas. Ver [ADR 0027](adr/0027-product-stock-sales-foundation.md), [ADR 0028](adr/0028-products-and-transactional-stock.md), [ADR 0029](adr/0029-recorded-sales-and-stock-atomicity.md), [ADR 0030](adr/0030-sale-cancellation-and-scoped-history.md), [ADR 0031](adr/0031-products-stock-and-sales-panel.md) e [ADR 0032](adr/0032-automatic-appointment-completion.md). G consolidou os contratos ([ADR 0033](adr/0033-unified-activity-report-contracts.md)), consultas PostgreSQL ([ADR 0034](adr/0034-postgres-activity-report-reads.md)), casos de uso ([ADR 0035](adr/0035-authorized-activity-query-use-cases.md)) e rotas HTTP/bootstrap ([ADR 0036](adr/0036-activity-report-http-api.md)), com a migration 00020 testada localmente. A entrega H integrou o painel gerencial preservando as alterações do usuário ([ADR 0037](adr/0037-activity-report-panel.md)). Próxima parte: validação prática acompanhada. Não implementar tudo de uma vez; explicar os arquivos antes de prosseguir. Não criar adapters vazios, novo go.mod, pool ou dependências sem uso concreto.
 
 Os arquivos concretos serão adicionados conforme a entrega: catalog/domain/product.go e stock.go; catalog/application/product*.go e stock*.go; sales/domain/sale.go; sales/application/{dto,ports,errors,register_sale,cancel_sale,list_sales}.go; adaptadores HTTP/PostgreSQL; reporting/application para as novas consultas. Testes continuam em cada módulo/tests e integração em tests/integration.
 
 Criar migrations novas, numeradas no momento da implementação. Não modificar migrations aplicadas. Aplicação no Supabase é uma etapa separada após testes locais e autorização vigente; este plano não executa nenhuma migration.
+
+### Andamento da entrega G
+
+Contratos e regras: [ADR 0033](adr/0033-unified-activity-report-contracts.md).
+Consultas, readers, acesso e transação read-only: [ADR 0034](adr/0034-postgres-activity-report-reads.md).
+Casos de uso e vínculo do cursor: [ADR 0035](adr/0035-authorized-activity-query-use-cases.md).
+Transporte e rotas reais: [ADR 0036](adr/0036-activity-report-http-api.md) e [OpenAPI](reporting-openapi.yaml).
+Doze cenários PostgreSQL passaram no banco descartável de reporting. A migration
+00020 acrescenta índices para os períodos da agenda/histórico; up/down/up validado
+localmente. Não aplicada ao Supabase. Também passaram go vet, suíte Go completa,
+builds da API/worker e validação do Compose. O container descartável foi parado
+ao final. Casos de uso possuem testes de aplicação; transporte/router possuem
+testes de validação, privacidade, ES256/JWKS, membership, CORS e respostas JSON.
+
+Resumo/histórico, filtros, cursor, handlers e composição no bootstrap estão
+implementados. As duas rotas /reports/activity e /reports/activity/history estão
+registradas. Entrega H também implementada: /admin/{slug}/relatorios reúne
+filtros, indicadores, gráfico acessível e histórico paginado. O menu mobile
+mantém os atalhos anteriores e oferece Relatórios em Mais. Ver ADR 0037.
+
+### Entrega H — painel integrado
+
+Os valores do resumo vêm da API, independentemente das páginas do histórico.
+Resultados são vinculados a usuário/unidade/profissional, com cancelamento de
+consultas antigas. Período inicial usa o fuso e o relógio retornados pelo banco.
+Preservar recursos históricos nos filtros, moedas separadas, contribuição zero
+das anulações e distinção entre valor registrado, previsão e dinheiro recebido.
+
+Passaram build, TypeScript e 49 cenários distintos de navegador selecionados
+(12 de relatórios na rodada final e 37 regressões de acesso/navegação/comércio
+na rodada conjunta anterior). Browser usa fixtures; PostgreSQL foi validado na
+entrega G separadamente. A etapa não criou migration, dependência ou recursos
+cloud. Próximo passo: conferir com o usuário atendimentos/vendas e resultados
+reais de teste antes de expandir o escopo para worker ou outras capacidades.
 
 ## 10. Verificações obrigatórias por entrega
 

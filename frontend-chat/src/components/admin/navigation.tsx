@@ -1,6 +1,7 @@
 import Link from "next/link";
 import {
   Building2,
+  ChartNoAxesCombined,
   CalendarDays,
   Package,
   ReceiptText,
@@ -21,6 +22,7 @@ export function adminDestinations(slug: string, role: ShopAccess["role"]) {
     { href: root + "/servicos", label: "Serviços", icon: Scissors },
     { href: root + "/produtos", label: "Produtos", icon: Package },
     { href: root + "/vendas", label: "Vendas", icon: ReceiptText },
+    { href: root + "/relatorios", label: "Relatórios", icon: ChartNoAxesCombined },
     ...(role === "owner"
       ? [
           { href: root + "/barbeiros", label: "Barbeiros", icon: Users },

@@ -1,14 +1,13 @@
 "use client";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { LoaderCircle, Plus, RefreshCw } from "lucide-react";
-import { addDays, dateKey, formatDate, parseDate } from "@/lib/model";
-import { agendaDate, type AdminAppointment } from "@/lib/api/agenda";
+import { addDays, dateKey, parseDate, startOfWeek } from "@/lib/model";
+import type { AdminAppointment } from "@/lib/api/agenda";
 import { useSelectedShop } from "./shop-panel";
 import { Alert, Button, Modal, PageHeader } from "./ui";
 import { AdminBookingForm } from "./admin-booking-form";
 import { useAgenda } from "./agenda/use-agenda";
-import { AgendaCalendar } from "./agenda/calendar";
-import { AppointmentList } from "./agenda/appointment-list";
+import { AgendaCalendar, type AgendaView } from "./agenda/calendar";
 import { AppointmentDetails } from "./agenda/appointment-details";
 import { AppointmentLifecyclePanel } from "./agenda/appointment-lifecycle-panel";
 import { SaleForm } from "./commerce/sale-form";
@@ -22,47 +21,73 @@ export function AgendaPage() {
     shop.slug,
     selected?.version !== undefined,
   );
-  const [dayFilter, setDayFilter] = useState("");
+  const [view, setView] = useState<AgendaView>("week");
+  const [focusDay, setFocusDay] = useState("");
   const [selling, setSelling] = useState<AdminAppointment | null>(null);
   const [creating, setCreating] = useState(false);
   const [creationLocked, setCreationLocked] = useState(false);
   const [creationDirty, setCreationDirty] = useState(false);
   const [discarding, setDiscarding] = useState(false);
-  const listTitle = useId();
   useEffect(() => {
     if (loading) setSelected(null);
   }, [loading]);
-  function changeMonth(value: string) {
-    setDayFilter("");
-    setSelected(null);
-    showMonth(value);
+  const focus = focusDay || data?.today || "";
+
+  // The API loads one month grid (six full weeks); fetch another only when the period leaves it.
+  function navigate(day: string, nextView: AgendaView = view) {
+    setFocusDay(day);
+    if (!data) return;
+    const covered = (key: string) => key >= data.from_date && key < data.until_date;
+    const weekStart = startOfWeek(parseDate(day));
+    const needsMonth =
+      nextView === "month"
+        ? day.slice(0, 7) !== data.month
+        : nextView === "week"
+          ? !covered(dateKey(weekStart)) || !covered(dateKey(addDays(weekStart, 6)))
+          : !covered(day);
+    if (needsMonth) {
+      setSelected(null);
+      showMonth(day.slice(0, 7));
+    }
   }
-  const visible = (data?.appointments ?? [])
-    .filter((item) => !dayFilter || agendaDate(item.starts_at, data!.shop_timezone) === dayFilter)
-    .sort((a, b) => Date.parse(a.starts_at) - Date.parse(b.starts_at));
+  function changeView(next: AgendaView) {
+    setView(next);
+    navigate(focus, next);
+  }
+  const newAppointment = (
+    <>
+      <Plus size={18} aria-hidden="true" />
+      Novo agendamento
+    </>
+  );
   return (
     <>
       <PageHeader
         title="Agenda"
         description={"Acompanhe e organize os atendimentos de " + shop.name + "."}
         actions={
-          <Button onClick={() => setCreating(true)}>
-            <Plus size={18} aria-hidden="true" />
-            Novo agendamento
+          <Button className={styles.headerNew} onClick={() => setCreating(true)}>
+            {newAppointment}
           </Button>
         }
       />
-      <div className={styles.actions}>
-        <Button variant="secondary" onClick={refresh} disabled={loading}>
-          <RefreshCw size={18} aria-hidden="true" />
-          Atualizar agenda
-        </Button>
-        {data && <span>Horários em {data.shop_timezone}</span>}
-      </div>
+      <Button
+        className={styles.fab}
+        aria-label="Novo agendamento"
+        onClick={() => setCreating(true)}
+      >
+        <Plus size={24} aria-hidden="true" />
+      </Button>
       {error && (
         <Alert tone="error">
           {error} Nenhum agendamento foi alterado. Use Atualizar agenda para tentar novamente.
         </Alert>
+      )}
+      {!data && error && (
+        <Button variant="secondary" className={styles.retry} onClick={refresh} disabled={loading}>
+          <RefreshCw size={18} aria-hidden="true" />
+          Atualizar agenda
+        </Button>
       )}
       {loading && (
         <p className={data ? styles.refreshing : styles.loading} role="status">
@@ -75,62 +100,28 @@ export function AgendaPage() {
           <AgendaCalendar
             data={data}
             loading={loading}
-            selectedDay={dayFilter}
-            onSelectDay={setDayFilter}
-            onSelectAppointment={setSelected}
-            onMonthChange={changeMonth}
-            onToday={() => {
-              changeMonth(data.today.slice(0, 7));
-              setDayFilter(data.today);
+            view={view}
+            focus={focus}
+            onViewChange={changeView}
+            onNavigate={(day) => navigate(day)}
+            onOpenDay={(day) => {
+              setView("day");
+              navigate(day, "day");
             }}
+            onRefresh={refresh}
+            onSelectAppointment={setSelected}
           />
-          <section className={styles.list} aria-labelledby={listTitle}>
-            <div className={styles.listHeader}>
-              <div>
-                <h2 id={listTitle}>Agendamentos do período</h2>
-                <p>
-                  {dayFilter
-                    ? formatDate(dayFilter, { day: "2-digit", month: "long", year: "numeric" })
-                    : "Selecione um dia para filtrar os atendimentos."}
-                </p>
-              </div>
-              <div className={styles.filter}>
-                <label>
-                  Filtrar por dia
-                  <input
-                    type="date"
-                    value={dayFilter}
-                    min={data.from_date}
-                    max={dateKey(addDays(parseDate(data.until_date), -1))}
-                    onChange={(event) => setDayFilter(event.target.value)}
-                  />
-                </label>
-                {dayFilter && (
-                  <Button variant="secondary" onClick={() => setDayFilter("")}>
-                    Ver todo o período
-                  </Button>
-                )}
-              </div>
-            </div>
-            {data.next_cursor && (
+          {data.next_cursor && (
+            <div className={styles.partialBox}>
               <Alert className={styles.partial}>
                 Esta lista ainda é parcial. Carregue mais agendamentos antes de concluir que um dia
                 não tem reservas.
               </Alert>
-            )}
-            <AppointmentList
-              items={visible}
-              timezone={data.shop_timezone}
-              filtered={!!dayFilter}
-              partial={!!data.next_cursor}
-              onSelect={setSelected}
-            />
-            {data.next_cursor && (
               <Button variant="secondary" disabled={loading} onClick={loadMore}>
                 Carregar mais agendamentos
               </Button>
-            )}
-          </section>
+            </div>
+          )}
         </>
       )}
       <Modal

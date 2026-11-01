@@ -40,8 +40,9 @@
   min-width: 0;
   padding: var(--space-5);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-sheet);
   background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
 }
 .intro {
   display: grid;
@@ -49,10 +50,12 @@
   margin-bottom: var(--space-6);
 }
 .intro h1 {
-  font-size: clamp(var(--text-heading), 4vw, var(--text-title));
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 5vw, var(--text-title));
   font-weight: var(--weight-semibold);
+  font-variation-settings: "opsz" 72;
   line-height: var(--line-heading);
-  letter-spacing: -0.035em;
+  letter-spacing: -0.025em;
 }
 .muted,
 .hint {
@@ -63,19 +66,32 @@
 .hint {
   max-width: 65ch;
 }
+/* "Agendar horário" / "Já tenho um código" reads as one segmented switch, not two buttons. */
 .mode {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0;
+  padding: 4px;
   margin-bottom: var(--space-6);
+  border-radius: 14px;
+  background: var(--color-surface-subtle);
 }
-.mode button {
-  flex: 1 1 auto;
+.mode :global(.button) {
+  min-height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--color-text-secondary);
 }
-.mode button[aria-pressed="true"] {
-  color: var(--color-info-text);
-  background: var(--color-info-surface);
-  border-color: var(--color-info-border);
+.mode :global(.button):hover:not(:disabled) {
+  background: transparent;
+  color: var(--color-text);
+}
+.mode :global(.button)[aria-pressed="true"] {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  box-shadow: var(--shadow-raised);
 }
 .progress {
   list-style: none;
@@ -87,6 +103,7 @@
   border-bottom: 1px solid var(--color-border);
 }
 .progress li {
+  position: relative;
   overflow-wrap: anywhere;
   display: flex;
   flex-direction: column;
@@ -98,16 +115,47 @@
   font-size: var(--text-caption);
 }
 .progress li > span:first-child {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   width: 1.75rem;
   height: 1.75rem;
-  border: 1px solid var(--color-border-control);
+  border: 1px solid var(--color-border-strong);
   border-radius: 50%;
+  background: var(--color-surface);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+/* Connector between steps. */
+.progress li + li::before {
+  content: "";
+  position: absolute;
+  top: calc(0.875rem - 1px);
+  right: calc(50% + 0.875rem + 4px);
+  width: calc(100% - 1.75rem - 8px + var(--space-2));
+  height: 2px;
+  border-radius: 2px;
+  background: var(--color-border);
+}
+.progress li[data-complete] + li::before,
+.progress li[aria-current]::before {
+  background: var(--color-success-border);
+}
+@media (max-width: 479px) {
+  /* Only the current step keeps a visible label on small phones; the others stay readable to screen readers. */
+  .progress li:not([aria-current]) > span:last-child {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 .progress li[aria-current] {
-  color: var(--color-action);
+  color: var(--color-link);
   font-weight: var(--weight-semibold);
 }
 .progress li[aria-current] > span:first-child {
@@ -134,14 +182,21 @@
   width: 100%;
   padding: var(--space-4);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
+  border-radius: 14px;
   background: var(--color-surface);
   color: var(--color-text);
   text-align: left;
 }
 .serviceButton:hover {
-  background: var(--color-background);
-  border-color: var(--color-border-control);
+  border-color: var(--color-action);
+  box-shadow: 0 0 0 3px var(--color-action-soft);
+}
+.serviceButton:hover > svg {
+  color: var(--color-link);
+  transform: translateX(2px);
+}
+.serviceButton > svg {
+  transition: transform var(--motion-fast);
 }
 .serviceButton > div {
   display: grid;
@@ -181,6 +236,7 @@
   min-width: 0;
 }
 .aside h2 {
+  font-family: var(--font-display);
   font-size: var(--text-subheading);
   font-weight: var(--weight-semibold);
   margin-bottom: var(--space-4);
@@ -225,6 +281,7 @@
 .flow h2,
 .flow h3,
 .lookup h2 {
+  font-family: var(--font-display);
   font-size: var(--text-subheading);
   font-weight: var(--weight-semibold);
   line-height: var(--line-heading);
@@ -241,7 +298,9 @@
   justify-content: space-between;
   gap: var(--space-3);
   padding: var(--space-4);
-  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-action);
+  background: var(--color-surface-subtle);
   border-radius: var(--radius-control);
 }
 .selection > div {
@@ -261,17 +320,18 @@
 .slot {
   min-height: var(--control-height);
   padding: var(--space-2);
-  border: 1px solid var(--color-border-control);
-  border-radius: var(--radius-control);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 999px;
+  font-weight: var(--weight-semibold);
   background: var(--color-surface);
   color: var(--color-text);
   font-size: var(--text-body);
   font-variant-numeric: tabular-nums;
 }
 .slot:hover {
-  background: var(--color-info-surface);
+  background: var(--color-action-soft);
   border-color: var(--color-action);
-  color: var(--color-action);
+  color: var(--color-link);
 }
 .actions {
   display: flex;
@@ -296,6 +356,7 @@
   padding: var(--space-5) 0;
 }
 .empty h2 {
+  font-family: var(--font-display);
   font-size: var(--text-subheading);
   font-weight: var(--weight-semibold);
 }
@@ -330,10 +391,15 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: var(--text-subheading);
+  font-family: var(--font-display);
+  font-size: var(--text-heading);
   font-weight: var(--weight-semibold);
 }
 .receipt h2 > svg {
+  box-sizing: content-box;
+  padding: var(--space-2);
+  border-radius: 50%;
+  background: var(--color-success-surface);
   color: var(--color-success-text);
 }
 .receipt h3 {
@@ -345,7 +411,7 @@
   display: grid;
   gap: var(--space-4);
   padding: var(--space-4);
-  background: var(--color-background);
+  background: var(--color-surface-subtle);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
 }
@@ -359,6 +425,8 @@
   background: var(--color-surface);
   font: inherit;
   font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+  letter-spacing: 0.04em;
   font-variant-numeric: tabular-nums;
   resize: none;
   overflow-wrap: anywhere;

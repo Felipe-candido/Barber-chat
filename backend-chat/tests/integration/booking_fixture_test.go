@@ -29,6 +29,8 @@ import (
 	customers "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra"
 	customerspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra/postgres"
 	identitypostgres "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/postgres"
+	notificationsapp "github.com/Felipe-candido/Barber-chat/internal/modules/notifications/application"
+	notificationsinfra "github.com/Felipe-candido/Barber-chat/internal/modules/notifications/infra"
 	shopsapp "github.com/Felipe-candido/Barber-chat/internal/modules/shops/application"
 	shopshttp "github.com/Felipe-candido/Barber-chat/internal/modules/shops/infra/http"
 	shopspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/shops/infra/postgres"
@@ -49,7 +51,8 @@ type bookingFixture struct {
 func bindBookingQueries(q *db.Queries) booking.BookingTx {
 	r := bookingpostgres.NewRepository(q)
 	return booking.BookingTx{StaffEligibility: billingpg.NewBookingEligibility(q, billingapp.ClockFunc(time.Now)), PublicAccess: shopsapp.NewCheckPublicBooking(shopspostgres.NewResolver(q), billingapp.NewGetShopEntitlements(billingpg.NewReader(q), billingapp.ClockFunc(time.Now))), Staff: identitypostgres.NewRepository(q), Shops: shopspostgres.NewResolver(q), Catalog: catalogpostgres.NewRepository(q), Schedule: r,
-		Customers: customerspostgres.NewBookingContacts(q), Appointments: r, Idempotency: r}
+		Customers: customerspostgres.NewBookingContacts(q), Appointments: r, Idempotency: r,
+		Notifications: notificationsinfra.NewBookingPlanner(notificationsapp.NewPlanBookingNotifications(false, nil, nil, nil, nil))}
 }
 func newBookingFixture(t *testing.T) *bookingFixture {
 	t.Helper()
@@ -65,6 +68,11 @@ func newBookingFixture(t *testing.T) *bookingFixture {
 		t.Fatal("cannot open booking test database")
 	}
 	t.Cleanup(pool.Close)
+	// Refuse a provider-backed database before writing any fixture rows.
+	var hasAuthSchema bool
+	if err := pool.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM information_schema.schemata WHERE schema_name='auth')").Scan(&hasAuthSchema); err != nil || hasAuthSchema {
+		t.Fatal("refusing a booking test database with auth schema", err)
+	}
 	f := &bookingFixture{ctx: ctx, pool: pool, shop: uuid.New(), service: uuid.New(), longService: uuid.New(), professional: uuid.New()}
 	f.slug = "booking-" + f.shop.String()
 	location, _ := time.LoadLocation("America/Sao_Paulo")

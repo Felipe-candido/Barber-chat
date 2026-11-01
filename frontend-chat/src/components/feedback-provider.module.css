@@ -11,8 +11,8 @@
   max-width: calc(100% - var(--space-8));
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
+  border-radius: 999px;
+  background: var(--color-surface-raised);
   color: var(--color-text);
   box-shadow: var(--shadow-floating);
   font-size: var(--text-small);
@@ -39,4 +39,11 @@
 }
 .error > svg {
   color: var(--color-danger-text);
+}
+
+/* Keep toasts above the bottom tab bar in the admin panel. */
+@media (max-width: 1023px) {
+  :global(body:has([data-tab-bar])) .toast {
+    bottom: calc(84px + env(safe-area-inset-bottom));
+  }
 }

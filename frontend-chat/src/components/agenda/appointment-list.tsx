@@ -11,12 +11,14 @@ export function AppointmentList({
   timezone,
   filtered,
   partial,
+  showDate = true,
   onSelect,
 }: {
   items: AdminAppointment[];
   timezone: string;
   filtered: boolean;
   partial: boolean;
+  showDate?: boolean;
   onSelect: (item: AdminAppointment) => void;
 }) {
   if (!items.length)
@@ -33,17 +35,20 @@ export function AppointmentList({
           type="button"
           key={item.id}
           className={styles.appointment + " agenda-list-item"}
+          data-status={item.status}
           onClick={() => onSelect(item)}
         >
           <span className={styles.appointmentTime}>
             <strong>{bookingTime(item.starts_at, timezone)}</strong>
             <span>até {bookingTime(item.ends_at, timezone)}</span>
-            <span>
-              {formatDate(agendaDate(item.starts_at, timezone), {
-                day: "2-digit",
-                month: "2-digit",
-              })}
-            </span>
+            {showDate && (
+              <span>
+                {formatDate(agendaDate(item.starts_at, timezone), {
+                  day: "2-digit",
+                  month: "2-digit",
+                })}
+              </span>
+            )}
           </span>
           <span className={styles.appointmentContent}>
             <strong>{item.customer_name}</strong>

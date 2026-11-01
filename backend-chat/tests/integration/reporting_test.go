@@ -4,20 +4,28 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
+	"log/slog"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	db "github.com/Felipe-candido/Barber-chat/internal/database/sqlc"
+	"github.com/Felipe-candido/Barber-chat/internal/httpapi"
 	billingpg "github.com/Felipe-candido/Barber-chat/internal/modules/billing/infra/postgres"
 	bookingpg "github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/postgres"
 	catalog "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/application"
 	catalogpg "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/postgres"
+	customers "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra"
+	identity "github.com/Felipe-candido/Barber-chat/internal/modules/identity/application"
 	identitypg "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/postgres"
 	report "github.com/Felipe-candido/Barber-chat/internal/modules/reporting/application"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/reporting/domain"
+	reporthttp "github.com/Felipe-candido/Barber-chat/internal/modules/reporting/infra/http"
 	reportpg "github.com/Felipe-candido/Barber-chat/internal/modules/reporting/infra/postgres"
 	sales "github.com/Felipe-candido/Barber-chat/internal/modules/sales/application"
 	salespg "github.com/Felipe-candido/Barber-chat/internal/modules/sales/infra/postgres"
@@ -212,6 +220,177 @@ func reportValues(t *testing.T, o report.ActivityOverview, service, product, for
 }
 
 func TestReportingPostgres(t *testing.T) {
+	t.Run("registered HTTP reports enforce current database scope and cursor bindings", func(t *testing.T) {
+		f := newReportingFixture(t)
+		a := f.appointment("2026-10-12T12:30:00Z", f.profA, domain.StatusCompleted, 5000, "Cut")
+		f.appointment("2026-10-12T13:30:00Z", f.profA, domain.StatusCompleted, 5000, "Cut")
+		sale := f.sale("2026-10-12T14:30:00Z", f.profA, a, 3)
+		f.sale("2026-10-12T14:30:00Z", f.profB, uuid.Nil, 0, 1)
+		queries := db.New(f.pool)
+		identities := identitypg.NewRepository(queries)
+		logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+		h := httpapi.NewHandler(httpapi.HandlerConfig{Reporting: reporthttp.NewHandler(report.NewActivityQueries(f.tx, customers.ContactNormalizer{}), time.Second, logger), Authenticate: identity.NewAuthenticate(settingsVerifier{}, identities), AuthorizeShop: identity.NewAuthorizeShopAction(identities, shopspg.NewResolver(queries)), Logger: logger})
+		base := "/api/v1/admin/shops/reports-" + f.shop.String() + "/reports/activity"
+		request := func(path string, actor uuid.UUID) *httptest.ResponseRecorder {
+			t.Helper()
+			r := httptest.NewRequest("GET", path, nil)
+			if actor != uuid.Nil {
+				r.Header.Set("Authorization", "Bearer "+actor.String())
+			}
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			return w
+		}
+		params := "?from=2026-10-12&through=2026-10-12"
+		if w := request(base+params, uuid.Nil); w.Code != 401 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		for _, tc := range []struct {
+			actor uuid.UUID
+			total int64
+		}{{f.owner, 21000}, {f.barber, 19000}} {
+			w := request(base+params, tc.actor)
+			var body struct {
+				Values []struct {
+					Combined int64 `json:"combined_value_cents"`
+				}
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+				t.Fatal(err)
+			}
+			if w.Code != 200 || len(body.Values) != 1 || body.Values[0].Combined != tc.total || w.Header().Get("Cache-Control") != "no-store" {
+				t.Fatal(w.Code, w.Body.String())
+			}
+		}
+		phone := "&phone=%2B5511912345678"
+		w := request(base+"/history"+params+phone+"&limit=2", f.owner)
+		var first struct {
+			Items []json.RawMessage `json:"items"`
+			Next  string            `json:"next_cursor"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &first); err != nil {
+			t.Fatal(err)
+		}
+		if w.Code != 200 || len(first.Items) != 2 || first.Next == "" {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		next := base + "/history" + params + phone + "&cursor=" + first.Next
+		w = request(next, f.owner)
+		var second struct {
+			Items []struct {
+				RecordID uuid.UUID `json:"record_id"`
+			}
+			Next string `json:"next_cursor"`
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &second); err != nil {
+			t.Fatal(err)
+		}
+		if w.Code != 200 || len(second.Items) != 1 || second.Items[0].RecordID != a || second.Next != "" {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		if w := request(strings.Replace(next, "from=2026-10-12", "from=2026-10-11", 1), f.owner); w.Code != 400 {
+			t.Fatal("changed-filter cursor accepted", w.Code, w.Body.String())
+		}
+		if w := request(next, f.barber); w.Code != 400 {
+			t.Fatal("cursor crossed authorized actors", w.Code, w.Body.String())
+		}
+		if w := request(base+params+"&professional_id="+f.profB.String(), f.barber); w.Code != 403 {
+			t.Fatal("barber selected another professional", w.Code, w.Body.String())
+		}
+		if w := request(base+params+"&source=products&service_id="+f.service.String(), f.owner); w.Code != 400 {
+			t.Fatal("incompatible branch filter accepted", w.Code, w.Body.String())
+		}
+		f.cancel(sale.ID)
+		w = request(base+"/history"+params+phone, f.owner)
+		var corrected struct {
+			Items []struct {
+				Value      int64   `json:"value_cents"`
+				Recorded   int64   `json:"recorded_value_cents"`
+				SaleStatus *string `json:"sale_status"`
+			}
+		}
+		if err := json.Unmarshal(w.Body.Bytes(), &corrected); err != nil {
+			t.Fatal(err)
+		}
+		if w.Code != 200 || len(corrected.Items) != 3 || corrected.Items[0].SaleStatus == nil || *corrected.Items[0].SaleStatus != "cancelled" || corrected.Items[0].Value != 9000 || corrected.Items[0].Recorded != 0 {
+			t.Fatal(w.Code, w.Body.String())
+		}
+		f.exec("UPDATE shop_memberships SET active=false WHERE user_id=$1 AND shop_id=$2", f.owner, f.shop)
+		if w := request(next, f.owner); w.Code != 403 {
+			t.Fatal("cursor bypassed inactive membership", w.Code, w.Body.String())
+		}
+	})
+	t.Run("application queries compose real authorization phone filters and cursor pages", func(t *testing.T) {
+		f := newReportingFixture(t)
+		a := f.appointment("2026-10-12T12:30:00Z", f.profA, domain.StatusCompleted, 5000, "Cut")
+		f.appointment("2026-10-12T13:30:00Z", f.profA, domain.StatusCompleted, 5000, "Cut")
+		sale := f.sale("2026-10-12T14:30:00Z", f.profA, a, 3)
+		f.sale("2026-10-12T14:30:00Z", f.profB, uuid.Nil, 0, 1)
+		uc := report.NewActivityQueries(f.tx, customers.ContactNormalizer{})
+		in := report.ActivityReportInput{ActorID: f.owner, ShopID: f.shop, FromDate: "2026-10-12", ThroughDate: "2026-10-12"}
+		o, err := uc.Overview(f.ctx, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reportValues(t, o, 10000, 11000, 0, 2, 2, 4)
+		in.Filters.Phone = "(11) 91234-5678"
+		in.Filters.PhoneCountry = "br"
+		o, err = uc.Overview(f.ctx, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reportValues(t, o, 10000, 9000, 0, 2, 1, 3)
+		barberInput := in
+		barberInput.ActorID = f.barber
+		barberInput.Filters = report.ActivityFilterInput{}
+		o, err = uc.Overview(f.ctx, barberInput)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reportValues(t, o, 10000, 9000, 0, 2, 1, 3)
+		if len(o.ByProfessional) != 1 || o.ByProfessional[0].ID != f.profA {
+			t.Fatal("application did not clamp professional scope", o)
+		}
+		pageIn := report.ActivityHistoryInput{ActivityReportInput: in, PageSize: 2}
+		first, err := uc.History(f.ctx, pageIn)
+		if err != nil || len(first.Rows) != 2 || first.Next == nil || first.Rows[0].Source != domain.ActivityProducts {
+			t.Fatal(first, err)
+		}
+		pageIn.After = first.Next
+		pageIn.PageSize = 50
+		pageIn.Filters.Phone = "+5511912345678"
+		pageIn.Filters.PhoneCountry = ""
+		second, err := uc.History(f.ctx, pageIn)
+		if err != nil || len(second.Rows) != 1 || second.Next != nil || second.Rows[0].RecordID != a {
+			t.Fatal("canonical phone/cursor round trip failed", second, err)
+		}
+		// The same authenticated owner may legitimately access another unit;
+		// that does not make the old unit's page cursor reusable there.
+		other := uuid.New()
+		f.exec("INSERT INTO shops(id,name,slug) VALUES($1,'Other reports',$2)", other, "reports-"+other.String())
+		f.exec("INSERT INTO shop_memberships(user_id,shop_id,role) VALUES($1,$2,'owner')", f.owner, other)
+		changed := pageIn
+		changed.ShopID = other
+		if _, err := uc.History(f.ctx, changed); !errors.Is(err, report.ErrInvalidQuery) {
+			t.Fatal("cursor crossed authorized tenants", err)
+		}
+		f.exec("UPDATE shop_memberships SET active=false WHERE user_id=$1 AND shop_id=$2", f.owner, f.shop)
+		if _, err := uc.History(f.ctx, pageIn); !errors.Is(err, report.ErrActivityAccessDenied) {
+			t.Fatal("cursor bypassed revoked membership", err)
+		}
+		f.exec("UPDATE shop_memberships SET active=true WHERE user_id=$1 AND shop_id=$2", f.owner, f.shop)
+		f.cancel(sale.ID)
+		o, err = uc.Overview(f.ctx, in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		reportValues(t, o, 10000, 0, 0, 2, 0, 0)
+		pageIn.After = nil
+		corrected, err := uc.History(f.ctx, pageIn)
+		if err != nil || len(corrected.Rows) != 3 || corrected.Rows[0].SaleStatus != domain.ProductSaleCancelled || corrected.Rows[0].ValueCents != 9000 {
+			t.Fatal("correction lost original amount", corrected, err)
+		}
+	})
 	t.Run("empty projections and bounded history inputs", func(t *testing.T) {
 		f := newReportingFixture(t)
 		o, err := f.overview(f.owner, f.query())

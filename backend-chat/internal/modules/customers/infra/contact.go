@@ -1,6 +1,7 @@
 package infra
 
 import (
+	"errors"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -10,6 +11,8 @@ import (
 )
 
 type ContactNormalizer struct{}
+
+var errInvalidPhone = errors.New("invalid phone")
 
 func (ContactNormalizer) Normalize(input booking.CustomerInput) (booking.CustomerInput, error) {
 	input.FirstName = strings.TrimSpace(input.FirstName)
@@ -21,19 +24,36 @@ func (ContactNormalizer) Normalize(input booking.CustomerInput) (booking.Custome
 			return booking.CustomerInput{}, booking.ErrInvalidCustomer
 		}
 	}
-	if len(input.Phone) > 40 || len(input.PhoneCountry) != 2 || input.PhoneCountry[0] < 'A' || input.PhoneCountry[0] > 'Z' || input.PhoneCountry[1] < 'A' || input.PhoneCountry[1] > 'Z' {
+	if len(input.PhoneCountry) != 2 {
 		return booking.CustomerInput{}, booking.ErrInvalidCustomer
+	}
+	phone, err := normalizePhone(input.Phone, input.PhoneCountry)
+	if err != nil {
+		return booking.CustomerInput{}, booking.ErrInvalidCustomer
+	}
+	input.Phone = phone
+	return input, nil
+}
+
+// Shared local parsing for booking contacts and read-only report search. A
+// country is optional only when the number explicitly includes its calling code.
+func normalizePhone(raw, country string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	country = strings.ToUpper(strings.TrimSpace(country))
+	if len(raw) == 0 || len(raw) > 40 ||
+		(country != "" && (len(country) != 2 || country[0] < 'A' || country[0] > 'Z' || country[1] < 'A' || country[1] > 'Z')) ||
+		(country == "" && !strings.HasPrefix(raw, "+")) {
+		return "", errInvalidPhone
 	}
 	// Vanity numbers and extensions are not accepted by this contact form.
-	if strings.ContainsFunc(input.Phone, func(r rune) bool {
+	if strings.ContainsFunc(raw, func(r rune) bool {
 		return !(r >= '0' && r <= '9') && r != '+' && r != ' ' && r != '-' && r != '(' && r != ')'
 	}) {
-		return booking.CustomerInput{}, booking.ErrInvalidCustomer
+		return "", errInvalidPhone
 	}
-	number, err := phonenumbers.Parse(input.Phone, input.PhoneCountry)
+	number, err := phonenumbers.Parse(raw, country)
 	if err != nil || !phonenumbers.IsValidNumber(number) || number.GetExtension() != "" {
-		return booking.CustomerInput{}, booking.ErrInvalidCustomer
+		return "", errInvalidPhone
 	}
-	input.Phone = phonenumbers.Format(number, phonenumbers.E164)
-	return input, nil
+	return phonenumbers.Format(number, phonenumbers.E164), nil
 }

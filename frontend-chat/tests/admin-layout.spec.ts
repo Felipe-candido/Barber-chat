@@ -52,7 +52,7 @@ test("desktop navigation identifies the current section and routes sharing throu
     "page",
   );
   await expect(nav.getByRole("link", { name: "Barbeiros", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Abrir menu" })).toBeHidden();
+  await expect(page.getByRole("navigation", { name: "Navegação rápida" })).toBeHidden();
   await expect(page.getByRole("link", { name: "Gerenciar link de agendamento" })).toHaveAttribute(
     "href",
     panel + "/configuracoes#publication",
@@ -73,7 +73,7 @@ test("mobile navigation contains keyboard focus, closes with Escape and restores
   await mockPanel(page);
   await page.goto(panel);
   // The open modal makes the underlying trigger inert; its DOM attributes still update.
-  const trigger = page.locator('button[aria-label="Abrir menu"]');
+  const trigger = page.locator('nav[aria-label="Navegação rápida"] button');
   await expect(trigger).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByRole("navigation", { name: "Navegação principal" })).toHaveCount(0);
   await trigger.focus();
@@ -111,7 +111,7 @@ test("resizing an open mobile menu releases the modal before displaying desktop 
   await page.setViewportSize({ width: 768, height: 1000 });
   await mockPanel(page);
   await page.goto(panel);
-  await page.getByRole("button", { name: "Abrir menu" }).click();
+  await page.getByRole("button", { name: "Mais", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Menu do painel" })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.getByRole("dialog", { name: "Menu do painel" })).toHaveCount(0);
@@ -129,37 +129,44 @@ test("barber navigation never renders owner-only destinations", async ({ page })
   await expect(page.getByRole("link", { name: "Barbeiros", exact: true })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Contas de acesso", exact: true })).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "Abrir menu" }).click();
+  await page.getByRole("button", { name: "Mais", exact: true }).click();
   const drawer = page.getByRole("dialog", { name: "Menu do painel" });
   await expect(drawer.getByRole("link", { name: "Agenda", exact: true })).toBeVisible();
   await expect(drawer.getByRole("link", { name: "Barbeiros", exact: true })).toHaveCount(0);
   await expect(drawer.getByRole("link", { name: "Contas de acesso", exact: true })).toHaveCount(0);
 });
 
-test("mobile agenda has an optional compact calendar and uses the shop civil day", async ({
-  page,
-}) => {
+test("agenda opens on the week and switches to day and month at every width", async ({ page }) => {
   test.setTimeout(120000);
   await mockPanel(page);
   for (const width of [320, 390, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1000 });
     await page.goto(panel);
     await expect(page.locator(".agenda-list-item")).toHaveCount(1);
-    if (width < 768) {
-      const toggle = page.getByRole("button", { name: "Mostrar calendário mensal" });
-      await expect(toggle).toHaveAttribute("aria-expanded", "false");
-      await toggle.click();
-      await expect(
-        page.getByRole("button", { name: "Ver dia 2026-10-03", exact: true }),
-      ).toBeVisible();
-    }
+    await expect(page.getByRole("button", { name: "Novo agendamento" })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
     await page.screenshot({ path: "test-results/admin-agenda-" + width + ".png", fullPage: true });
+    await page.getByRole("button", { name: "Mês", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "Ver dia 2026-10-03", exact: true }),
+    ).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+    await page.screenshot({
+      path: "test-results/admin-agenda-month-" + width + ".png",
+      fullPage: true,
+    });
   }
+  await page.getByRole("button", { name: "Dia", exact: true }).click();
+  await page.getByRole("button", { name: "Próximo dia" }).click();
+  await expect(page.getByText("Nenhum agendamento neste dia.")).toBeVisible();
   await page.getByRole("button", { name: "Hoje", exact: true }).click();
-  await expect(page.getByLabel("Filtrar por dia")).toHaveValue(emptyAgenda.today);
+  await expect(
+    page.getByRole("button", { name: "Ver dia " + emptyAgenda.today, exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator(".agenda-list-item")).toHaveCount(1);
   await page.locator(".agenda-list-item").click();
   const details = page.getByRole("dialog", { name: "Detalhes do agendamento" });
@@ -173,7 +180,8 @@ test("an unloaded page cannot be presented as an empty day", async ({ page }) =>
     route.fulfill({ json: { ...emptyAgenda, appointments: [appointment], next_cursor: "next" } }),
   );
   await page.goto(panel);
-  await page.getByLabel("Filtrar por dia").fill("2026-10-04");
+  await page.getByRole("button", { name: "Dia", exact: true }).click();
+  await page.getByRole("button", { name: "Ver dia 2026-10-04" }).click();
   await expect(
     page.getByText("Nenhum agendamento neste dia entre as reservas carregadas."),
   ).toBeVisible();

@@ -386,6 +386,10 @@ components:
       additionalProperties: false
       required: [service_id, professional_id, starts_at, customer]
       properties:
+        whatsapp_notifications:
+          type: boolean
+          default: false
+          description: Explicit permission for this booking's WhatsApp confirmation and reminder. Staff attests the customer agreed. Delivery also requires configured notifications; this field alone does not enable sending.
         service_id: {type: string, format: uuid}
         professional_id: {type: string, format: uuid}
         starts_at: {type: string, format: date-time}

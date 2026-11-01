@@ -1,55 +1,87 @@
+/*
+ * Barber-chat design tokens: "barbearia clássica".
+ * Graphite for structure and primary actions, brass as the single accent, cool paper neutrals,
+ * a serif for display text. Components use only the semantic aliases (--color-*, --space-*, ...).
+ */
 :root {
-  /* Primitives: components use the semantic aliases below. */
+  color-scheme: light;
+
+  /* Primitives */
+  --palette-graphite-950: #121415;
+  --palette-graphite-900: #1c1f22;
+  --palette-graphite-700: #33383d;
+  --palette-brass-700: #7a5c2a;
+  --palette-brass-600: #9a7638;
+  --palette-brass-500: #b08a4a;
+  --palette-brass-300: #d9c39a;
+  --palette-brass-100: #f3ecdf;
+  --palette-paper-50: #f4f4f2;
+  --palette-paper-100: #ecece8;
+  --palette-paper-200: #e0dfda;
+  --palette-paper-300: #cfcdc6;
+  --palette-stone-500: #85837c;
+  --palette-stone-600: #5c6166;
   --palette-white: #ffffff;
-  --palette-slate-50: #f8fafc;
-  --palette-slate-100: #f1f5f9;
-  --palette-slate-200: #e2e8f0;
-  --palette-slate-400: #94a3b8;
-  --palette-slate-500: #64748b;
-  --palette-slate-600: #475569;
-  --palette-gray-900: #111827;
-  --palette-blue-50: #eff6ff;
-  --palette-blue-200: #bfdbfe;
-  --palette-blue-600: #2563eb;
-  --palette-blue-700: #1d4ed8;
-  --palette-green-50: #f0fdf4;
-  --palette-green-200: #bbf7d0;
-  --palette-green-800: #166534;
-  --palette-amber-50: #fffbeb;
-  --palette-amber-200: #fde68a;
-  --palette-amber-800: #92400e;
-  --palette-red-50: #fef2f2;
-  --palette-red-200: #fecaca;
-  --palette-red-700: #b91c1c;
-  --palette-red-800: #991b1b;
 
-  --color-background: var(--palette-slate-50);
+  /* Surfaces and text */
+  --color-background: var(--palette-paper-50);
   --color-surface: var(--palette-white);
-  --color-surface-subtle: var(--palette-slate-100);
-  --color-text: var(--palette-gray-900);
-  --color-text-secondary: var(--palette-slate-500);
-  --color-text-placeholder: var(--palette-slate-600);
-  --color-border: var(--palette-slate-200);
-  --color-border-control: var(--palette-slate-500);
-  --color-action: var(--palette-blue-600);
-  --color-action-hover: var(--palette-blue-700);
-  --color-on-action: var(--palette-white);
-  --color-focus: var(--palette-blue-600);
-  --color-info-text: var(--palette-blue-700);
-  --color-info-surface: var(--palette-blue-50);
-  --color-info-border: var(--palette-blue-200);
-  --color-success-text: var(--palette-green-800);
-  --color-success-surface: var(--palette-green-50);
-  --color-success-border: var(--palette-green-200);
-  --color-warning-text: var(--palette-amber-800);
-  --color-warning-surface: var(--palette-amber-50);
-  --color-warning-border: var(--palette-amber-200);
-  --color-danger-text: var(--palette-red-700);
-  --color-danger-hover: var(--palette-red-800);
-  --color-danger-surface: var(--palette-red-50);
-  --color-danger-border: var(--palette-red-200);
-  --color-overlay: rgb(17 24 39 / 48%);
+  --color-surface-subtle: var(--palette-paper-100);
+  --color-surface-raised: var(--palette-white);
+  --color-surface-translucent: rgb(255 255 255 / 86%);
+  --color-surface-inverse: var(--palette-graphite-900);
+  --color-on-inverse: var(--palette-white);
+  --color-text: var(--palette-graphite-900);
+  --color-text-secondary: var(--palette-stone-600);
+  --color-text-placeholder: #6e7377;
+  --color-text-muted: #8e9296;
+  --color-border: var(--palette-paper-200);
+  --color-border-strong: var(--palette-paper-300);
+  --color-border-control: var(--palette-stone-500);
 
+  /* Action: solid graphite. Accent: brass, for "current" and "selected" markers. */
+  --color-action: var(--palette-graphite-900);
+  --color-action-hover: var(--palette-graphite-700);
+  --color-action-soft: var(--palette-brass-100);
+  --color-on-action: var(--palette-white);
+  --color-accent: var(--palette-brass-500);
+  --color-accent-text: var(--palette-brass-700);
+  --color-link: var(--palette-brass-700);
+  --color-focus: var(--palette-brass-600);
+  --color-action-shadow: rgb(28 31 34 / 24%);
+
+  /* Feedback */
+  --color-info-text: var(--palette-brass-700);
+  --color-info-surface: #f7f1e6;
+  --color-info-border: #e6d6b5;
+  --color-success-text: #2c6a46;
+  --color-success-surface: #ebf4ee;
+  --color-success-border: #c2dccb;
+  --color-warning-text: #8a5310;
+  --color-warning-surface: #fbf2e4;
+  --color-warning-border: #ecd2a5;
+  --color-danger-text: #b3261e;
+  --color-danger-hover: #8f1e18;
+  --color-danger-surface: #fcefed;
+  --color-danger-border: #f0c5c0;
+  --color-overlay: rgb(18 20 21 / 54%);
+
+  /* Typography */
+  --font-display: "Fraunces Variable", "Iowan Old Style", Georgia, serif;
+  --text-caption: 0.75rem;
+  --text-small: 0.875rem;
+  --text-body: 1rem;
+  --text-subheading: 1.25rem;
+  --text-heading: 1.5625rem;
+  --text-title: 2.25rem;
+  --line-body: 1.5;
+  --line-heading: 1.15;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  /* Space (4px base) */
   --space-1: 0.25rem;
   --space-2: 0.5rem;
   --space-3: 0.75rem;
@@ -60,31 +92,75 @@
   --space-10: 2.5rem;
   --space-12: 3rem;
   --space-16: 4rem;
-  --text-caption: 0.75rem;
-  --text-small: 0.875rem;
-  --text-body: 1rem;
-  --text-subheading: 1.25rem;
-  --text-heading: 1.5rem;
-  --text-title: 2rem;
-  --line-body: 1.5;
-  --line-heading: 1.2;
-  --weight-regular: 400;
-  --weight-medium: 500;
-  --weight-semibold: 600;
-  --weight-bold: 700;
+
+  /* Shape and depth */
   --radius-small: 0.375rem;
-  --radius-control: 0.5rem;
-  --radius-panel: 0.75rem;
+  --radius-control: 0.625rem;
+  --radius-panel: 1rem;
+  --radius-sheet: 1.5rem;
   --control-height: 2.75rem;
-  --shadow-floating: 0 8px 32px rgb(17 24 39 / 12%);
+  --shadow-card: 0 1px 2px rgb(28 31 34 / 5%);
+  --shadow-raised: 0 1px 2px rgb(28 31 34 / 6%), 0 4px 12px rgb(28 31 34 / 6%);
+  --shadow-floating: 0 12px 40px rgb(28 31 34 / 16%);
   --motion-fast: 150ms;
+  --motion-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
   --layer-feedback: 100;
 
-  /* Compatibility aliases while existing screens migrate in subsequent phases. */
+  /* Compatibility aliases while existing screens migrate. */
   --navy: var(--color-text);
   --blue: var(--color-action);
   --ink: var(--color-text);
   --muted: var(--color-text-secondary);
   --border: var(--color-border);
   --paper: var(--color-background);
+}
+
+/* Dark theme follows the operating system: graphite surfaces, brass becomes the primary action. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --color-background: var(--palette-graphite-950);
+    --color-surface: #1a1d1f;
+    --color-surface-subtle: #23272a;
+    --color-surface-raised: #202427;
+    --color-surface-translucent: rgb(26 29 31 / 86%);
+    --color-surface-inverse: #ecebe6;
+    --color-on-inverse: var(--palette-graphite-900);
+    --color-text: #eceae4;
+    --color-text-secondary: #a9aaa5;
+    --color-text-placeholder: #8c8e8a;
+    --color-text-muted: #74777a;
+    --color-border: #2e3236;
+    --color-border-strong: #3b4045;
+    --color-border-control: #7b8085;
+
+    --color-action: #c9a463;
+    --color-action-hover: #d8b87d;
+    --color-action-soft: #2b2518;
+    --color-on-action: var(--palette-graphite-950);
+    --color-accent: #c9a463;
+    --color-accent-text: #d8bd86;
+    --color-link: #d8bd86;
+    --color-focus: #c9a463;
+    --color-action-shadow: rgb(0 0 0 / 40%);
+
+    --color-info-text: #d8bd86;
+    --color-info-surface: #252016;
+    --color-info-border: #4c3f24;
+    --color-success-text: #93cfac;
+    --color-success-surface: #142720;
+    --color-success-border: #285039;
+    --color-warning-text: #e8c07a;
+    --color-warning-surface: #2a2111;
+    --color-warning-border: #5a4520;
+    --color-danger-text: #f0a39c;
+    --color-danger-hover: #f5bbb5;
+    --color-danger-surface: #2d1716;
+    --color-danger-border: #5c2c29;
+    --color-overlay: rgb(0 0 0 / 64%);
+
+    --shadow-card: 0 1px 2px rgb(0 0 0 / 30%);
+    --shadow-raised: 0 1px 2px rgb(0 0 0 / 30%), 0 4px 12px rgb(0 0 0 / 25%);
+    --shadow-floating: 0 12px 40px rgb(0 0 0 / 50%);
+  }
 }

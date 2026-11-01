@@ -1,5 +1,43 @@
 # Contrato com o frontend
 
+## Histórico e indicadores de atividades
+
+GET /api/v1/admin/shops/{slug}/reports/activity retorna o resumo; o sufixo
+/history retorna o histórico paginado. Ambas exigem Bearer e acesso atual à
+unidade. Owner consulta a unidade ou seleciona profissional; barber fica no seu
+profissional ativo. Histórico administrativo continua disponível sem cobertura
+comercial. [Contrato completo](reporting-openapi.yaml), [ADR 0036](adr/0036-activity-report-http-api.md).
+
+from/through obrigatórios, inclusivos no fuso cadastrado, até 366 datas civis.
+Filtros comuns: source=all/services/products (padrão all), customer_name, phone,
+phone_country, professional_id, service_id, product_id. Serviço/produto filtram
+somente seus próprios ramos em all; origem exclusiva rejeita o outro recurso.
+Nome é trecho literal sem distinguir caixa, telefone é igualdade normalizada;
+venda avulsa sem atendimento não corresponde a filtros de contato. Codificar +
+como %2B na URL. Não enviar parâmetros vazios, desconhecidos ou repetidos.
+
+Histórico também aceita appointment_status e sale_status, cada um no seu ramo,
+limit (padrão 25, máximo 100) e cursor opaco recebido em next_cursor. O resumo
+rejeita esses parâmetros exclusivos do histórico. Cursor fica vinculado ao ator,
+unidade, acesso e filtros normalizados; trocar filtros exige limpar o cursor.
+next_cursor vazio encerra a lista. Não há snapshot congelado entre páginas.
+
+Respostas incluem period com datas locais, limites UTC e timezone; observed_at;
+valores em centavos, contadores separados e coleções vazias como []. O resumo
+contém counts, values, by_day, by_professional, by_service e by_product. Somar
+serviços completed e itens de vendas recorded; previsão fica separada. Não
+somar contagens de comprovantes dos grupos por produto para obter o total global.
+
+Histórico contém items com um atendimento ou item vendido por linha. value_cents
+é o valor original; recorded_value_cents é a contribuição válida, inclusive zero
+após cancelamento. Situações e IDs não aplicáveis são null; contato anônimo é
+string vazia. Não são retornados códigos públicos, hashes ou motivos/atores de
+correção. Valores não comprovam pagamento recebido ou lucro. JSON usa no-store.
+
+Erros: 400 invalid_report_query; 401 sessão ausente/inválida; 403 access_denied;
+404 shop_not_found; 500 report_unavailable; 503 temporarily_unavailable (pode
+repetir a leitura). Query string limitada a 4096 bytes, cursor a 1024 caracteres.
+
 ## Situação e conclusão automática dos atendimentos
 
 Migration 00019 e API atual habilitam a entrega F. A conta principal (owner)
@@ -498,4 +536,46 @@ Erros: `{"error":{"code":"...","message":"..."}}`; sem SQL, dados pessoais ou de
 
 Booking limita corpos a 8 KiB. As respostas não devem ser armazenadas em cache. CORS permite a origem exata FRONTEND_ORIGIN e headers Authorization, Content-Type e Idempotency-Key; OPTIONS não autentica. Limites básicos são locais ao processo: 20 POST/IP/minuto, 120 GET/IP/minuto e 1000 requisições/minuto, usando RemoteAddr sem confiar em X-Forwarded-For arbitrário. Produção com proxy/múltiplas instâncias precisa política de edge e proteção contra abuso.
 
-WhatsApp, consentimentos, outbox/lembretes, administração completa da agenda e novos estados operacionais permanecem próximos incrementos, não funcionalidades deste contrato.
+Criação pública e administrativa aceita o campo opcional `whatsapp_notifications`
+(boolean, padrão false). Ele registra autorização transacional para confirmação e
+lembrete daquela reserva; no fluxo administrativo, o funcionário declara que
+coletou a autorização. Não implica marketing ou comprovação de posse do telefone.
+A autorização participa da identidade da requisição: mudar o campo usando a mesma
+Idempotency-Key retorna conflito. Omissão/false preserva os fingerprints anteriores.
+
+Com `NOTIFICATION_PLANNING_ENABLED=true`, configuração de chaves válida e migration
+00021 aplicada, o backend persiste permissão e plano na mesma transação da reserva.
+Somente política habilitada da unidade e autorização concedida geram jobs com
+conteúdo cifrado. Sem essas condições, a reserva funciona com plano dispensado.
+A chave global desligada mantém o fluxo anterior, sem acessar as tabelas novas.
+Replays não criam nem reconstroem notificações retroativas.
+
+Cancelamento, ausência, conclusão, revogação e desativação da política invalidam
+jobs pendentes por triggers PostgreSQL. Estas proteções independem da chave global
+de planejamento. Persistência de jobs não significa envio: scheduler/outbox,
+consumo RabbitMQ e entrega pela Evolution ainda não estão implementados.
+
+## Conexão WhatsApp da unidade — entrega C
+
+GET /api/v1/admin/shops/{slug}/whatsapp/connection, POST /whatsapp/connect e
+POST /whatsapp/disconnect usam autenticação, acesso à unidade e owner. Revalidam
+usuário/membership/loja no banco. Os POSTs recebem corpo vazio ou objeto vazio.
+Nenhum aceita instanceName, shop_id, URL ou chave do navegador. Status retorna
+state, desired_connected, stale, provider_configured, verified_at,
+last_connected_at e error_code sanitizado.
+
+Connect retorna {connection,qr}; qr é null ou {png,discard_after}. A imagem PNG
+temporária é exclusiva do owner, com no-store/no-referrer, sem persistência/log.
+Autorização é revalidada após I/O antes de devolver QR. Não há GET /whatsapp/qr.
+409 connection_busy informa lease em andamento; 503 evolution_activation_required
+indica ativação necessária pelo operador, sem conceder acesso ao provider.
+
+POST /api/v1/webhooks/evolution só é habilitado com a integração configurada.
+Header X-BarberChat-Evolution autentica a instância com segredo derivado por HMAC;
+não é assinatura do corpo. O evento connection.update apenas marca rechecagem
+durável, sem confiar no estado/apikey do JSON. Corpo limitado a 64 KiB.
+O reconciliador consulta ativamente a instância, recupera leases e mantém último
+estado desejado. Connected com mais de dois minutos sem verificação vira
+unknown/stale na resposta. Conexão não significa mensagem enviada/entregue.
+
+Detalhes e comandos: [Evolution local](evolution-local.md).

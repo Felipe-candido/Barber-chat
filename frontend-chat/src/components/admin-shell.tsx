@@ -1,13 +1,14 @@
 "use client";
 import { useCallback, useId, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { LogOut, Menu } from "lucide-react";
+import { LogOut } from "lucide-react";
 import type { AccessibleShop, StaffIdentity, ShopAccess } from "@/lib/api/identity";
 import { errorMessage } from "@/lib/api/client";
 import { useAdminAccess } from "./admin-access-provider";
 import { useFeedback } from "./feedback-provider";
 import { AdminNavigation, adminDestinations } from "./admin/navigation";
 import { NavigationDrawer } from "./admin/navigation-drawer";
+import { BottomNavigation } from "./admin/bottom-navigation";
 import styles from "./admin-shell.module.css";
 
 export function AdminShell({
@@ -52,16 +53,6 @@ export function AdminShell({
       <div className={styles.workspace}>
         <header className={styles.topbar + " topbar"}>
           <div className={styles.location}>
-            <button
-              type="button"
-              className={styles.menuButton + " icon-button"}
-              aria-label="Abrir menu"
-              aria-controls={drawerId}
-              aria-expanded={open}
-              onClick={() => setOpen(true)}
-            >
-              <Menu size={22} aria-hidden="true" />
-            </button>
             <div>
               <strong>{shop.name}</strong>
               <span>{section}</span>
@@ -96,6 +87,14 @@ export function AdminShell({
           <span>Barber-chat</span>
         </footer>
       </div>
+      <BottomNavigation
+        slug={shop.slug}
+        role={access.role}
+        pathname={pathname}
+        menuId={drawerId}
+        menuOpen={open}
+        onOpenMenu={() => setOpen(true)}
+      />
     </div>
   );
 }

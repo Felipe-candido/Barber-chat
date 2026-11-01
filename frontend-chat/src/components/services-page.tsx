@@ -54,7 +54,7 @@ export function ServicesPage() {
           onChange={(event) => setQuery(event.target.value)}
           endAdornment={<Search size={18} aria-hidden="true" />}
         />
-        <Button variant="secondary" disabled={loading} onClick={() => void reload()}>
+        <Button variant="quiet" disabled={loading} onClick={() => void reload()}>
           <RefreshCw size={16} aria-hidden="true" />
           Atualizar lista
         </Button>

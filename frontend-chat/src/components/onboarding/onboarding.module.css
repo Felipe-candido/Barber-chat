@@ -15,7 +15,7 @@
   gap: var(--space-4);
 }
 .header > a:last-child {
-  color: var(--color-action);
+  color: var(--color-link);
   font-size: var(--text-small);
   min-height: var(--control-height);
   display: inline-flex;
@@ -43,7 +43,8 @@
   font-size: var(--text-small);
 }
 .steps li > span {
-  border: 1px solid var(--color-border-control);
+  border: 1px solid var(--color-border-strong);
+  font-weight: var(--weight-semibold);
   border-radius: 50%;
   width: 28px;
   height: 28px;
@@ -61,23 +62,26 @@
   border-color: var(--color-action);
 }
 .steps li[data-complete] > span {
-  color: var(--color-action);
+  color: var(--color-link);
   border-color: var(--color-action);
 }
 .panel {
   min-width: 0;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-sheet);
+  box-shadow: var(--shadow-raised);
   padding: var(--space-8);
   display: grid;
   gap: var(--space-6);
 }
 .panel h1 {
-  font-size: var(--text-heading);
+  font-family: var(--font-display);
+  font-size: 1.75rem;
   font-weight: var(--weight-semibold);
+  font-variation-settings: "opsz" 72;
   line-height: var(--line-heading);
-  letter-spacing: -0.03em;
+  letter-spacing: -0.02em;
 }
 .description,
 .note,
@@ -110,7 +114,7 @@
   padding: 0;
 }
 .fields > legend {
-  font-size: var(--text-subheading);
+  font-size: 1.125rem;
   font-weight: var(--weight-semibold);
   margin-bottom: var(--space-5);
 }
@@ -128,8 +132,9 @@
 }
 .summary {
   padding: var(--space-4);
-  border: 1px solid var(--color-danger-text);
+  border: 1px solid var(--color-danger-border);
   border-radius: var(--radius-control);
+  background: var(--color-danger-surface);
   color: var(--color-danger-text);
   font-size: var(--text-small);
   line-height: var(--line-body);

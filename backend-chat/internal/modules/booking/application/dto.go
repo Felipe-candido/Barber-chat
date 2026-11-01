@@ -30,6 +30,8 @@ type CreateAppointmentInput struct {
 	StartsAt       time.Time
 	Customer       CustomerInput
 	IdempotencyKey string
+	// Explicit transactional-message permission; staff attests the customer agreed.
+	WhatsAppNotifications bool
 }
 
 // ListAvailabilityInput asks about a civil date in the shop's named timezone.

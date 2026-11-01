@@ -1,4 +1,4 @@
-import { CalendarDays, Scissors } from "lucide-react";
+import { Scissors } from "lucide-react";
 import styles from "./foundation.module.css";
 
 export function ProductBrand({
@@ -11,7 +11,7 @@ export function ProductBrand({
   return (
     <span className={`${styles.brand} ${light ? styles.brandLight : ""}`}>
       <span className={styles.brandMark} aria-hidden="true">
-        <CalendarDays size={22} />
+        <Scissors size={20} />
       </span>
       {compact ? <span className={styles.srOnly}>Barber-chat</span> : <strong>Barber-chat</strong>}
     </span>

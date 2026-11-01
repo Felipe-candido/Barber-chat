@@ -31,7 +31,7 @@
 }
 .hint a,
 .page a:not(:global(.button)) {
-  color: var(--color-action);
+  color: var(--color-link);
   text-underline-offset: 3px;
 }
 .grid {
@@ -46,6 +46,7 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
+  box-shadow: var(--shadow-card);
   overflow-wrap: anywhere;
 }
 .service {
@@ -55,9 +56,10 @@
 }
 .service h2,
 .panel h2 {
-  font-size: var(--text-subheading);
+  font-size: 1.125rem;
   font-weight: var(--weight-semibold);
   line-height: var(--line-heading);
+  letter-spacing: -0.01em;
 }
 .service > p {
   color: var(--color-text-secondary);
@@ -71,8 +73,12 @@
   gap: var(--space-3);
 }
 .serviceName > svg {
-  color: var(--color-text-secondary);
-  margin-top: var(--space-1);
+  box-sizing: content-box;
+  padding: var(--space-2);
+  margin-top: -2px;
+  border-radius: 50%;
+  background: var(--color-action-soft);
+  color: var(--color-link);
 }
 .serviceData {
   display: flex;
@@ -85,8 +91,10 @@
   border-top: 1px solid var(--color-border);
 }
 .serviceData strong {
-  font-size: var(--text-subheading);
+  font-family: var(--font-display);
+  font-size: var(--text-heading);
   font-weight: var(--weight-semibold);
+  font-variant-numeric: lining-nums tabular-nums;
 }
 .serviceData span {
   display: inline-flex;
@@ -157,9 +165,22 @@
   line-height: var(--line-body);
   overflow-wrap: anywhere;
 }
+.choice {
+  cursor: pointer;
+  transition:
+    border-color var(--motion-fast),
+    background var(--motion-fast);
+}
+.choice:hover {
+  border-color: var(--color-border-strong);
+}
 .choice:has(input:checked) {
   border-color: var(--color-action);
-  background: var(--color-info-surface);
+  background: var(--color-action-soft);
+}
+.choice:has(input:focus-visible) {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 .choice input {
   width: 1rem;
@@ -174,6 +195,7 @@
 }
 .days {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
 }
 .list {
@@ -213,8 +235,8 @@
   gap: var(--space-2);
 }
 .tag {
-  padding: var(--space-1) var(--space-2);
-  border-radius: var(--radius-small);
+  padding: 2px var(--space-3);
+  border-radius: 999px;
   background: var(--color-surface-subtle);
   font-size: var(--text-small);
   color: var(--color-text-secondary);
@@ -228,7 +250,7 @@
   align-items: center;
   min-height: var(--control-height);
   cursor: pointer;
-  color: var(--color-action);
+  color: var(--color-link);
   font-size: var(--text-small);
   font-weight: var(--weight-medium);
 }
@@ -266,10 +288,15 @@
   gap: var(--space-3);
 }
 .empty > svg {
-  color: var(--color-text-secondary);
+  box-sizing: content-box;
+  padding: var(--space-4);
+  border-radius: 50%;
+  background: var(--color-action-soft);
+  color: var(--color-link);
 }
 .empty h2,
 .empty h3 {
+  font-family: var(--font-display);
   font-size: var(--text-subheading);
   font-weight: var(--weight-semibold);
 }
@@ -286,9 +313,9 @@
   display: grid;
   gap: var(--space-3);
 }
-@media (min-width: 640px) {
+@media (min-width: 900px) {
   .days {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 @media (min-width: 1200px) {
