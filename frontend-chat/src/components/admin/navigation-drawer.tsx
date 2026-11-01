@@ -71,6 +71,7 @@ export function NavigationDrawer({
           onClose();
       }}
     >
+      <span className={styles.grabber} aria-hidden="true" />
       <div className={styles.drawerHeading}>
         <h2 id={titleId}>Menu do painel</h2>
         <button

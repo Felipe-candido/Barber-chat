@@ -57,8 +57,18 @@ func (uc *CreateAppointment) execute(ctx context.Context, input CreateAppointmen
 	}
 	// A keyed fingerprint also prevents offline guessing of contact data from a
 	// database-only leak. The random request key is never persisted or logged.
-	canonical := input
-	canonical.IdempotencyKey = ""
+	// Preserve legacy false/omitted fingerprints across deployment. An explicit
+	// opt-in is part of the idempotent command identity.
+	canonical := struct {
+		ShopSlug              string
+		ServiceID             uuid.UUID
+		ProfessionalID        uuid.UUID
+		StartsAt              time.Time
+		Customer              CustomerInput
+		IdempotencyKey        string
+		WhatsAppNotifications bool `json:",omitempty"`
+	}{ShopSlug: input.ShopSlug, ServiceID: input.ServiceID, ProfessionalID: input.ProfessionalID,
+		StartsAt: input.StartsAt, Customer: input.Customer, WhatsAppNotifications: input.WhatsAppNotifications}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {
 		return CreateAppointmentOutput{}, err
@@ -188,6 +198,19 @@ func (uc *CreateAppointment) execute(ctx context.Context, input CreateAppointmen
 		}
 		if saved != appointment {
 			return ErrInconsistentBookingData
+		}
+		if tx.Notifications == nil {
+			return ErrNotificationPlanningUnavailable
+		}
+		actorID := uuid.Nil
+		if staff != nil {
+			actorID = staff.UserID
+		}
+		if err := tx.Notifications.Plan(ctx, BookingNotificationInput{
+			Appointment: appointment, ShopName: shop.Name, ShopSlug: shop.Slug, Customer: input.Customer, Code: code,
+			WhatsAppNotifications: input.WhatsAppNotifications, ActorID: actorID,
+		}); err != nil {
+			return fmt.Errorf("plan booking notifications: %w", err)
 		}
 		output = CreateAppointmentOutput{Appointment: receiptOf(appointment, shop.Name), Code: code}
 		return tx.Idempotency.CompleteCreateAppointment(ctx, shop.ShopID, input.IdempotencyKey, ClaimedReceipt{Appointment: output.Appointment, Code: code})

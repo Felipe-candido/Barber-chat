@@ -83,7 +83,7 @@
   align-items: center;
   width: fit-content;
   min-height: var(--control-height);
-  color: var(--color-action);
+  color: var(--color-link);
   font-size: var(--text-small);
   text-decoration: underline;
   text-underline-offset: 3px;

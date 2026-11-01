@@ -1,11 +1,23 @@
 openapi: 3.1.0
 info:
   title: Barber-chat API
-  version: 0.11.0
+  version: 0.14.0
   description: Health/readiness, administrative identity, services/professionals and public booking. Administrative routes require a Supabase ES256 access token and an active local user; shop reads and writes also require an active shop membership. Public appointments use a private consultation code, not staff login. Browser requests require the exact FRONTEND_ORIGIN. Secrets are never accepted in URL parameters.
 servers:
   - url: http://127.0.0.1:8080
 paths:
+  /api/v1/admin/shops/{slug}/whatsapp/connection:
+    $ref: './notifications-openapi.yaml#/paths/connection'
+  /api/v1/admin/shops/{slug}/whatsapp/connect:
+    $ref: './notifications-openapi.yaml#/paths/connect'
+  /api/v1/admin/shops/{slug}/whatsapp/disconnect:
+    $ref: './notifications-openapi.yaml#/paths/disconnect'
+  /api/v1/webhooks/evolution:
+    $ref: './notifications-openapi.yaml#/paths/webhook'
+  /api/v1/admin/shops/{slug}/reports/activity:
+    $ref: './reporting-openapi.yaml#/paths/activity'
+  /api/v1/admin/shops/{slug}/reports/activity/history:
+    $ref: './reporting-openapi.yaml#/paths/activityHistory'
   /api/v1/admin/shops/{slug}/sales:
     $ref: './sales-openapi.yaml#/paths/sales'
   /api/v1/admin/shops/{slug}/sales/{saleID}:

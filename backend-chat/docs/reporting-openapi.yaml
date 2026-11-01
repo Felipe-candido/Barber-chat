@@ -1,0 +1,261 @@
+# Implemented reporting API. Referenced by openapi.yaml; delivery G.
+paths:
+  activity:
+    parameters:
+      - {in: path, name: slug, required: true, schema: {type: string}}
+    get:
+      operationId: getActivityReport
+      summary: Read service and product activity totals for an authorized shop
+      description: |
+        Owner reads the entire unit or selects a professional. Barber is restricted to the current
+        active professional from its membership. Current access is rechecked inside the read-only
+        transaction. Subscription/publication does not gate historical administrative reads.
+        from/through are inclusive civil dates in the stored shop IANA timezone, up to 366 days.
+        Services use appointment starts_at; products independently use sale sold_at.
+        Only stored completed appointments and recorded sales contribute valid value.
+        Scheduled/confirmed service values are a separate forecast. Automatic completion is identified;
+        it is neither payment confirmation nor proof that the service was manually checked.
+        In all, service_id filters only appointments and product_id filters only sale items.
+        Phone/name apply to current shop-local contact; standalone sales without an appointment do not match.
+        Product values/units sum matching items and sale counts use DISTINCT sale IDs.
+        Group sale counts are not additive across products. No cash collection or profit is inferred.
+        Query strings are limited to 4096 encoded bytes; unknown, duplicate and empty parameters are rejected.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/From'}
+        - {$ref: '#/components/parameters/Through'}
+        - {$ref: '#/components/parameters/Source'}
+        - {$ref: '#/components/parameters/CustomerName'}
+        - {$ref: '#/components/parameters/Phone'}
+        - {$ref: '#/components/parameters/PhoneCountry'}
+        - {$ref: '#/components/parameters/ProfessionalID'}
+        - {$ref: '#/components/parameters/ServiceID'}
+        - {$ref: '#/components/parameters/ProductID'}
+      responses:
+        '200':
+          description: Authorized data; amounts in integer cents, currency explicit, Cache-Control no-store
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/Overview'}}}
+        '400': {$ref: '#/components/responses/InvalidQuery'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Denied'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/Inconsistent'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  activityHistory:
+    parameters:
+      - {in: path, name: slug, required: true, schema: {type: string}}
+    get:
+      operationId: listActivityHistory
+      summary: Read a private page of appointments and sale items
+      description: |
+        Same common filters and current owner/barber scope as the activity summary.
+        Each row is one appointment OR one sale item. Rows sort descending by
+        (occurred_at, source with C collation, record_id, item_id), with a zero internal item key for appointments.
+        value_cents preserves the original snapshot; recorded_value_cents is zero for excluded outcomes.
+        Cancelling an appointment does not cancel its linked sale.
+        Cursor binds actor, shop, current authority, effective professional, normalized filters,
+        statuses, dates and timezone. It is a position, not an access credential.
+        Always recheck access, including between pages. A page is a coherent read, but subsequent pages
+        are not a frozen historical snapshot. Page size may change within its limit.
+        In all, appointment_status applies only to appointments and sale_status only to sales.
+        Exclusive source rejects the other source's resource/status filters.
+        Do not decode or alter the opaque cursor in the frontend. Empty next_cursor ends pagination.
+      security: [{bearerAuth: []}]
+      parameters:
+        - {$ref: '#/components/parameters/From'}
+        - {$ref: '#/components/parameters/Through'}
+        - {$ref: '#/components/parameters/Source'}
+        - {$ref: '#/components/parameters/CustomerName'}
+        - {$ref: '#/components/parameters/Phone'}
+        - {$ref: '#/components/parameters/PhoneCountry'}
+        - {$ref: '#/components/parameters/ProfessionalID'}
+        - {$ref: '#/components/parameters/ServiceID'}
+        - {$ref: '#/components/parameters/ProductID'}
+        - {$ref: '#/components/parameters/AppointmentStatus'}
+        - {$ref: '#/components/parameters/SaleStatus'}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Cursor'}
+      responses:
+        '200':
+          description: Authorized data; amounts in integer cents, currency explicit, Cache-Control no-store
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content: {application/json: {schema: {$ref: '#/components/schemas/HistoryPage'}}}
+        '400': {$ref: '#/components/responses/InvalidQuery'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Denied'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '500': {$ref: '#/components/responses/Inconsistent'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+components:
+  parameters:
+    From: {in: query, name: from, required: true, schema: {type: string, format: date}, description: 'First inclusive shop-local date, years 1900–9998'}
+    Through: {in: query, name: through, required: true, schema: {type: string, format: date}, description: Last inclusive shop-local date; maximum 366 dates}
+    Source: {in: query, name: source, schema: {type: string, enum: [all, services, products], default: all}}
+    CustomerName: {in: query, name: customer_name, schema: {type: string, minLength: 1, maxLength: 201}, description: Literal case-insensitive substring in current contact; controls rejected and external spaces trimmed}
+    Phone: {in: query, name: phone, schema: {type: string, minLength: 1, maxLength: 40}, description: Exact normalized phone; URL-encode plus as %2B; no extensions}
+    PhoneCountry: {in: query, name: phone_country, schema: {type: string, minLength: 2, maxLength: 2}, description: Two-letter country for national numbers; optional for international plus numbers; rejected without phone}
+    ProfessionalID: {in: query, name: professional_id, schema: {type: string, format: uuid}, description: Nonzero UUID; owner may select a professional including inactive history; barber may only select itself}
+    ServiceID: {in: query, name: service_id, schema: {type: string, format: uuid}, description: Nonzero UUID; service branch only; incompatible with source products}
+    ProductID: {in: query, name: product_id, schema: {type: string, format: uuid}, description: Nonzero UUID; matching sale items only including inactive products; incompatible with source services}
+    AppointmentStatus: {in: query, name: appointment_status, schema: {$ref: '#/components/schemas/AppointmentStatus'}, description: History only; incompatible with source products}
+    SaleStatus: {in: query, name: sale_status, schema: {type: string, enum: [recorded, cancelled]}, description: History only; incompatible with source services}
+    Limit: {in: query, name: limit, schema: {type: integer, minimum: 1, maximum: 100, default: 25}}
+    Cursor: {in: query, name: cursor, schema: {type: string, minLength: 1, maxLength: 1024}, description: Opaque unpadded base64url page position from next_cursor; do not alter}
+  schemas:
+    SafeInteger: {type: integer, format: int64, minimum: 0, maximum: 9007199254740991}
+    AppointmentStatus: {type: string, enum: [scheduled, confirmed, completed, cancelled, no_show]}
+    StatusSource: {type: string, enum: [legacy, booking, public, staff, automatic]}
+    Period:
+      type: object
+      additionalProperties: false
+      required: [from_date, through_date, from_at, until_at, timezone]
+      properties:
+        from_date: {type: string, format: date}
+        through_date: {type: string, format: date}
+        from_at: {type: string, format: date-time, description: Inclusive UTC boundary}
+        until_at: {type: string, format: date-time, description: Exclusive UTC boundary after the last local date; days may differ from 24 hours}
+        timezone: {type: string, description: Stored shop IANA timezone}
+    Counts:
+      type: object
+      additionalProperties: false
+      required: [scheduled, confirmed, completed, completed_automatically, cancelled, no_show]
+      description: Completed automatically is a subset of completed; appointments are counted once regardless of sale items
+      properties:
+        scheduled: {$ref: '#/components/schemas/SafeInteger'}
+        confirmed: {$ref: '#/components/schemas/SafeInteger'}
+        completed: {$ref: '#/components/schemas/SafeInteger'}
+        completed_automatically: {$ref: '#/components/schemas/SafeInteger'}
+        cancelled: {$ref: '#/components/schemas/SafeInteger'}
+        no_show: {$ref: '#/components/schemas/SafeInteger'}
+    Values:
+      type: object
+      additionalProperties: false
+      required: [currency, scheduled_service_value_cents, completed_service_value_cents, product_sale_value_cents, combined_value_cents, completed_appointment_count, product_sale_count, product_unit_count]
+      description: One currency bucket; forecast excluded from combined valid value; not received cash or profit
+      properties:
+        currency: {type: string, pattern: '^[A-Z]{3}$'}
+        scheduled_service_value_cents: {$ref: '#/components/schemas/SafeInteger'}
+        completed_service_value_cents: {$ref: '#/components/schemas/SafeInteger'}
+        product_sale_value_cents: {$ref: '#/components/schemas/SafeInteger'}
+        combined_value_cents: {$ref: '#/components/schemas/SafeInteger'}
+        completed_appointment_count: {$ref: '#/components/schemas/SafeInteger'}
+        product_sale_count: {$ref: '#/components/schemas/SafeInteger'}
+        product_unit_count: {$ref: '#/components/schemas/SafeInteger'}
+    Day:
+      type: object
+      additionalProperties: false
+      required: [local_date, counts, values]
+      properties:
+        local_date: {type: string, format: date}
+        counts: {$ref: '#/components/schemas/Counts'}
+        values: {type: array, items: {$ref: '#/components/schemas/Values'}}
+    Group:
+      type: object
+      additionalProperties: false
+      required: [id, label, counts, values]
+      properties:
+        id: {type: [string, 'null'], format: uuid, description: Stable resource ID; null only for the owner's unassigned professional group}
+        label: {type: string, description: Latest matching snapshot name; empty for unassigned professional}
+        counts: {$ref: '#/components/schemas/Counts'}
+        values: {type: array, items: {$ref: '#/components/schemas/Values'}}
+    Overview:
+      type: object
+      additionalProperties: false
+      required: [period, source, observed_at, counts, values, by_day, by_professional, by_service, by_product]
+      properties:
+        period: {$ref: '#/components/schemas/Period'}
+        source: {type: string, enum: [all, services, products]}
+        observed_at: {type: string, format: date-time, description: UTC beginning of the database read transaction}
+        counts: {$ref: '#/components/schemas/Counts'}
+        values: {type: array, items: {$ref: '#/components/schemas/Values'}}
+        by_day: {type: array, description: Matching days in ascending local-date order, items: {$ref: '#/components/schemas/Day'}}
+        by_professional: {type: array, items: {$ref: '#/components/schemas/Group'}}
+        by_service: {type: array, items: {$ref: '#/components/schemas/Group'}}
+        by_product: {type: array, items: {$ref: '#/components/schemas/Group'}}
+    HistoryItem:
+      type: object
+      additionalProperties: false
+      required: [source, record_id, item_id, service_id, product_id, professional_id, label, professional_name, currency, appointment_status, appointment_status_source, sale_status, customer_name, customer_phone, occurred_at, quantity, unit_price_cents, value_cents, recorded_value_cents]
+      properties:
+        source: {type: string, enum: [services, products]}
+        record_id: {type: string, format: uuid, description: Appointment ID or sale ID according to source}
+        item_id: {type: [string, 'null'], format: uuid}
+        service_id: {type: [string, 'null'], format: uuid}
+        product_id: {type: [string, 'null'], format: uuid}
+        professional_id: {type: [string, 'null'], format: uuid}
+        label: {type: string, description: Service/product snapshot name}
+        professional_name: {type: string, description: Snapshot name; empty for unassigned sale}
+        currency: {type: string, pattern: '^[A-Z]{3}$'}
+        appointment_status: {type: [string, 'null'], enum: [scheduled, confirmed, completed, cancelled, no_show, null]}
+        appointment_status_source: {type: [string, 'null'], enum: [legacy, booking, public, staff, automatic, null]}
+        sale_status: {type: [string, 'null'], enum: [recorded, cancelled, null]}
+        customer_name: {type: string, description: Current shop-local contact; empty for an anonymous standalone sale}
+        customer_phone: {type: string, description: Current E.164 contact; empty for an anonymous standalone sale}
+        occurred_at: {type: string, format: date-time, description: Appointment starts_at or sale sold_at in UTC}
+        quantity: {type: integer, format: int64, minimum: 1, maximum: 2147483647}
+        unit_price_cents: {$ref: '#/components/schemas/SafeInteger'}
+        value_cents: {$ref: '#/components/schemas/SafeInteger'}
+        recorded_value_cents: {$ref: '#/components/schemas/SafeInteger'}
+      oneOf:
+        - properties:
+            source: {const: services}
+            item_id: {type: 'null'}
+            service_id: {type: string, format: uuid}
+            product_id: {type: 'null'}
+            professional_id: {type: string, format: uuid}
+            appointment_status: {$ref: '#/components/schemas/AppointmentStatus'}
+            appointment_status_source: {$ref: '#/components/schemas/StatusSource'}
+            sale_status: {type: 'null'}
+            quantity: {const: 1}
+        - properties:
+            source: {const: products}
+            item_id: {type: string, format: uuid}
+            service_id: {type: 'null'}
+            product_id: {type: string, format: uuid}
+            appointment_status: {type: 'null'}
+            appointment_status_source: {type: 'null'}
+            sale_status: {type: string, enum: [recorded, cancelled]}
+            unit_price_cents: {minimum: 1}
+            value_cents: {minimum: 1}
+    HistoryPage:
+      type: object
+      additionalProperties: false
+      required: [period, source, observed_at, items, next_cursor]
+      properties:
+        period: {$ref: '#/components/schemas/Period'}
+        source: {type: string, enum: [all, services, products]}
+        observed_at: {type: string, format: date-time}
+        items: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/HistoryItem'}}
+        next_cursor: {type: string, maxLength: 1024, description: Empty string ends pagination}
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code: {type: string}
+            message: {type: string}
+  responses:
+    InvalidQuery:
+      description: invalid_report_query; review dates, source compatibility, filters, limit and cursor
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Unauthorized:
+      description: Authentication required; Bearer session is verified before handler execution
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Denied:
+      description: Current unit access denied, unknown/inactive slug, or barber selected another professional
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    NotFound:
+      description: shop_not_found if the use case cannot resolve the active report shop
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Inconsistent:
+      description: report_unavailable; inconsistent projection, no partial report returned
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Unavailable:
+      description: temporarily_unavailable; dependency failure or deadline, retry the read; no raw SQL or sensitive inputs exposed
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}

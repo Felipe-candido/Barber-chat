@@ -15,6 +15,8 @@ import (
 	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
 	identityapp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/application"
 	identityhttp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/http"
+	notificationshttp "github.com/Felipe-candido/Barber-chat/internal/modules/notifications/infra/http"
+	reportinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/reporting/infra/http"
 	saleshttp "github.com/Felipe-candido/Barber-chat/internal/modules/sales/infra/http"
 	shopshttp "github.com/Felipe-candido/Barber-chat/internal/modules/shops/infra/http"
 
@@ -23,30 +25,33 @@ import (
 )
 
 type HandlerConfig struct {
-	CheckDB              func(context.Context) error
-	Catalog              *cataloghttp.Handler
-	Products             *cataloghttp.ProductHandler
-	Sales                *saleshttp.Handler
-	Professionals        *cataloghttp.ProfessionalHandler
-	Booking              *bookinghttp.Handler
-	Agenda               *bookinghttp.AgendaHandler
-	AppointmentLifecycle *bookinghttp.LifecycleHandler
-	Accounts             *identityhttp.AccountHandler
-	Authenticate         *identityapp.Authenticate
-	AuthorizeShop        *identityapp.AuthorizeShopAction
-	ListMyShops          *identityapp.ListMyShops
-	Registration         *shopshttp.RegistrationHandler
-	ShopSettings         *shopshttp.SettingsHandler
-	ShopPublication      *shopshttp.PublicationHandler
-	Checkout             *billinghttp.CheckoutHandler
-	Portal               *billinghttp.PortalHandler
-	StripeWebhook        *billinghttp.WebhookHandler
-	VerifyRegistration   *identityapp.VerifyRegistrationAccount
-	PublicShopGate       func(http.Handler) http.Handler
-	RequestTimeout       time.Duration
-	DBTimeout            time.Duration
-	Logger               *slog.Logger
-	FrontendOrigin       string
+	WhatsApp                *notificationshttp.ConnectionHandler
+	EvolutionWebhookEnabled bool
+	CheckDB                 func(context.Context) error
+	Catalog                 *cataloghttp.Handler
+	Products                *cataloghttp.ProductHandler
+	Sales                   *saleshttp.Handler
+	Reporting               *reportinghttp.Handler
+	Professionals           *cataloghttp.ProfessionalHandler
+	Booking                 *bookinghttp.Handler
+	Agenda                  *bookinghttp.AgendaHandler
+	AppointmentLifecycle    *bookinghttp.LifecycleHandler
+	Accounts                *identityhttp.AccountHandler
+	Authenticate            *identityapp.Authenticate
+	AuthorizeShop           *identityapp.AuthorizeShopAction
+	ListMyShops             *identityapp.ListMyShops
+	Registration            *shopshttp.RegistrationHandler
+	ShopSettings            *shopshttp.SettingsHandler
+	ShopPublication         *shopshttp.PublicationHandler
+	Checkout                *billinghttp.CheckoutHandler
+	Portal                  *billinghttp.PortalHandler
+	StripeWebhook           *billinghttp.WebhookHandler
+	VerifyRegistration      *identityapp.VerifyRegistrationAccount
+	PublicShopGate          func(http.Handler) http.Handler
+	RequestTimeout          time.Duration
+	DBTimeout               time.Duration
+	Logger                  *slog.Logger
+	FrontendOrigin          string
 }
 
 func NewHandler(cfg HandlerConfig) http.Handler {
@@ -64,6 +69,9 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	router.Use(middleware.Recoverer)
 	router.Use(accessmiddleware.CORS(cfg.FrontendOrigin))
 	router.Use(accessmiddleware.RequestTimeout(cfg.RequestTimeout))
+	if cfg.WhatsApp != nil && cfg.EvolutionWebhookEnabled {
+		router.Post("/api/v1/webhooks/evolution", cfg.WhatsApp.Webhook)
+	}
 	if cfg.StripeWebhook != nil {
 		router.Post("/api/v1/webhooks/stripe", cfg.StripeWebhook.Receive)
 	}
@@ -94,6 +102,22 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 		publicGates = append(publicGates, cfg.PublicShopGate)
 	}
 	shopAccess := accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)
+	if cfg.WhatsApp != nil {
+		base := "/api/v1/admin/shops/{slug}/whatsapp"
+		router.Options(base+"/connection", accessmiddleware.Preflight(http.MethodGet))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Get(base+"/connection", cfg.WhatsApp.Status)
+		router.Options(base+"/connect", accessmiddleware.Preflight(http.MethodPost))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base+"/connect", cfg.WhatsApp.Connect)
+		router.Options(base+"/disconnect", accessmiddleware.Preflight(http.MethodPost))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base+"/disconnect", cfg.WhatsApp.Disconnect)
+	}
+	if cfg.Reporting != nil {
+		base := "/api/v1/admin/shops/{slug}/reports/activity"
+		router.Options(base, accessmiddleware.Preflight(http.MethodGet))
+		router.With(authenticate, shopAccess).Get(base, cfg.Reporting.Overview)
+		router.Options(base+"/history", accessmiddleware.Preflight(http.MethodGet))
+		router.With(authenticate, shopAccess).Get(base+"/history", cfg.Reporting.History)
+	}
 	if cfg.Sales != nil {
 		base := "/api/v1/admin/shops/{slug}/sales"
 		router.Options(base, accessmiddleware.Preflight(http.MethodGet, http.MethodPost))

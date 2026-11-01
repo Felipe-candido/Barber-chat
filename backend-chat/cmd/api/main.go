@@ -23,6 +23,15 @@ import (
 	"github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/security"
 	customersinfra "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra"
 	customerspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra/postgres"
+	notificationsapp "github.com/Felipe-candido/Barber-chat/internal/modules/notifications/application"
+	notificationsinfra "github.com/Felipe-candido/Barber-chat/internal/modules/notifications/infra"
+	notificationsevolution "github.com/Felipe-candido/Barber-chat/internal/modules/notifications/infra/evolution"
+	notificationshttp "github.com/Felipe-candido/Barber-chat/internal/modules/notifications/infra/http"
+	notificationspg "github.com/Felipe-candido/Barber-chat/internal/modules/notifications/infra/postgres"
+	notificationssecurity "github.com/Felipe-candido/Barber-chat/internal/modules/notifications/infra/security"
+	reportingapp "github.com/Felipe-candido/Barber-chat/internal/modules/reporting/application"
+	reportinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/reporting/infra/http"
+	reportingpg "github.com/Felipe-candido/Barber-chat/internal/modules/reporting/infra/postgres"
 	salesapp "github.com/Felipe-candido/Barber-chat/internal/modules/sales/application"
 	saleshttp "github.com/Felipe-candido/Barber-chat/internal/modules/sales/infra/http"
 	salespg "github.com/Felipe-candido/Barber-chat/internal/modules/sales/infra/postgres"
@@ -96,6 +105,11 @@ func run(
 		return salesapp.SalesTx{Access: identitypostgres.NewSalesGuard(q), Eligibility: billingpostgres.NewSalesEligibility(q), Catalog: catalog, Appointments: bookingpostgres.NewSalesAppointments(q), Stock: catalog, Sales: store, Commands: store, Cancellation: store, Returns: catalog, Reader: store, Calendar: shopspostgres.NewSalesCalendar(q)}
 	})
 	salesHandler := saleshttp.NewHandler(salesapp.NewRegisterSale(salesTx, time.Now), salesapp.NewCancelSale(salesTx, time.Now), salesapp.NewSaleQueries(salesTx), cfg.OperationTimeout, logger)
+	reportingTx := reportingpg.NewTransactor(pool, func(q *db.Queries, at time.Time) reportingapp.ActivityReadTx {
+		reader := reportingpg.NewReader(q, at)
+		return reportingapp.ActivityReadTx{Access: identitypostgres.NewActivityGuard(q), Shops: shopspostgres.NewReportShops(q), Overview: reader, History: reader}
+	})
+	reportingHandler := reportinghttp.NewHandler(reportingapp.NewActivityQueries(reportingTx, customersinfra.ContactNormalizer{}), cfg.OperationTimeout, logger)
 	shopResolver := shopspostgres.NewResolver(queries)
 
 	identityRepository := identitypostgres.NewRepository(queries)
@@ -178,9 +192,20 @@ func run(
 	professionalHandler := cataloghttp.NewProfessionalHandler(catalogapp.NewCreateProfessional(professionalTransactions),
 		catalogapp.NewListProfessionals(catalogRepository), cfg.OperationTimeout, logger)
 
+	var payloadSealer notificationsapp.PayloadSealer
+	if len(cfg.NotificationPayloadKeys) > 0 {
+		payloadSealer, err = notificationssecurity.NewPayloadCipher(cfg.NotificationPayloadActiveKeyID, cfg.NotificationPayloadKeys)
+		if err != nil {
+			return fmt.Errorf("configure notification payload protection: %w", err)
+		}
+	}
+	prepareNotifications := notificationsapp.NewPrepareBookingNotifications(payloadSealer)
 	bookingTransactions := bookingpostgres.NewTransactor(pool, func(q *db.Queries) bookingapp.BookingTx {
 		repository := bookingpostgres.NewRepository(q)
 		return bookingapp.BookingTx{
+			Notifications: notificationsinfra.NewBookingPlanner(notificationsapp.NewPlanBookingNotifications(
+				cfg.NotificationPlanningEnabled, prepareNotifications, notificationspg.NewPlanningStore(q),
+				customerspostgres.NewBookingPermissions(q), shopspostgres.NewMessageShops(q))),
 			StaffEligibility: billingpostgres.NewBookingEligibility(q, billingapp.ClockFunc(time.Now)),
 			PublicAccess:     shopsapp.NewCheckPublicBooking(shopspostgres.NewResolver(q), billingapp.NewGetShopEntitlements(billingpostgres.NewReader(q), billingapp.ClockFunc(time.Now))),
 			Shops:            shopspostgres.NewResolver(q), Catalog: catalogpostgres.NewRepository(q),
@@ -204,7 +229,20 @@ func run(
 		return bookingapp.AppointmentLifecycleTx{Access: identitypostgres.NewRepository(q), Store: bookingpostgres.NewLifecycleStore(q)}
 	})
 	lifecycleHandler := bookinghttp.NewLifecycleHandler(bookingapp.NewManageAppointmentStatus(lifecycleTx), cfg.OperationTimeout, logger)
+	var connectionProvider notificationsapp.ConnectionProvider
+	if cfg.EvolutionBaseURL != "" {
+		connectionProvider, err = notificationsevolution.NewClient(cfg.EvolutionBaseURL, cfg.EvolutionAPIKey, cfg.EvolutionWebhookURL, cfg.EvolutionWebhookSecret, nil)
+		if err != nil {
+			return fmt.Errorf("configure Evolution client: %w", err)
+		}
+	}
+	connectionRepository := notificationspg.NewConnections(pool, func(q *db.Queries) notificationsapp.ConnectionOwnerAccess {
+		return identitypostgres.NewConnectionOwnerGuard(q)
+	})
+	manageConnections := notificationsapp.NewManageConnections(connectionRepository, connectionProvider)
+	connectionHandler := notificationshttp.NewConnectionHandler(manageConnections, cfg.EvolutionWebhookSecret, cfg.OperationTimeout)
 	handler := httpapi.NewHandler(httpapi.HandlerConfig{
+		WhatsApp: connectionHandler, EvolutionWebhookEnabled: connectionProvider != nil,
 		CheckDB:              pool.Ping,
 		Catalog:              catalogHandler,
 		Professionals:        professionalHandler,
@@ -220,6 +258,7 @@ func run(
 		ShopPublication:      publicationHandler,
 		Products:             productHandler,
 		Sales:                salesHandler,
+		Reporting:            reportingHandler,
 		Checkout:             checkoutHandler,
 		Portal:               billinghttp.NewPortalHandler(billingapp.NewOpenPortal(checkoutTx, portalProvider, billingapp.ClockFunc(time.Now), cfg.StripePortalConfigurationID, cfg.FrontendOrigin), cfg.OperationTimeout, logger),
 		StripeWebhook:        webhookHandler,
@@ -255,12 +294,13 @@ func run(
 		jobs.Run(jobCtx, 15*time.Second, cfg.OperationTimeout, completion.Execute, logger)
 	}()
 	defer func() { stopJobs(); <-jobsDone }()
-	return httpapi.Serve(
-		ctx,
-		listener,
-		handler,
-		cfg.HTTPTimeout,
-		cfg.ShutdownTimeout,
-		logger,
-	)
+	if connectionProvider != nil {
+		monitorDone := make(chan struct{})
+		go func() {
+			defer close(monitorDone)
+			notificationsinfra.RunConnectionMonitor(jobCtx, manageConnections, logger)
+		}()
+		defer func() { stopJobs(); <-monitorDone }()
+	}
+	return serveWithEvolutionWebhook(ctx, listener, handler, connectionHandler, cfg, logger)
 }

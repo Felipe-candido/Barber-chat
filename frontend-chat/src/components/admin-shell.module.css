@@ -9,7 +9,7 @@
   z-index: 110;
   padding: var(--space-3) var(--space-4);
   background: var(--color-surface);
-  color: var(--color-action);
+  color: var(--color-link);
   border-radius: var(--radius-control);
   transform: translateY(-200%);
 }
@@ -63,9 +63,6 @@
   color: var(--color-text-secondary);
   font-size: var(--text-small);
 }
-.menuButton {
-  flex-shrink: 0;
-}
 .main {
   width: min(100%, 1440px);
   margin-inline: auto;
@@ -115,7 +112,7 @@
   font-size: var(--text-small);
 }
 .unit a:hover {
-  color: var(--color-action);
+  color: var(--color-link);
 }
 .navigation {
   display: grid;
@@ -138,7 +135,7 @@
   background: var(--color-surface-subtle);
 }
 .navItem[aria-current="page"] {
-  border-left-color: var(--color-action);
+  border-left-color: var(--color-accent);
   background: var(--color-info-surface);
   color: var(--color-info-text);
   font-weight: var(--weight-semibold);
@@ -164,7 +161,7 @@
   gap: var(--space-2);
   min-height: var(--control-height);
   font-size: var(--text-small);
-  color: var(--color-action);
+  color: var(--color-link);
 }
 .bookingLink button {
   width: 100%;
@@ -203,39 +200,168 @@
   color: var(--color-text-secondary);
   font-size: var(--text-caption);
 }
+/* "Mais" menu: a bottom sheet on phones and tablets. */
 .drawer {
   position: fixed;
-  inset: 0 auto 0 0;
+  inset: auto 0 0 0;
   margin: 0;
-  padding: var(--space-4);
-  width: min(340px, calc(100% - 24px));
+  padding: var(--space-2) var(--space-5) calc(var(--space-6) + env(safe-area-inset-bottom));
+  width: 100%;
   max-width: none;
-  height: 100dvh;
-  max-height: 100dvh;
+  height: auto;
+  max-height: 88dvh;
   overflow: auto;
+  overscroll-behavior: contain;
   border: 0;
-  border-right: 1px solid var(--color-border);
+  border-radius: 24px 24px 0 0;
   background: var(--color-surface);
   color: var(--color-text);
+  box-shadow: var(--shadow-floating);
+}
+.drawer[open] {
+  animation: sheet-up 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .drawer::backdrop {
   background: var(--color-overlay);
+  backdrop-filter: blur(2px);
+}
+@keyframes sheet-up {
+  from {
+    transform: translateY(24px);
+    opacity: 0.6;
+  }
+}
+.grabber {
+  display: block;
+  width: 40px;
+  height: 4px;
+  margin: 0 auto var(--space-3);
+  border-radius: 999px;
+  background: var(--color-border);
 }
 .drawerHeading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-2);
 }
 .drawerHeading h2 {
-  font-size: var(--text-small);
-  font-weight: var(--weight-medium);
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
 }
 .drawerContent {
   display: flex;
   flex-direction: column;
-  min-height: calc(100dvh - 108px);
+}
+.drawerContent .brandLink {
+  display: none;
+}
+.drawerContent .unit {
+  padding: var(--space-4);
+  border: 0;
+  border-radius: 16px;
+  background: var(--color-surface-subtle);
+}
+.drawerContent .navigation {
+  margin-block: var(--space-4);
+}
+.drawerContent .navItem {
+  border-left: 0;
+  border-radius: 12px;
+}
+.drawerContent .bookingLink {
+  padding-block: var(--space-4);
+}
+.drawerContent .profile {
+  padding-top: var(--space-4);
+}
+
+/* Bottom tab bar (below 1024px). */
+.tabBar {
+  position: fixed;
+  inset: auto 0 0 0;
+  z-index: 30;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: 6px var(--space-2) calc(6px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface-translucent);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+}
+.tab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  min-height: 56px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+.tabIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 30px;
+  border-radius: 999px;
+  transition:
+    background var(--motion-fast),
+    color var(--motion-fast);
+}
+.tabLabel {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.6875rem;
+  font-weight: var(--weight-medium);
+  line-height: 1.2;
+}
+.tab:hover {
+  color: var(--color-text);
+}
+.tab[aria-current="page"],
+.tab[data-active] {
+  color: var(--color-text);
+}
+.tab[aria-current="page"] .tabIcon,
+.tab[data-active] .tabIcon {
+  background: var(--color-info-surface);
+  color: var(--color-link);
+}
+.tab[aria-current="page"] .tabLabel,
+.tab[data-active] .tabLabel {
+  font-weight: var(--weight-semibold);
+}
+
+@media (max-width: 1023px) {
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    min-height: 60px;
+    padding-top: calc(var(--space-2) + env(safe-area-inset-top));
+    padding-bottom: var(--space-2);
+    background: var(--color-surface-translucent);
+    backdrop-filter: saturate(180%) blur(16px);
+    -webkit-backdrop-filter: saturate(180%) blur(16px);
+  }
+  .location strong {
+    font-size: var(--text-body);
+  }
+  .main {
+    padding-top: var(--space-6);
+    padding-bottom: calc(var(--space-8) + 72px + env(safe-area-inset-bottom));
+  }
+  .footer {
+    display: none;
+  }
 }
 @media (min-width: 600px) {
   .topbar,
@@ -262,7 +388,7 @@
   .workspace {
     margin-left: 248px;
   }
-  .topbar .menuButton {
+  .tabBar {
     display: none;
   }
 }

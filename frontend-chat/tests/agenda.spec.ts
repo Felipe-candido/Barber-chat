@@ -31,9 +31,16 @@ test("authorized agenda uses shop dates and displays private details on mobile",
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/admin/" + testShop.slug);
+  // The week view is the default and groups bookings by the shop's civil day.
+  await expect(page.getByRole("button", { name: "Semana", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   const day = page.locator('[data-date="2026-10-03"]');
-  await expect(day.locator(".agenda-event")).toContainText("22:30 · Cliente Teste");
-  await expect(page.locator('[data-date="2026-10-04"] .agenda-event')).toHaveCount(0);
+  await expect(day.locator(".agenda-list-item")).toContainText("22:30–23:30");
+  await expect(day.locator(".agenda-list-item")).toContainText("Cliente Teste");
+  await expect(page.locator('[data-date="2026-10-04"] .agenda-list-item')).toHaveCount(0);
+  await page.screenshot({ path: "test-results/agenda-week-mobile.png", fullPage: true });
   await page.locator(".agenda-list-item").click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("+5511912345678");
@@ -42,14 +49,23 @@ test("authorized agenda uses shop dates and displays private details on mobile",
   await expect(dialog).toContainText("R$ 50,00");
   await page.screenshot({ path: "test-results/agenda-details-mobile.png", fullPage: true });
   await dialog.getByRole("button", { name: "Fechar janela" }).click();
-  await page.getByLabel("Filtrar por dia").fill("2026-10-04");
+  await page.getByRole("button", { name: "Dia", exact: true }).click();
+  await expect(page.locator(".agenda-list-item")).toHaveCount(1);
+  await page.screenshot({ path: "test-results/agenda-day-mobile.png", fullPage: true });
+  await page.getByRole("button", { name: "Ver dia 2026-10-04" }).click();
   await expect(page.getByText("Nenhum agendamento neste dia.")).toBeVisible();
-  await page.getByRole("button", { name: "Ver todo o período" }).click();
+  await page.getByRole("button", { name: "Mês", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "outubro de 2026" })).toBeVisible();
+  await page.screenshot({ path: "test-results/agenda-calendar-mobile.png", fullPage: true });
+  await page.getByRole("button", { name: "Ver dia 2026-10-03" }).click();
+  await expect(page.getByRole("button", { name: "Dia", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   await expect(page.locator(".agenda-list-item")).toHaveCount(1);
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   ).toBeTruthy();
-  await page.screenshot({ path: "test-results/agenda-calendar-mobile.png", fullPage: true });
 });
 
 test("pagination, focus refresh, cancellation and month navigation", async ({ page }) => {
@@ -93,12 +109,15 @@ test("pagination, focus refresh, cancellation and month navigation", async ({ pa
   await expect(page.locator(".agenda-list-item")).toHaveCount(2);
   cancelled = true;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await expect(page.locator(".agenda-event")).toHaveCount(1);
+  await expect(page.locator(".agenda-list-item")).toHaveCount(1);
+  await expect(page.locator(".agenda-list-item")).toContainText("Cancelado");
+  await page.getByRole("button", { name: "Mês", exact: true }).click();
   await expect(page.locator(".agenda-event")).toContainText("Cancelado");
   await page.getByRole("button", { name: "Próximo mês" }).click();
   await expect(page.getByRole("heading", { name: "novembro de 2026" })).toBeVisible();
-  await expect(page.getByText("Nenhum agendamento no período exibido.")).toBeVisible();
+  await expect(page.locator(".agenda-event")).toHaveCount(0);
   await page.getByRole("button", { name: "Hoje", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "outubro de 2026" })).toBeVisible();
   await expect(page.locator(".agenda-event")).toContainText("Cancelado");
 });
 
@@ -120,8 +139,8 @@ test("agenda failures are not disguised as an empty calendar and retry is read-o
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "temporariamente indisponível",
   );
-  await expect(page.getByText("Nenhum agendamento no período exibido.")).toHaveCount(0);
+  await expect(page.getByText("0 agendamentos carregados", { exact: false })).toHaveCount(0);
   unavailable = false;
   await page.getByRole("button", { name: "Atualizar agenda" }).click();
-  await expect(page.getByText("Nenhum agendamento no período exibido.")).toBeVisible();
+  await expect(page.getByText("0 agendamentos carregados", { exact: false })).toBeVisible();
 });

@@ -23,7 +23,7 @@
   color: var(--color-text-secondary);
 }
 .publicLink:hover {
-  color: var(--color-action);
+  color: var(--color-link);
 }
 .layout {
   flex: 1;
@@ -32,23 +32,49 @@
   padding: var(--space-12) var(--space-8);
   display: grid;
   grid-template-columns: 1fr 440px;
-  gap: var(--space-16);
+  gap: var(--space-10);
   align-items: center;
 }
+/* The one bold surface on the login: a graphite panel with a brass glow in the corner. */
 .introduction {
-  max-width: 480px;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  min-height: 520px;
+  padding: var(--space-10);
+  border-radius: var(--radius-sheet);
+  border: 1px solid rgb(217 195 154 / 14%);
+  background: var(--palette-graphite-900);
+  color: var(--palette-white);
+}
+.introduction::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  top: -220px;
+  right: -200px;
+  width: 560px;
+  height: 560px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(176 138 74 / 30%), transparent 65%);
 }
 .introduction h2 {
-  font-size: clamp(var(--text-heading), 3vw, 2.5rem);
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 3.4vw, 2.75rem);
   font-weight: var(--weight-semibold);
-  line-height: var(--line-heading);
-  letter-spacing: -0.04em;
+  font-variation-settings: "opsz" 96;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
 }
 .introduction > p {
-  margin-top: var(--space-6);
+  margin-top: var(--space-5);
   font-size: var(--text-body);
   line-height: var(--line-body);
-  color: var(--color-text-secondary);
+  color: rgb(255 255 255 / 76%);
   max-width: 42ch;
 }
 .features {
@@ -64,23 +90,31 @@
   gap: var(--space-3);
   font-size: var(--text-small);
   line-height: var(--line-body);
+  color: rgb(255 255 255 / 88%);
 }
 .features svg {
-  color: var(--color-text-secondary);
+  box-sizing: content-box;
+  padding: var(--space-2);
+  border-radius: 50%;
+  background: rgb(176 138 74 / 18%);
+  color: var(--palette-brass-300);
 }
 .panel {
   min-width: 0;
   padding: var(--space-8);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-panel);
+  border-radius: var(--radius-sheet);
   background: var(--color-surface);
+  box-shadow: var(--shadow-raised);
   display: grid;
   gap: var(--space-6);
 }
 .panel h1 {
-  font-size: var(--text-heading);
+  font-family: var(--font-display);
+  font-size: 1.75rem;
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.03em;
+  font-variation-settings: "opsz" 72;
+  letter-spacing: -0.02em;
   line-height: var(--line-heading);
 }
 .description {
@@ -103,7 +137,7 @@
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--color-action);
+  color: var(--color-link);
   font-size: var(--text-small);
   font-weight: var(--weight-medium);
   text-align: left;

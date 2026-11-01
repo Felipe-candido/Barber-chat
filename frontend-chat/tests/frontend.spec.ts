@@ -254,6 +254,7 @@ test("agenda and responsive screens display a real empty API result without mock
   }
   await page.goto("/admin/barbearia-do-felipe");
   await expect(page.getByRole("button", { name: "Novo agendamento" })).toBeVisible();
-  await expect(page.getByText("Nenhum agendamento no período exibido.")).toBeVisible();
-  await expect(page.locator(".agenda-event")).toHaveCount(0);
+  await expect(page.getByText("0 agendamentos carregados", { exact: false })).toBeVisible();
+  await expect(page.locator(".agenda-list-item")).toHaveCount(0);
+  await expect(page.getByText("Sem agendamentos")).toHaveCount(7);
 });

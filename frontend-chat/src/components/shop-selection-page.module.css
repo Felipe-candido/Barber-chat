@@ -26,7 +26,15 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
   background: var(--color-surface);
+  box-shadow: var(--shadow-card);
   overflow-wrap: anywhere;
+  transition:
+    border-color var(--motion-fast),
+    box-shadow var(--motion-fast);
+}
+.shop:hover {
+  border-color: var(--color-border-strong);
+  box-shadow: var(--shadow-raised);
 }
 .shopIcon {
   display: inline-flex;
@@ -34,13 +42,14 @@
   justify-content: center;
   width: var(--space-12);
   height: var(--space-12);
-  background: var(--color-surface-subtle);
-  color: var(--color-text-secondary);
-  border-radius: var(--radius-control);
+  background: var(--color-action-soft);
+  color: var(--color-link);
+  border-radius: 50%;
   margin-bottom: var(--space-5);
 }
 .shop h2 {
-  font-size: var(--text-subheading);
+  font-family: var(--font-display);
+  font-size: var(--text-heading);
   font-weight: var(--weight-semibold);
   letter-spacing: -0.02em;
   line-height: var(--line-heading);

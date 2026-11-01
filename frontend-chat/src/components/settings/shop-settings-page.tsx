@@ -125,7 +125,7 @@ function OwnerSettings({ shopID, slug, userID }: { shopID: string; slug: string;
         title="Configurações"
         description="Cadastro, assinatura e agendamento online da sua barbearia."
         actions={
-          <Button variant="secondary" disabled={locked} onClick={reload}>
+          <Button variant="quiet" disabled={locked} onClick={reload}>
             <RefreshCw size={16} aria-hidden="true" />
             Recarregar dados
           </Button>

@@ -38,6 +38,20 @@ type AppointmentCompletionPolicy struct {
 	ActivatedAt pgtype.Timestamptz `json:"activated_at"`
 }
 
+type AppointmentNotificationPlan struct {
+	ShopID             uuid.UUID          `json:"shop_id"`
+	AppointmentID      uuid.UUID          `json:"appointment_id"`
+	ScheduleGeneration int64              `json:"schedule_generation"`
+	PolicyVersion      int64              `json:"policy_version"`
+	SkipReason         pgtype.Text        `json:"skip_reason"`
+	ReminderSkipReason pgtype.Text        `json:"reminder_skip_reason"`
+	PayloadVersion     pgtype.Int4        `json:"payload_version"`
+	PayloadKeyID       pgtype.Text        `json:"payload_key_id"`
+	EncryptedPayload   []byte             `json:"encrypted_payload"`
+	PayloadExpiresAt   pgtype.Timestamptz `json:"payload_expires_at"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+}
+
 type AppointmentStatusCommand struct {
 	ShopID        uuid.UUID   `json:"shop_id"`
 	ActorID       uuid.UUID   `json:"actor_id"`
@@ -151,6 +165,49 @@ type Customer struct {
 	LastName  string             `json:"last_name"`
 	PhoneE164 string             `json:"phone_e164"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type CustomerBookingMessagePermission struct {
+	ShopID        uuid.UUID          `json:"shop_id"`
+	AppointmentID uuid.UUID          `json:"appointment_id"`
+	CustomerID    uuid.UUID          `json:"customer_id"`
+	Allowed       bool               `json:"allowed"`
+	Purpose       string             `json:"purpose"`
+	NoticeVersion int32              `json:"notice_version"`
+	Source        string             `json:"source"`
+	ActorID       pgtype.UUID        `json:"actor_id"`
+	RecordedAt    pgtype.Timestamptz `json:"recorded_at"`
+	RevokedAt     pgtype.Timestamptz `json:"revoked_at"`
+}
+
+type NotificationAttempt struct {
+	AttemptID         uuid.UUID          `json:"attempt_id"`
+	ShopID            uuid.UUID          `json:"shop_id"`
+	JobID             uuid.UUID          `json:"job_id"`
+	AttemptNumber     int32              `json:"attempt_number"`
+	InstanceName      string             `json:"instance_name"`
+	Outcome           string             `json:"outcome"`
+	ProviderMessageID pgtype.Text        `json:"provider_message_id"`
+	Reason            string             `json:"reason"`
+	StartedAt         pgtype.Timestamptz `json:"started_at"`
+	FinishedAt        pgtype.Timestamptz `json:"finished_at"`
+}
+
+type NotificationJob struct {
+	ID                   uuid.UUID          `json:"id"`
+	ShopID               uuid.UUID          `json:"shop_id"`
+	AppointmentID        uuid.UUID          `json:"appointment_id"`
+	ScheduleGeneration   int64              `json:"schedule_generation"`
+	Kind                 string             `json:"kind"`
+	DueAt                pgtype.Timestamptz `json:"due_at"`
+	ExpiresAt            pgtype.Timestamptz `json:"expires_at"`
+	State                string             `json:"state"`
+	InvalidatedAt        pgtype.Timestamptz `json:"invalidated_at"`
+	DeliveryState        string             `json:"delivery_state"`
+	DeliveryToken        pgtype.UUID        `json:"delivery_token"`
+	DeliveryLeaseUntil   pgtype.Timestamptz `json:"delivery_lease_until"`
+	DeliveryAttemptCount int32              `json:"delivery_attempt_count"`
+	DeliveryReason       string             `json:"delivery_reason"`
 }
 
 type Product struct {
@@ -327,6 +384,30 @@ type ShopMembership struct {
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	Role           string             `json:"role"`
 	ProfessionalID pgtype.UUID        `json:"professional_id"`
+}
+
+type ShopNotificationSetting struct {
+	ShopID              uuid.UUID          `json:"shop_id"`
+	Enabled             bool               `json:"enabled"`
+	ReminderLeadMinutes int32              `json:"reminder_lead_minutes"`
+	Version             int64              `json:"version"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ShopWhatsappConnection struct {
+	ShopID           uuid.UUID          `json:"shop_id"`
+	InstanceName     string             `json:"instance_name"`
+	Generation       int64              `json:"generation"`
+	DesiredConnected bool               `json:"desired_connected"`
+	State            string             `json:"state"`
+	VerifiedAt       pgtype.Timestamptz `json:"verified_at"`
+	LastConnectedAt  pgtype.Timestamptz `json:"last_connected_at"`
+	LastEventAt      pgtype.Timestamptz `json:"last_event_at"`
+	NextCheckAt      pgtype.Timestamptz `json:"next_check_at"`
+	Dirty            bool               `json:"dirty"`
+	ErrorCode        string             `json:"error_code"`
+	OperationToken   pgtype.UUID        `json:"operation_token"`
+	LeaseUntil       pgtype.Timestamptz `json:"lease_until"`
 }
 
 type StaffAccount struct {

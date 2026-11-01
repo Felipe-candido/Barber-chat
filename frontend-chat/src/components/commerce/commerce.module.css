@@ -46,6 +46,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
   background: var(--color-surface);
+  box-shadow: var(--shadow-card);
   overflow: hidden;
 }
 .list:empty {
@@ -74,6 +75,9 @@
 .row + .row {
   border-top: 1px solid var(--color-border);
 }
+.row:hover {
+  background: var(--color-background);
+}
 .row h2,
 .row h3 {
   font-size: var(--text-body);
@@ -93,6 +97,7 @@
   justify-content: space-between;
 }
 .price {
+  font-family: var(--font-display);
   font-size: var(--text-subheading);
   font-weight: var(--weight-semibold);
   font-variant-numeric: tabular-nums;
@@ -117,6 +122,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-panel);
   background: var(--color-surface);
+  box-shadow: var(--shadow-card);
   display: grid;
   gap: var(--space-4);
   min-width: 0;
@@ -124,7 +130,7 @@
 .panel h2,
 .panel h3,
 .receipt h3 {
-  font-size: var(--text-subheading);
+  font-size: 1.125rem;
   font-weight: var(--weight-semibold);
 }
 .receipt dl {

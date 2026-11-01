@@ -1,16 +1,4 @@
-.actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-6);
-}
-.actions > span {
-  color: var(--color-text-secondary);
-  font-size: var(--text-small);
-  overflow-wrap: anywhere;
-}
+/* Agenda: one calendar card with day, week and month views. */
 .loading {
   display: flex;
   gap: var(--space-3);
@@ -23,178 +11,550 @@
   display: flex;
   gap: var(--space-3);
   align-items: center;
+  margin-bottom: var(--space-4);
   color: var(--color-text-secondary);
   font-size: var(--text-small);
 }
+.retry {
+  margin-top: var(--space-4);
+}
+
+/* "Novo agendamento": header button on wide screens, floating button above the tab bar on phones. */
+.fab.fab {
+  position: fixed;
+  right: var(--space-4);
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  z-index: 25;
+  width: 56px;
+  height: 56px;
+  padding: 0;
+  border-radius: 18px;
+  box-shadow:
+    0 10px 24px var(--color-action-shadow),
+    var(--shadow-raised);
+}
+@media (max-width: 767px) {
+  .headerNew.headerNew {
+    display: none;
+  }
+}
+@media (min-width: 768px) {
+  .fab.fab {
+    display: none;
+  }
+}
+
 .calendar {
+  container-type: inline-size;
   min-width: 0;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-panel);
+  border-radius: 20px;
   background: var(--color-surface);
-  margin-block: var(--space-6);
+  margin-bottom: var(--space-6);
   overflow: hidden;
 }
-.calendarToolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  flex-wrap: wrap;
+
+/* Toolbar */
+.toolbar {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-4) var(--space-3);
   border-bottom: 1px solid var(--color-border);
 }
-.calendarToolbar h2 {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  font-size: var(--text-body);
-  font-weight: var(--weight-semibold);
-}
-.calendarToolbar h2::first-letter {
-  text-transform: uppercase;
-}
-.monthActions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-.calendarToggle {
-  width: 100%;
+.toolbarTop,
+.toolbarBottom {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
-  min-height: var(--control-height);
-  padding: var(--space-4);
+}
+.toolbarTop h2 {
+  min-width: 0;
+  font-size: 1.0625rem;
+  font-weight: var(--weight-semibold);
+  line-height: var(--line-heading);
+  letter-spacing: -0.02em;
+}
+.toolbarTop h2::first-letter {
+  text-transform: uppercase;
+}
+.toolbarTools {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+.hiddenPicker {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.segmented {
+  flex: 1 1 auto;
+  max-width: 280px;
+  display: inline-grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--color-surface-subtle);
+}
+.segmented button {
+  min-width: 0;
+  min-height: 36px;
+  padding: 0 var(--space-2);
   border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  font-weight: var(--weight-medium);
+}
+.segmented button:hover {
+  color: var(--color-text);
+}
+.segmented button[aria-pressed="true"] {
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font-weight: var(--weight-semibold);
+  box-shadow: var(--shadow-raised);
+}
+.stepper {
+  display: flex;
+  align-items: center;
+}
+.stepper :global(.icon-button) {
+  width: 36px;
+  height: 36px;
+}
+.todayButton {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
   background: var(--color-surface);
-  color: var(--color-action);
+  color: var(--color-text);
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
+}
+.todayButton:hover:not(:disabled) {
+  background: var(--color-surface-subtle);
+}
+
+/* Event card shared by week view. Left rule carries the status colour. */
+.eventCard {
+  --event-accent: var(--color-accent);
+  --event-surface: var(--color-info-surface);
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-left: 3px solid var(--event-accent);
+  border-radius: 10px;
+  background: var(--event-surface);
+  color: var(--color-text);
+  text-align: left;
+}
+.eventCard:hover {
+  filter: brightness(0.97);
+}
+.eventCard strong {
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.eventTime {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.eventMeta,
+.eventStatus {
+  color: var(--color-text-secondary);
+  font-size: var(--text-caption);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.eventCard[data-status="confirmed"],
+.appointment[data-status="confirmed"],
+.calendarEvent[data-status="confirmed"],
+.dots i[data-status="confirmed"],
+.eventCard[data-status="completed"],
+.appointment[data-status="completed"],
+.calendarEvent[data-status="completed"],
+.dots i[data-status="completed"] {
+  --event-accent: var(--color-success-text);
+  --event-surface: var(--color-success-surface);
+}
+.eventCard[data-status="no_show"],
+.appointment[data-status="no_show"],
+.calendarEvent[data-status="no_show"],
+.dots i[data-status="no_show"] {
+  --event-accent: var(--color-warning-text);
+  --event-surface: var(--color-warning-surface);
+}
+.eventCard[data-status="cancelled"],
+.appointment[data-status="cancelled"],
+.calendarEvent[data-status="cancelled"],
+.dots i[data-status="cancelled"] {
+  --event-accent: var(--color-text-muted);
+  --event-surface: var(--color-surface-subtle);
+}
+.eventCard[data-status="cancelled"] strong {
+  color: var(--color-text-secondary);
+  text-decoration: line-through;
+}
+
+/* Week view: stacked days on narrow cards, seven columns when the card is wide. */
+.week {
+  display: grid;
+}
+.weekDay {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+.weekDay:last-child {
+  border-bottom: 0;
+}
+.weekDayHeader {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
+  padding: var(--space-1) 0;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+.weekDayHeader span {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  text-transform: capitalize;
+}
+.weekDayHeader strong {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--color-text);
+  font-size: 1.125rem;
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.weekDayHeader:hover strong {
+  background: var(--color-surface-subtle);
+}
+.weekDayHeader[aria-current="date"] span {
+  color: var(--color-link);
+}
+.weekDayHeader[aria-current="date"] strong {
+  background: var(--color-action);
+  color: var(--color-on-action);
+}
+.weekEvents {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.weekDay[data-empty] {
+  align-items: center;
+  padding-block: var(--space-2);
+}
+.weekDay[data-empty] .weekDayHeader strong {
+  width: 28px;
+  height: 28px;
   font-size: var(--text-small);
 }
-.calendarBody {
-  display: none;
+.free {
+  color: var(--color-text-muted);
+  font-size: var(--text-small);
 }
-.calendarExpanded {
-  display: block;
+@container (min-width: 760px) {
+  .week {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    min-height: 420px;
+  }
+  .weekDay,
+  .weekDay[data-empty] {
+    grid-template-columns: none;
+    grid-template-rows: auto 1fr;
+    align-items: stretch;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-2);
+    border-bottom: 0;
+    border-right: 1px solid var(--color-border);
+  }
+  .weekDay:last-child {
+    border-right: 0;
+  }
+  .weekDay[data-empty] .weekDayHeader strong {
+    width: 36px;
+    height: 36px;
+    font-size: 1.125rem;
+  }
+  .free {
+    display: none;
+  }
 }
+
+/* Day view */
+.dayView {
+  display: grid;
+}
+.dayStrip {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-3) var(--space-2);
+}
+.dayStrip button {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: var(--space-2) 0;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+.dayStrip button:hover {
+  background: var(--color-surface-subtle);
+}
+.dayStrip span {
+  font-size: var(--text-caption);
+  font-weight: var(--weight-medium);
+  text-transform: uppercase;
+}
+.dayStrip strong {
+  color: var(--color-text);
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+.dayStrip i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+.dayStrip i[data-filled] {
+  background: var(--color-accent);
+}
+.dayStrip button[aria-current="date"] strong,
+.dayStrip button[aria-current="date"] span {
+  color: var(--color-link);
+}
+.dayStrip button[aria-pressed="true"] {
+  background: var(--color-text);
+}
+.dayStrip button[aria-pressed="true"] span,
+.dayStrip button[aria-pressed="true"] strong {
+  color: var(--color-on-action);
+}
+.dayStrip button[aria-pressed="true"] i[data-filled] {
+  background: var(--color-on-action);
+}
+.dayList {
+  padding: var(--space-2) var(--space-4) var(--space-4);
+}
+.dayList .appointmentList {
+  margin: 0;
+}
+
+/* Month view */
 .monthGrid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 .weekday {
-  padding: var(--space-3) 0;
-  background: var(--color-surface-subtle);
+  padding: var(--space-3) 0 var(--space-2);
   text-align: center;
   color: var(--color-text-secondary);
   font-size: var(--text-caption);
   font-weight: var(--weight-medium);
 }
 .monthCell {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 2px;
   min-width: 0;
-  min-height: 64px;
+  min-height: 56px;
   padding: var(--space-1);
-  border-top: 1px solid var(--color-border);
-  border-right: 1px solid var(--color-border);
-}
-.monthCell:nth-child(7n) {
-  border-right: 0;
-}
-.outsideMonth {
-  background: var(--color-background);
 }
 .outsideMonth .dayButton {
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
 }
 .dayButton {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 36px;
-  width: 100%;
+  width: 36px;
+  height: 36px;
   padding: 0;
-  border: 1px solid transparent;
-  border-radius: var(--radius-small);
+  border: 0;
+  border-radius: 50%;
   background: transparent;
   color: var(--color-text);
   font-size: var(--text-small);
+  font-weight: var(--weight-medium);
+  font-variant-numeric: tabular-nums;
 }
 .dayButton:hover {
   background: var(--color-surface-subtle);
 }
 .dayButton[aria-current="date"] {
-  color: var(--color-info-text);
-  background: var(--color-info-surface);
+  color: var(--color-link);
   font-weight: var(--weight-bold);
 }
 .dayButton[aria-pressed="true"] {
-  border-color: var(--color-action);
+  background: var(--color-text);
+  color: var(--color-on-action);
 }
-.mobileCount {
-  display: block;
-  text-align: center;
-  font-size: var(--text-caption);
-  color: var(--color-text-secondary);
+.dots {
+  display: flex;
+  gap: 3px;
+}
+.dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--event-accent, var(--color-accent));
 }
 .calendarEvent,
 .moreEvents {
+  --event-accent: var(--color-accent);
+  --event-surface: var(--color-info-surface);
   display: none;
 }
+@container (min-width: 760px) {
+  .monthCell {
+    justify-items: stretch;
+    gap: var(--space-1);
+    min-height: 120px;
+    padding: var(--space-2);
+    border-top: 1px solid var(--color-border);
+    border-right: 1px solid var(--color-border);
+  }
+  .monthCell:nth-child(7n) {
+    border-right: 0;
+  }
+  .outsideMonth {
+    background: var(--color-background);
+  }
+  .dayButton {
+    width: 32px;
+    height: 32px;
+    margin-bottom: var(--space-1);
+  }
+  .dots {
+    display: none;
+  }
+  .calendarEvent {
+    display: grid;
+    gap: 1px;
+    width: 100%;
+    padding: var(--space-1) var(--space-2);
+    border: 0;
+    border-left: 3px solid var(--event-accent);
+    border-radius: 8px;
+    background: var(--event-surface);
+    color: var(--color-text);
+    text-align: left;
+  }
+  .calendarEvent strong {
+    font-size: var(--text-caption);
+    font-weight: var(--weight-semibold);
+    overflow-wrap: anywhere;
+  }
+  .calendarEvent span,
+  .calendarEvent small {
+    color: var(--color-text-secondary);
+    font-size: var(--text-caption);
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+  .calendarEvent[data-status="cancelled"] strong {
+    color: var(--color-text-secondary);
+    text-decoration: line-through;
+  }
+  .moreEvents {
+    display: block;
+    min-height: 32px;
+    padding: 0 var(--space-2);
+    border: 0;
+    background: transparent;
+    color: var(--color-link);
+    font-size: var(--text-caption);
+    text-align: left;
+  }
+}
+
 .calendarFooter {
-  padding: var(--space-4);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--color-border);
   color: var(--color-text-secondary);
   font-size: var(--text-caption);
   line-height: var(--line-body);
 }
-.list {
-  padding-block: var(--space-4);
-}
-.listHeader {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: var(--space-4);
-  margin-bottom: var(--space-6);
-}
-.listHeader h2 {
-  font-size: var(--text-subheading);
-  font-weight: var(--weight-semibold);
-  line-height: var(--line-heading);
-}
-.listHeader p {
-  margin-top: var(--space-2);
-  color: var(--color-text-secondary);
-  font-size: var(--text-small);
-}
-.filter {
-  display: flex;
-  align-items: flex-end;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-.filter label {
+.calendarFooter p {
   display: grid;
-  gap: var(--space-2);
-  font-size: var(--text-small);
-  font-weight: var(--weight-medium);
 }
-.filter input {
-  width: 100%;
-  min-height: var(--control-height);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--color-border-control);
-  border-radius: var(--radius-control);
+.refreshButton {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
   background: var(--color-surface);
   color: var(--color-text);
-  font-size: var(--text-body);
+  font-size: var(--text-caption);
+  font-weight: var(--weight-semibold);
 }
+.refreshButton:hover:not(:disabled) {
+  background: var(--color-surface-subtle);
+}
+.partialBox {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+.partialBox .partial {
+  margin: 0;
+  justify-self: stretch;
+}
+
+/* Appointment list used in the day view. */
 .appointmentList {
   display: grid;
   gap: var(--space-3);
   margin-block: var(--space-4);
 }
 .appointment {
+  --event-accent: var(--color-accent);
   display: grid;
   grid-template-columns: 64px minmax(0, 1fr);
   align-items: start;
@@ -202,32 +562,34 @@
   width: 100%;
   padding: var(--space-4);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
+  border-left: 4px solid var(--event-accent);
+  border-radius: 14px;
   background: var(--color-surface);
   color: var(--color-text);
   text-align: left;
 }
 .appointment:hover {
   border-color: var(--color-border-control);
+  border-left-color: var(--event-accent);
   background: var(--color-background);
 }
 .appointmentTime,
 .appointmentContent {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
   min-width: 0;
 }
-.appointmentTime {
-  border-right: 1px solid var(--color-border);
-  padding-right: var(--space-3);
-}
 .appointmentTime strong {
-  font-size: var(--text-body);
+  font-size: 1.125rem;
   font-weight: var(--weight-semibold);
+  font-variant-numeric: tabular-nums;
 }
 .appointmentTime > span {
   color: var(--color-text-secondary);
   font-size: var(--text-caption);
+}
+.appointmentContent {
+  gap: var(--space-2);
 }
 .appointmentContent > strong {
   font-size: var(--text-body);
@@ -250,19 +612,22 @@
   grid-column: 2;
   color: var(--color-text-secondary);
   font-size: var(--text-small);
+  font-variant-numeric: tabular-nums;
 }
 .empty {
-  padding: var(--space-8);
-  border: 1px dashed var(--color-border-control);
-  border-radius: var(--radius-control);
-  background: var(--color-surface);
+  padding: var(--space-8) var(--space-4);
+  border: 1px dashed var(--color-border);
+  border-radius: 14px;
   color: var(--color-text-secondary);
-  font-size: var(--text-body);
+  font-size: var(--text-small);
   line-height: var(--line-body);
+  text-align: center;
 }
 .partial {
   margin-bottom: var(--space-4);
 }
+
+/* Appointment details dialog */
 .details {
   display: grid;
   gap: var(--space-6);
@@ -293,63 +658,33 @@
   font-size: var(--text-small);
   line-height: var(--line-body);
 }
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+@media (min-width: 600px) {
+  .toolbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    padding: var(--space-4) var(--space-5);
+  }
+  .toolbarTop {
+    justify-content: flex-start;
+    gap: var(--space-4);
+  }
+  .segmented {
+    width: 260px;
+  }
+  .toolbarTop h2 {
+    font-size: var(--text-subheading);
+  }
+  .toolbarBottom {
+    gap: var(--space-4);
+  }
+}
 @media (min-width: 768px) {
-  .calendarBody {
-    display: block;
-  }
-  .calendarToggle,
-  .mobileCount {
-    display: none;
-  }
-  .monthCell {
-    min-height: 128px;
-    padding: var(--space-2);
-  }
-  .dayButton {
-    min-height: 36px;
-    width: 36px;
-    margin-bottom: var(--space-2);
-  }
-  .calendarEvent {
-    display: grid;
-    gap: var(--space-1);
-    width: 100%;
-    padding: var(--space-2);
-    margin-bottom: var(--space-2);
-    border: 1px solid var(--color-info-border);
-    border-radius: var(--radius-small);
-    background: var(--color-info-surface);
-    color: var(--color-info-text);
-    text-align: left;
-  }
-  .calendarEvent:hover {
-    border-color: var(--color-action);
-  }
-  .calendarEvent strong {
-    font-size: var(--text-caption);
-    font-weight: var(--weight-semibold);
-    overflow-wrap: anywhere;
-  }
-  .calendarEvent span,
-  .calendarEvent small {
-    font-size: var(--text-caption);
-    line-height: var(--line-body);
-    overflow-wrap: anywhere;
-  }
-  .calendarEvent[data-cancelled] {
-    background: var(--color-surface-subtle);
-    color: var(--color-text-secondary);
-    border-color: var(--color-border);
-  }
-  .moreEvents {
-    display: block;
-    border: 0;
-    background: transparent;
-    color: var(--color-action);
-    font-size: var(--text-caption);
-    padding: var(--space-2);
-    min-height: var(--control-height);
-  }
   .appointment {
     grid-template-columns: 92px minmax(0, 1fr) auto;
     padding: var(--space-5);

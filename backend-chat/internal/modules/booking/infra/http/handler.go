@@ -175,10 +175,11 @@ func (h *Handler) availabilityWithScope(w http.ResponseWriter, r *http.Request, 
 }
 
 type createRequest struct {
-	ServiceID      uuid.UUID `json:"service_id"`
-	ProfessionalID uuid.UUID `json:"professional_id"`
-	StartsAt       time.Time `json:"starts_at"`
-	Customer       struct {
+	WhatsAppNotifications bool      `json:"whatsapp_notifications"`
+	ServiceID             uuid.UUID `json:"service_id"`
+	ProfessionalID        uuid.UUID `json:"professional_id"`
+	StartsAt              time.Time `json:"starts_at"`
+	Customer              struct {
 		FirstName    string `json:"first_name"`
 		LastName     string `json:"last_name"`
 		Phone        string `json:"phone"`
@@ -203,11 +204,12 @@ func (h *Handler) createAppointment(w http.ResponseWriter, r *http.Request) {
 	result, err := h.create.Execute(
 		r.Context(),
 		application.CreateAppointmentInput{
-			ShopSlug:       chi.URLParam(r, "slug"),
-			ServiceID:      input.ServiceID,
-			ProfessionalID: input.ProfessionalID,
-			StartsAt:       input.StartsAt,
-			IdempotencyKey: keys[0],
+			ShopSlug:              chi.URLParam(r, "slug"),
+			ServiceID:             input.ServiceID,
+			ProfessionalID:        input.ProfessionalID,
+			StartsAt:              input.StartsAt,
+			IdempotencyKey:        keys[0],
+			WhatsAppNotifications: input.WhatsAppNotifications,
 			Customer: application.CustomerInput{
 				FirstName:    input.Customer.FirstName,
 				LastName:     input.Customer.LastName,

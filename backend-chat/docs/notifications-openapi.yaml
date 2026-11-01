@@ -1,0 +1,109 @@
+paths:
+  connection:
+    parameters: [{$ref: '#/components/parameters/Slug'}]
+    get:
+      summary: Read the owner's shop WhatsApp connection metadata
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Persisted status; stale observations do not assert a live connection. Cache-Control no-store.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Connection'}
+        default: {$ref: '#/components/responses/Error'}
+    options:
+      responses:
+        '204': {description: Allowed-origin GET preflight; no authentication}
+  connect:
+    parameters: [{$ref: '#/components/parameters/Slug'}]
+    post:
+      summary: Start or reuse the owner's shop pairing challenge
+      description: Empty body or empty JSON object. Revalidates owner after provider I/O. Never accepts provider identifiers or secrets from the browser. The QR is ephemeral and not persisted.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Connection metadata and optional QR. Cache-Control no-store; Referrer-Policy no-referrer.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connection, qr]
+                properties:
+                  connection: {$ref: '#/components/schemas/Connection'}
+                  qr:
+                    oneOf:
+                      - type: 'null'
+                      - type: object
+                        required: [png, discard_after]
+                        properties:
+                          png: {type: string, maxLength: 200000, description: PNG data URL restricted to the owner; never log or cache}
+                          discard_after: {type: string, format: date-time, description: Local discard deadline; provider may rotate the challenge earlier}
+        default: {$ref: '#/components/responses/Error'}
+    options:
+      responses:
+        '204': {description: Allowed-origin POST preflight; no authentication}
+  disconnect:
+    parameters: [{$ref: '#/components/parameters/Slug'}]
+    post:
+      summary: Request logout without deleting the shop's remote instance
+      description: Empty body or empty JSON object. Persisted intent is reconciled after ambiguous failures.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Latest connection metadata, no-store
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Connection'}
+        default: {$ref: '#/components/responses/Error'}
+    options:
+      responses:
+        '204': {description: Allowed-origin POST preflight; no authentication}
+  webhook:
+    post:
+      summary: Record an authenticated hint to recheck a connection
+      description: Available when Evolution is configured. Requires per-instance token in X-BarberChat-Evolution. Does not trust the payload's apikey or state. Repeated/out-of-order events only mark a durable recheck; no booking or delivery state changes.
+      parameters:
+        - in: header
+          name: X-BarberChat-Evolution
+          required: true
+          schema: {type: string, pattern: '^[a-f0-9]{64}$'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [event, instance]
+              properties:
+                event: {type: string}
+                instance: {type: string, pattern: '^bc_[0-9a-f]{32}$'}
+      responses:
+        '204': {description: Hint persisted or authenticated irrelevant event ignored}
+        '400': {description: Invalid event or body above 64 KiB}
+        '401': {description: Invalid provider authentication}
+        '503': {description: Durable recheck could not be recorded}
+components:
+  parameters:
+    Slug:
+      in: path
+      name: slug
+      required: true
+      schema: {type: string}
+  schemas:
+    Connection:
+      type: object
+      required: [state, desired_connected, stale, provider_configured, verified_at, last_connected_at, error_code]
+      properties:
+        state: {type: string, enum: [not_configured, connecting, qr_required, connected, disconnected, unknown]}
+        desired_connected: {type: boolean}
+        stale: {type: boolean}
+        provider_configured: {type: boolean}
+        verified_at: {type: [string, 'null'], format: date-time}
+        last_connected_at: {type: [string, 'null'], format: date-time}
+        error_code: {type: string}
+  responses:
+    Error:
+      description: 400 invalid command; 401 invalid session; 403 owner access denied; 409 connection_busy; 503 provider/configuration/activation unavailable. Check status before retrying an uncertain command.
+      content:
+        application/json:
+          schema: {$ref: './openapi.yaml#/components/schemas/Error'}

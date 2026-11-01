@@ -15,6 +15,9 @@ export class ApiError extends Error {
   }
 }
 const messages: Record<string, string> = {
+  invalid_report_query:
+    "Confira as datas e os filtros (até 366 dias). Atualize a consulta para reiniciar o histórico.",
+  report_unavailable: "Não foi possível validar os dados do relatório. Atualize a consulta.",
   invalid_appointment_status: "Escolha uma situação válida e informe o motivo em uma única linha.",
   appointment_version_changed:
     "O atendimento mudou, possivelmente pela conclusão automática. Atualize os detalhes e revise a alteração.",

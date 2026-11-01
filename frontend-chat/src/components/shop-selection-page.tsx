@@ -38,7 +38,7 @@ export function ShopSelectionPage() {
         title="Escolha sua barbearia"
         description={`Olá, ${state.identity.display_name}. Em qual unidade você quer trabalhar?`}
         actions={
-          <Button variant="secondary" onClick={() => void refresh().catch(() => {})}>
+          <Button variant="quiet" onClick={() => void refresh().catch(() => {})}>
             <RefreshCw size={18} aria-hidden="true" />
             Atualizar vínculos
           </Button>

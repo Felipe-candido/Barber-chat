@@ -100,7 +100,7 @@ function OwnerAccounts() {
         title="Contas dos barbeiros"
         description={`Logins individuais para a equipe de ${shop.name}.`}
         actions={
-          <Button variant="secondary" disabled={loading || saving} onClick={() => void reload()}>
+          <Button variant="quiet" disabled={loading || saving} onClick={() => void reload()}>
             <RefreshCw size={16} aria-hidden="true" />
             Atualizar contas
           </Button>

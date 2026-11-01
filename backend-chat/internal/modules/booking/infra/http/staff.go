@@ -77,7 +77,8 @@ func (h *Handler) createForStaff(w http.ResponseWriter, r *http.Request) {
 		allowedProfessionalID = scope.ProfessionalID
 	}
 	saved, err := h.create.ExecuteForStaff(r.Context(), application.CreateAppointmentInput{
-		ShopSlug: chi.URLParam(r, "slug"), ServiceID: input.ServiceID, ProfessionalID: input.ProfessionalID, StartsAt: input.StartsAt, IdempotencyKey: keys[0],
+		WhatsAppNotifications: input.WhatsAppNotifications,
+		ShopSlug:              chi.URLParam(r, "slug"), ServiceID: input.ServiceID, ProfessionalID: input.ProfessionalID, StartsAt: input.StartsAt, IdempotencyKey: keys[0],
 		Customer: application.CustomerInput{FirstName: input.Customer.FirstName, LastName: input.Customer.LastName, Phone: input.Customer.Phone, PhoneCountry: input.Customer.PhoneCountry},
 	}, actor.UserID, scope.ShopID, allowedProfessionalID)
 	if err != nil {

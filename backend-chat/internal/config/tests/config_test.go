@@ -10,6 +10,12 @@ import (
 )
 
 func TestLoadEnvFile(t *testing.T) {
+	for _, key := range []string{"NOTIFICATION_PLANNING_ENABLED", "NOTIFICATION_PAYLOAD_ACTIVE_KEY_ID", "NOTIFICATION_PAYLOAD_KEYS"} {
+		t.Setenv(key, "")
+	}
+	for _, key := range []string{"EVOLUTION_BASE_URL", "EVOLUTION_API_KEY", "EVOLUTION_WEBHOOK_URL", "EVOLUTION_WEBHOOK_SECRET", "EVOLUTION_WEBHOOK_ADDR"} {
+		t.Setenv(key, "")
+	}
 	for _, test := range []struct {
 		name        string
 		contents    string
@@ -150,6 +156,8 @@ func loadConfig(t *testing.T, getenv func(string) string) (config.Config, error)
 		"SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SERVICE_ROLE_KEY", "FRONTEND_ORIGIN", "HTTP_TIMEOUT",
 		"STRIPE_SECRET_KEY", "STRIPE_MONTHLY_PRICE_ID",
 		"STRIPE_WEBHOOK_SECRET", "STRIPE_PORTAL_CONFIGURATION_ID",
+		"NOTIFICATION_PLANNING_ENABLED", "NOTIFICATION_PAYLOAD_ACTIVE_KEY_ID", "NOTIFICATION_PAYLOAD_KEYS",
+		"EVOLUTION_BASE_URL", "EVOLUTION_API_KEY", "EVOLUTION_WEBHOOK_URL", "EVOLUTION_WEBHOOK_SECRET", "EVOLUTION_WEBHOOK_ADDR",
 	} {
 		t.Setenv(key, getenv(key))
 	}

@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Canonical reporting contracts. No activity HTTP route is wired yet.
+// Canonical reporting contracts. HTTP payloads are mapped by the transport adapter.
 type ActivityFilterInput struct {
 	ReportFilterInput
 	ProductID uuid.UUID
