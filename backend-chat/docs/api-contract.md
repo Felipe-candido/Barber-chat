@@ -170,7 +170,7 @@ Migration 00010 marca as novas unidades da API como `self_service`, ativas para 
 
 Após a migration 00006, há somente dois perfis fixos: `owner` e `barber`. Os vínculos antigos tornam-se proprietários; novos vínculos precisam declarar o perfil. `GET /api/v1/admin/shops/{slug}/access` retorna `{role,professional_id}`. POST de serviço/profissional exige proprietário; ambos podem ler o catálogo. Barbeiro só consulta a agenda de seu profissional ativo, filtrada no banco antes da paginação. A interface consulta o perfil e não oferece gestão de equipe, contas ou preços ao barbeiro.
 
-Health/readiness, identidade, catálogo, contas e booking estão descritos no [OpenAPI](openapi.yaml). Readiness verifica conectividade PostgreSQL, não migrations nem RabbitMQ. WhatsApp não está implementado.
+Health/readiness, identidade, catálogo, contas e booking estão descritos no [OpenAPI](openapi.yaml). Readiness verifica conectividade PostgreSQL, não migrations nem RabbitMQ. WhatsApp tem configuração e habilitação próprias, descritas abaixo.
 
 ## Configurações básicas da barbearia
 
@@ -552,8 +552,9 @@ Replays não criam nem reconstroem notificações retroativas.
 
 Cancelamento, ausência, conclusão, revogação e desativação da política invalidam
 jobs pendentes por triggers PostgreSQL. Estas proteções independem da chave global
-de planejamento. Persistência de jobs não significa envio: scheduler/outbox,
-consumo RabbitMQ e entrega pela Evolution ainda não estão implementados.
+de planejamento. Persistência de jobs não significa envio: o envio exige
+NOTIFICATION_DELIVERY_ENABLED e a configuração da Evolution. Aplicar migrations
+até 00028 antes de executar a versão atual. O worker é um processo opcional separado.
 
 ## Conexão WhatsApp da unidade — entrega C
 
@@ -579,3 +580,47 @@ estado desejado. Connected com mais de dois minutos sem verificação vira
 unknown/stale na resposta. Conexão não significa mensagem enviada/entregue.
 
 Detalhes e comandos: [Evolution local](evolution-local.md).
+
+## Notificações por requisição e worker
+
+Com entrega habilitada, a criação nova tenta a confirmação **depois do commit**,
+com deadline de 10s. A resposta de reserva conserva 201/200, comprovante e código
+mesmo se WhatsApp falhar. `whatsapp: {state}` é um resultado opcional separado;
+accepted significa aceitação do envio, nunca confirmação de entrega ou presença.
+Replay apenas consulta o estado e não dispara de novo. Omitir/false no opt-in
+mantém o contrato anterior, sem este resultado de envio.
+
+Rotas após `/api/v1/admin/shops/{slug}`:
+
+| Método/caminho | Acesso/efeito |
+| --- | --- |
+| GET/PUT /notifications/settings | Owner; enabled, delivery_mode request/automatic, reminder_lead_minutes 5..10080 e version obrigatórios no PUT; CAS/409 |
+| GET /notifications/options | Staff; somente whatsapp_enabled, inclusive cadastro administrativo não publicado |
+| GET /appointments/{appointmentID}/notifications | Owner ou barbeiro do atendimento; metadados de confirmação/lembrete, sem conteúdo privado |
+| POST /appointments/{appointmentID}/notifications/confirmation | Mesmo acesso; comando vazio sobre intenção existente |
+| POST /appointments/{appointmentID}/notifications/reminder | Mesmo acesso; comando vazio, janela planejada na reserva |
+
+GET público `/api/v1/public/shops/{slug}/notification-options` retorna somente
+whatsapp_enabled e respeita publicação/assinatura. Todas as respostas usam no-store.
+POSTs nunca recebem telefone, texto, código, instância ou token de tentativa.
+Guards de vínculo são repetidos na transação antes do início do envio.
+
+Novas políticas usam modo request. Lembrete manual fica disponível até um minuto
+antes do início; confirmação por até uma hora, limitada pelo início. Modo automatic
+preserva o due_at calculado pela antecedência, com janela máxima de uma hora.
+Mudanças de política só afetam novos planos; não recriar mensagens de reservas antigas.
+automatic_available exige flag global e heartbeat saudável recente do worker.
+
+Estado HTTP 200 pode expressar busy, connection_unavailable, not_due, expired,
+accepted, failed ou unknown, entre decisões sanitizadas. Após resposta perdida,
+consultar GET; accepted/unknown não permitem repetição automática. O resultado
+incerto pode ser reconciliado por recibo autenticado da Evolution. O campo receipt
+avança de accepted para delivered/read sem regressão por evento atrasado.
+
+O worker usa outbox transacional e RabbitMQ com confirms, publicação mandatory,
+consumo com ACK manual e DLQ. Envelopes contêm apenas IDs/versão/sequência. A
+reentrega do broker não repete tentativa já iniciada. Repetição limitada só ocorre
+para indisponibilidade comprovada antes do envio; timeout/erro genérico do provider
+é incerto. Não há promessa de exactly-once entre PostgreSQL e WhatsApp.
+
+Retenção e comandos de operação: [guia de notificações](notifications-operations.md).

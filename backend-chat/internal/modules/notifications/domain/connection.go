@@ -37,6 +37,7 @@ type Connection struct {
 	ErrorCode                   string
 	OperationToken              uuid.UUID
 	ObservedAt                  time.Time
+	SendLeaseUntil              time.Time
 }
 
 func (c Connection) FreshAt(now time.Time) bool {

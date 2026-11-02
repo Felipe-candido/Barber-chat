@@ -244,7 +244,7 @@ test("pending PUT disables duplicate submissions, editing, reload and discard", 
     page.getByRole("button", { name: "Descartar alterações", exact: true }),
   ).toBeDisabled();
   await expect(page.getByRole("button", { name: "Recarregar dados", exact: true })).toBeDisabled();
-  await page.locator("form").dispatchEvent("submit");
+  await page.getByRole("form", { name: "Cadastro da barbearia" }).dispatchEvent("submit");
   expect(writes).toBe(1);
   release();
   await expect(page.getByRole("status").filter({ hasText: "Configurações salvas." })).toBeVisible();

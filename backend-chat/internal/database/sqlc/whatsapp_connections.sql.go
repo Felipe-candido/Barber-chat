@@ -19,7 +19,7 @@ WITH due AS (
  ORDER BY next_check_at,shop_id FOR UPDATE SKIP LOCKED LIMIT 1
 )
 UPDATE shop_whatsapp_connections c SET operation_token=$1,lease_until=clock_timestamp()+interval '90 seconds',dirty=FALSE
-FROM due WHERE c.shop_id=due.shop_id RETURNING c.shop_id, c.instance_name, c.generation, c.desired_connected, c.state, c.verified_at, c.last_connected_at, c.last_event_at, c.next_check_at, c.dirty, c.error_code, c.operation_token, c.lease_until,clock_timestamp()::timestamptz AS observed_at
+FROM due WHERE c.shop_id=due.shop_id RETURNING c.shop_id, c.instance_name, c.generation, c.desired_connected, c.state, c.verified_at, c.last_connected_at, c.last_event_at, c.next_check_at, c.dirty, c.error_code, c.operation_token, c.lease_until, c.send_token, c.send_lease_until,clock_timestamp()::timestamptz AS observed_at
 `
 
 type ClaimDueWhatsAppConnectionRow struct {
@@ -36,6 +36,8 @@ type ClaimDueWhatsAppConnectionRow struct {
 	ErrorCode        string             `json:"error_code"`
 	OperationToken   pgtype.UUID        `json:"operation_token"`
 	LeaseUntil       pgtype.Timestamptz `json:"lease_until"`
+	SendToken        pgtype.UUID        `json:"send_token"`
+	SendLeaseUntil   pgtype.Timestamptz `json:"send_lease_until"`
 	ObservedAt       pgtype.Timestamptz `json:"observed_at"`
 }
 
@@ -56,6 +58,8 @@ func (q *Queries) ClaimDueWhatsAppConnection(ctx context.Context, operationToken
 		&i.ErrorCode,
 		&i.OperationToken,
 		&i.LeaseUntil,
+		&i.SendToken,
+		&i.SendLeaseUntil,
 		&i.ObservedAt,
 	)
 	return i, err
@@ -65,7 +69,7 @@ const claimOwnerWhatsAppAction = `-- name: ClaimOwnerWhatsAppAction :one
 UPDATE shop_whatsapp_connections SET generation=generation+1,desired_connected=$2,state='connecting',
     operation_token=$3,lease_until=clock_timestamp()+interval '90 seconds',error_code=''
 WHERE shop_id=$1 AND (lease_until IS NULL OR lease_until<=clock_timestamp()) AND generation<9223372036854775807
-RETURNING shop_id, instance_name, generation, desired_connected, state, verified_at, last_connected_at, last_event_at, next_check_at, dirty, error_code, operation_token, lease_until,clock_timestamp()::timestamptz AS observed_at
+RETURNING shop_id, instance_name, generation, desired_connected, state, verified_at, last_connected_at, last_event_at, next_check_at, dirty, error_code, operation_token, lease_until, send_token, send_lease_until,clock_timestamp()::timestamptz AS observed_at
 `
 
 type ClaimOwnerWhatsAppActionParams struct {
@@ -88,6 +92,8 @@ type ClaimOwnerWhatsAppActionRow struct {
 	ErrorCode        string             `json:"error_code"`
 	OperationToken   pgtype.UUID        `json:"operation_token"`
 	LeaseUntil       pgtype.Timestamptz `json:"lease_until"`
+	SendToken        pgtype.UUID        `json:"send_token"`
+	SendLeaseUntil   pgtype.Timestamptz `json:"send_lease_until"`
 	ObservedAt       pgtype.Timestamptz `json:"observed_at"`
 }
 
@@ -108,6 +114,8 @@ func (q *Queries) ClaimOwnerWhatsAppAction(ctx context.Context, arg ClaimOwnerWh
 		&i.ErrorCode,
 		&i.OperationToken,
 		&i.LeaseUntil,
+		&i.SendToken,
+		&i.SendLeaseUntil,
 		&i.ObservedAt,
 	)
 	return i, err
@@ -185,7 +193,7 @@ func (q *Queries) MarkWhatsAppConnectionDirty(ctx context.Context, instanceName 
 }
 
 const readWhatsAppConnection = `-- name: ReadWhatsAppConnection :one
-SELECT shop_id, instance_name, generation, desired_connected, state, verified_at, last_connected_at, last_event_at, next_check_at, dirty, error_code, operation_token, lease_until,clock_timestamp()::timestamptz AS observed_at FROM shop_whatsapp_connections WHERE shop_id=$1 FOR UPDATE
+SELECT shop_id, instance_name, generation, desired_connected, state, verified_at, last_connected_at, last_event_at, next_check_at, dirty, error_code, operation_token, lease_until, send_token, send_lease_until,clock_timestamp()::timestamptz AS observed_at FROM shop_whatsapp_connections WHERE shop_id=$1 FOR UPDATE
 `
 
 type ReadWhatsAppConnectionRow struct {
@@ -202,6 +210,8 @@ type ReadWhatsAppConnectionRow struct {
 	ErrorCode        string             `json:"error_code"`
 	OperationToken   pgtype.UUID        `json:"operation_token"`
 	LeaseUntil       pgtype.Timestamptz `json:"lease_until"`
+	SendToken        pgtype.UUID        `json:"send_token"`
+	SendLeaseUntil   pgtype.Timestamptz `json:"send_lease_until"`
 	ObservedAt       pgtype.Timestamptz `json:"observed_at"`
 }
 
@@ -222,6 +232,8 @@ func (q *Queries) ReadWhatsAppConnection(ctx context.Context, shopID uuid.UUID) 
 		&i.ErrorCode,
 		&i.OperationToken,
 		&i.LeaseUntil,
+		&i.SendToken,
+		&i.SendLeaseUntil,
 		&i.ObservedAt,
 	)
 	return i, err

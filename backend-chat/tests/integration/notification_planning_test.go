@@ -67,8 +67,17 @@ func newNotificationFixture(t *testing.T) *notificationFixture {
 		t.Fatal(err)
 	}
 	n := &notificationFixture{bookingFixture: f, cipher: cipher}
+	// The scheduler scans the whole database. Retire this fixture's remaining
+	// intents before the next test so independent shops cannot pollute claims.
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, err := n.pool.Exec(ctx, "UPDATE notification_jobs SET state='invalidated',invalidated_at=clock_timestamp() WHERE shop_id=$1 AND state='pending'", n.shop); err != nil {
+			t.Error("notification fixture retirement failed", err)
+		}
+	})
 	n.exec(t, "INSERT INTO shop_addresses(shop_id,postal_code,street,number,district,city,state) VALUES($1,'01001000','Test Street','123','Center','Test City','SP')", f.shop)
-	n.exec(t, "INSERT INTO shop_notification_settings(shop_id,enabled) VALUES($1,TRUE)", f.shop)
+	n.exec(t, "INSERT INTO shop_notification_settings(shop_id,enabled,delivery_mode) VALUES($1,TRUE,'automatic')", f.shop)
 	n.configure(true, false, booking.ClockFunc(time.Now))
 	return n
 }

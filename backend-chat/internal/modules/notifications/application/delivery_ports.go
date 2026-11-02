@@ -11,15 +11,21 @@ import (
 )
 
 var (
-	ErrDeliveryUnavailable   = errors.New("notification delivery unavailable")
-	ErrDeliveryNotConfigured = errors.New("notification sender not configured")
-	ErrInvalidDelivery       = errors.New("invalid notification delivery reference")
-	ErrDeliveryLeaseLost     = errors.New("notification delivery lease lost")
+	ErrDeliveryUnavailable    = errors.New("notification delivery unavailable")
+	ErrDeliveryNotConfigured  = errors.New("notification sender not configured")
+	ErrInvalidDelivery        = errors.New("invalid notification delivery reference")
+	ErrDeliveryLeaseLost      = errors.New("notification delivery lease lost")
+	ErrDeliveryAccessDenied   = errors.New("notification delivery access denied")
+	ErrNotificationSenderBusy = errors.New("notification sender busy")
 )
 
 // Internal references come from a committed booking or a trusted dispatcher.
 // A future administrative handler must authorize the actor before invoking this.
-type DeliveryKey struct{ ShopID, JobID uuid.UUID }
+type DeliveryKey struct {
+	ShopID, JobID, ActorID uuid.UUID
+	DispatchSequence       int64
+	recoveryOnly           bool
+}
 type DeliveryResult struct {
 	State  string
 	Reason domain.DeliveryReason
@@ -30,6 +36,7 @@ type DeliveryClaim struct {
 }
 
 type DeliveryRecord struct {
+	DispatchSequence  int64
 	Key               DeliveryKey
 	AppointmentID     uuid.UUID
 	Kind              string
@@ -48,8 +55,14 @@ type DeliveryPermission struct {
 	Allowed    bool
 	Phone      string
 }
+
+func (DeliveryPermission) String() string         { return "[redacted delivery permission]" }
+func (p DeliveryPermission) GoString() string     { return p.String() }
+func (p DeliveryPermission) LogValue() slog.Value { return slog.StringValue(p.String()) }
+
 type DeliveryBooking struct {
 	CustomerID                                        uuid.UUID
+	ProfessionalID                                    uuid.UUID
 	Active                                            bool
 	StartsAt, EndsAt                                  time.Time
 	ServiceName, ProfessionalName, Currency, Timezone string
@@ -64,8 +77,9 @@ type DeliveryStore interface {
 	Now(context.Context) (time.Time, error)
 	Claim(context.Context, DeliveryClaim) error
 	Stop(context.Context, DeliveryKey, domain.DeliveryState, domain.DeliveryReason) error
-	Start(context.Context, DeliveryClaim, string) error
+	Start(context.Context, DeliveryClaim, string, int) error
 	Complete(context.Context, DeliveryClaim, domain.SendOutcome) error
+	ListBooking(context.Context, uuid.UUID, uuid.UUID) ([]BookingMessageStatus, error)
 }
 
 type DeliveryShops interface {
@@ -83,6 +97,10 @@ type DeliveryTx struct {
 	Shops       DeliveryShops
 	Permissions DeliveryPermissions
 	Bookings    DeliveryBookings
+	Access      DeliveryStaffAccess
+}
+type DeliveryStaffAccess interface {
+	RequireDeliveryStaff(context.Context, ConnectionScope, uuid.UUID) error
 }
 type DeliveryTransactor interface {
 	WithinDeliveryTx(context.Context, func(context.Context, DeliveryTx) error) error
@@ -97,6 +115,7 @@ type NotificationSender interface {
 }
 type OutboundNotification struct {
 	AttemptID          uuid.UUID
+	TemplateVersion    int
 	InstanceName, Kind string
 	Snapshot           BookingSnapshot
 }

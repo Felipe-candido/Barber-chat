@@ -25,7 +25,7 @@ func (s *PlanningStore) Policy(ctx context.Context, shopID uuid.UUID) (domain.Po
 	if err != nil {
 		return domain.Policy{}, err
 	}
-	return domain.Policy{Enabled: row.Enabled, ReminderLeadMinutes: int(row.ReminderLeadMinutes), Version: row.Version}, nil
+	return domain.Policy{Enabled: row.Enabled, DeliveryMode: row.DeliveryMode, ReminderLeadMinutes: int(row.ReminderLeadMinutes), Version: row.Version}, nil
 }
 
 func (s *PlanningStore) Save(ctx context.Context, input app.PrepareBookingNotificationsInput, prepared app.PreparedBookingNotifications) error {
@@ -63,12 +63,19 @@ func (s *PlanningStore) Save(ctx context.Context, input app.PrepareBookingNotifi
 		}
 		if err := s.queries.InsertBookingNotificationJob(ctx, db.InsertBookingNotificationJobParams{
 			ID: id, ShopID: input.ShopID, AppointmentID: input.AppointmentID, ScheduleGeneration: input.ScheduleGeneration,
-			Kind: job.kind, DueAt: stamp(job.window.DueAt), ExpiresAt: stamp(job.window.ExpiresAt),
+			Kind: job.kind, DueAt: stamp(job.window.DueAt), ExpiresAt: stamp(job.window.ExpiresAt), DispatchMode: dispatchMode(input.Policy),
 		}); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func dispatchMode(p domain.Policy) string {
+	if p.DeliveryMode == "request" {
+		return "request"
+	}
+	return "automatic"
 }
 
 func stamp(at time.Time) pgtype.Timestamptz {

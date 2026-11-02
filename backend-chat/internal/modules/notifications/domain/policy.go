@@ -22,6 +22,7 @@ var (
 // disabling notifications must also be checked by the future delivery workflow.
 type Policy struct {
 	Enabled             bool
+	DeliveryMode        string
 	ReminderLeadMinutes int
 	Version             int64
 }
@@ -32,7 +33,7 @@ func DefaultPolicy() Policy {
 }
 
 func (p Policy) Valid() bool {
-	return p.Version > 0 && p.ReminderLeadMinutes >= MinReminderLeadMinutes &&
+	return (p.DeliveryMode == "" || p.DeliveryMode == "request" || p.DeliveryMode == "automatic") && p.Version > 0 && p.ReminderLeadMinutes >= MinReminderLeadMinutes &&
 		p.ReminderLeadMinutes <= MaxReminderLeadMinutes
 }
 
@@ -95,6 +96,17 @@ func (p Policy) Schedule(createdAt, startsAt time.Time) (Schedule, error) {
 	schedule := Schedule{
 		PolicyVersion: p.Version,
 		Confirmation:  Window{DueAt: createdAt, ExpiresAt: confirmationExpiry},
+	}
+	if p.DeliveryMode == "request" {
+		// This window is planned/ciphered at creation, never obtained by reopening
+		// an expired automatic reminder. No scheduler selects request-mode jobs.
+		manual := Window{DueAt: createdAt.Add(time.Microsecond), ExpiresAt: startsAt.Add(-ReminderSafetyMargin)}
+		if manual.Valid() {
+			schedule.Reminder = manual
+		} else {
+			schedule.ReminderSkipReason = SkipInsufficientLead
+		}
+		return schedule, nil
 	}
 	reminderDue := startsAt.Add(-time.Duration(p.ReminderLeadMinutes) * time.Minute)
 	// Equality would send confirmation and reminder together; confirmation wins.

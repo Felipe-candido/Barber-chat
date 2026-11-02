@@ -1,4 +1,90 @@
 paths:
+  settings:
+    parameters: [{$ref: '#/components/parameters/Slug'}]
+    get:
+      summary: Owner reads notification policy and deployment capabilities
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: Policy with enabled, delivery_mode (request or automatic), reminder_lead_minutes, version (0 when absent), delivery_available and automatic_available; automatic requires deployment flag and healthy worker heartbeat within two minutes. No-store.}
+        default: {$ref: '#/components/responses/Error'}
+    put:
+      summary: Owner saves policy with optimistic version; affects new reservations
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [enabled, delivery_mode, reminder_lead_minutes, version]
+              properties:
+                enabled: {type: boolean}
+                delivery_mode: {type: string, enum: [request, automatic]}
+                reminder_lead_minutes: {type: integer, minimum: 5, maximum: 10080}
+                version: {type: integer, minimum: 0}
+      responses:
+        '200': {description: Saved policy and incremented version; disabling invalidates pending intents}
+        default: {$ref: '#/components/responses/Error'}
+    options:
+      responses:
+        '204': {description: Allowed-origin GET/PUT preflight}
+  publicOptions:
+    parameters: [{$ref: '#/components/parameters/Slug'}]
+    get:
+      summary: Read opt-in availability for an active publicly bookable shop
+      responses:
+        '200': {description: Object containing only whatsapp_enabled boolean; false when deployment delivery is disabled; no-store}
+        default: {$ref: '#/components/responses/Error'}
+    options:
+      responses:
+        '204': {description: Allowed-origin GET preflight}
+  staffOptions:
+    parameters: [{$ref: '#/components/parameters/Slug'}]
+    get:
+      summary: Staff reads opt-in availability, including unpublished administrative booking
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: Object containing only whatsapp_enabled boolean; no-store}
+        default: {$ref: '#/components/responses/Error'}
+    options:
+      responses:
+        '204': {description: Allowed-origin GET preflight}
+  bookingStatus:
+    parameters: [{$ref: '#/components/parameters/Slug'}, {$ref: '#/components/parameters/Appointment'}]
+    get:
+      summary: Owner or assigned barber reads booking message statuses
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: delivery_available and messages array with kind, state, reason, mode, due_at, expires_at, can_send and receipt (empty, accepted, delivered or read). Receipt evidence is monotonic; accepted is not delivery. No code, phone, ciphertext, provider ID or operation token. Empty array for legacy/unplanned reservations. No-store.}
+        default: {$ref: '#/components/responses/Error'}
+    options:
+      responses:
+        '204': {description: Allowed-origin GET preflight}
+  sendConfirmation:
+    parameters: [{$ref: '#/components/parameters/Slug'}, {$ref: '#/components/parameters/Appointment'}]
+    post:
+      summary: Owner or assigned barber attempts an existing unsent confirmation
+      description: Empty body or empty JSON object. Revalidates staff, consent, booking, policy, expiry and connection. Cannot create missing/expired intentions or resend an accepted/uncertain effect.
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: State and sanitized reason of the persisted decision; accepted is not proof of delivery. Check status after a lost response. No-store.}
+        default: {$ref: '#/components/responses/Error'}
+    options:
+      responses:
+        '204': {description: Allowed-origin POST preflight}
+  sendReminder:
+    parameters: [{$ref: '#/components/parameters/Slug'}, {$ref: '#/components/parameters/Appointment'}]
+    post:
+      summary: Owner or assigned barber attempts the planned reminder
+      description: Request-mode window is planned and encrypted at reservation creation. Automatic-mode windows retain their original due time. Empty command; never accepts a destination, code, body or provider ID.
+      security: [{bearerAuth: []}]
+      responses:
+        '200': {description: State and sanitized reason; concurrent/repeated commands do not duplicate a started external attempt. No-store.}
+        default: {$ref: '#/components/responses/Error'}
+    options:
+      responses:
+        '204': {description: Allowed-origin POST preflight}
   connection:
     parameters: [{$ref: '#/components/parameters/Slug'}]
     get:
@@ -60,8 +146,8 @@ paths:
         '204': {description: Allowed-origin POST preflight; no authentication}
   webhook:
     post:
-      summary: Record an authenticated hint to recheck a connection
-      description: Available when Evolution is configured. Requires per-instance token in X-BarberChat-Evolution. Does not trust the payload's apikey or state. Repeated/out-of-order events only mark a durable recheck; no booking or delivery state changes.
+      summary: Reconcile authenticated connection hints and correlated delivery receipts
+      description: Requires per-instance token in X-BarberChat-Evolution. Ignores payload apikey. connection.update only schedules active verification. send.message and messages.update require fromMe and a 32-hex message ID matching a persisted attempt in that instance. Accepted, delivered and read advance monotonically; positive evidence can resolve matching sending/unknown state. No booking lifecycle change. No message text, destination or raw event is retained.
       parameters:
         - in: header
           name: X-BarberChat-Evolution
@@ -77,13 +163,19 @@ paths:
               properties:
                 event: {type: string}
                 instance: {type: string, pattern: '^bc_[0-9a-f]{32}$'}
+                data: {description: Provider-specific receipt or connection object; irrelevant or uncorrelated events are ignored}
       responses:
-        '204': {description: Hint persisted or authenticated irrelevant event ignored}
+        '204': {description: Recheck or correlated receipt persisted; authenticated irrelevant event ignored}
         '400': {description: Invalid event or body above 64 KiB}
         '401': {description: Invalid provider authentication}
-        '503': {description: Durable recheck could not be recorded}
+        '503': {description: Durable recheck or receipt could not be recorded}
 components:
   parameters:
+    Appointment:
+      in: path
+      name: appointmentID
+      required: true
+      schema: {type: string, format: uuid}
     Slug:
       in: path
       name: slug

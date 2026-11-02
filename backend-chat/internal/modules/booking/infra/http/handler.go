@@ -26,6 +26,33 @@ type Handler struct {
 	timeout       time.Duration
 	logger        *slog.Logger
 	limiter       *requestLimiter
+	confirmation  application.BookingConfirmationDispatcher
+}
+
+func (h *Handler) WithBookingConfirmation(dispatcher application.BookingConfirmationDispatcher) *Handler {
+	h.confirmation = dispatcher
+	return h
+}
+
+type bookingConfirmationJSON struct {
+	State string `json:"state"`
+}
+
+func (h *Handler) confirmationStatus(ctx context.Context, result application.CreateAppointmentOutput, requested bool) *bookingConfirmationJSON {
+	if !requested {
+		return nil
+	}
+	if h.confirmation == nil {
+		return &bookingConfirmationJSON{State: "unavailable"}
+	}
+	bounded, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	status, err := h.confirmation.DispatchConfirmation(bounded, result.ShopID, result.Appointment.AppointmentID, !result.Replayed)
+	if err != nil {
+		status.State = "unknown"
+		h.logger.Warn("booking saved; WhatsApp confirmation could not be confirmed")
+	}
+	return &bookingConfirmationJSON{State: status.State}
 }
 
 func NewHandler(create *application.CreateAppointment, availability *application.ListAvailability, professionals *application.ListProfessionals, manage *application.ManageAppointment, timeout time.Duration, logger *slog.Logger) *Handler {
@@ -225,10 +252,11 @@ func (h *Handler) createAppointment(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusOK
 	}
 	response.JSON(w, status, struct {
-		Appointment receiptResponse `json:"appointment"`
-		Code        string          `json:"code"`
-		Replayed    bool            `json:"replayed"`
-	}{receipt(result.Appointment), result.Code, result.Replayed})
+		Appointment receiptResponse          `json:"appointment"`
+		Code        string                   `json:"code"`
+		Replayed    bool                     `json:"replayed"`
+		WhatsApp    *bookingConfirmationJSON `json:"whatsapp,omitempty"`
+	}{receipt(result.Appointment), result.Code, result.Replayed, h.confirmationStatus(r.Context(), result, input.WhatsAppNotifications)})
 }
 
 func (h *Handler) lookupAppointment(w http.ResponseWriter, r *http.Request) {

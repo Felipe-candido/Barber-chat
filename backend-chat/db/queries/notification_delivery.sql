@@ -10,12 +10,13 @@ WHERE j.shop_id=$1 AND j.id=$2 FOR UPDATE OF j;
 SELECT clock_timestamp()::timestamptz;
 
 -- name: LockDeliveryConnection :one
-SELECT instance_name,state,desired_connected,verified_at,error_code FROM shop_whatsapp_connections WHERE shop_id=$1 FOR SHARE;
+SELECT instance_name,state,desired_connected,verified_at,error_code,send_lease_until FROM shop_whatsapp_connections WHERE shop_id=$1 FOR UPDATE;
 
 -- name: ClaimNotificationDelivery :execrows
 UPDATE notification_jobs SET delivery_state='leased',delivery_token=$3,
  delivery_lease_until=clock_timestamp()+interval '90 seconds',delivery_reason=''
-WHERE shop_id=$1 AND id=$2 AND state='pending' AND delivery_state IN('ready','leased');
+WHERE shop_id=$1 AND id=$2 AND state='pending' AND
+ (delivery_state='ready' OR (delivery_state='leased' AND delivery_lease_until<=clock_timestamp()));
 
 -- name: StopNotificationBeforeSending :execrows
 UPDATE notification_jobs SET delivery_state=sqlc.arg(delivery_state),delivery_reason=sqlc.arg(delivery_reason),delivery_token=NULL,delivery_lease_until=NULL
@@ -28,8 +29,8 @@ WHERE shop_id=$1 AND id=$2 AND state='pending' AND delivery_state='leased' AND d
  AND delivery_lease_until>clock_timestamp() AND delivery_attempt_count<5;
 
 -- name: InsertNotificationAttempt :exec
-INSERT INTO notification_attempts(attempt_id,shop_id,job_id,attempt_number,instance_name,started_at)
-SELECT j.delivery_token,j.shop_id,j.id,j.delivery_attempt_count,$4,clock_timestamp()
+INSERT INTO notification_attempts(attempt_id,shop_id,job_id,attempt_number,instance_name,started_at,template_version)
+SELECT j.delivery_token,j.shop_id,j.id,j.delivery_attempt_count,$4,clock_timestamp(),sqlc.arg(template_version)::integer
 FROM notification_jobs j WHERE j.shop_id=$1 AND j.id=$2 AND j.delivery_token=$3 AND j.delivery_state='sending';
 
 -- name: CompleteNotificationAttempt :execrows

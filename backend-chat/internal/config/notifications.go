@@ -10,6 +10,15 @@ import (
 )
 
 func (c *Config) loadNotifications(getenv func(string) string) error {
+	for name, target := range map[string]*bool{"NOTIFICATION_DELIVERY_ENABLED": &c.NotificationDeliveryEnabled, "NOTIFICATION_AUTOMATIC_ENABLED": &c.NotificationAutomaticEnabled} {
+		if raw := strings.TrimSpace(getenv(name)); raw != "" {
+			v, err := strconv.ParseBool(raw)
+			if err != nil {
+				return errors.New(name + " must be a boolean")
+			}
+			*target = v
+		}
+	}
 	flag := strings.TrimSpace(getenv("NOTIFICATION_PLANNING_ENABLED"))
 	if flag != "" {
 		enabled, err := strconv.ParseBool(flag)
@@ -17,6 +26,12 @@ func (c *Config) loadNotifications(getenv func(string) string) error {
 			return errors.New("NOTIFICATION_PLANNING_ENABLED must be a boolean")
 		}
 		c.NotificationPlanningEnabled = enabled
+	}
+	if c.NotificationDeliveryEnabled && !c.NotificationPlanningEnabled {
+		return errors.New("notification delivery requires NOTIFICATION_PLANNING_ENABLED")
+	}
+	if c.NotificationAutomaticEnabled && !c.NotificationDeliveryEnabled {
+		return errors.New("automatic notifications require NOTIFICATION_DELIVERY_ENABLED")
 	}
 	active := strings.TrimSpace(getenv("NOTIFICATION_PAYLOAD_ACTIVE_KEY_ID"))
 	raw := strings.TrimSpace(getenv("NOTIFICATION_PAYLOAD_KEYS"))

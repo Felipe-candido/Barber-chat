@@ -12,26 +12,112 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createNotificationPolicy = `-- name: CreateNotificationPolicy :execrows
+INSERT INTO shop_notification_settings(shop_id,enabled,reminder_lead_minutes,delivery_mode)
+VALUES($1,$2,$3,$4) ON CONFLICT(shop_id) DO NOTHING
+`
+
+type CreateNotificationPolicyParams struct {
+	ShopID              uuid.UUID `json:"shop_id"`
+	Enabled             bool      `json:"enabled"`
+	ReminderLeadMinutes int32     `json:"reminder_lead_minutes"`
+	DeliveryMode        string    `json:"delivery_mode"`
+}
+
+func (q *Queries) CreateNotificationPolicy(ctx context.Context, arg CreateNotificationPolicyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, createNotificationPolicy,
+		arg.ShopID,
+		arg.Enabled,
+		arg.ReminderLeadMinutes,
+		arg.DeliveryMode,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const findAppointmentNotificationJobs = `-- name: FindAppointmentNotificationJobs :many
+SELECT j.id,j.kind,j.delivery_state,j.delivery_reason,j.delivery_lease_until,j.dispatch_mode,j.due_at,j.expires_at,j.state,
+ COALESCE((SELECT a.receipt_state FROM notification_attempts a WHERE a.shop_id=j.shop_id AND a.job_id=j.id ORDER BY a.attempt_number DESC LIMIT 1),0)::smallint AS receipt_state
+FROM notification_jobs j WHERE j.shop_id=$1 AND j.appointment_id=$2 ORDER BY j.kind
+`
+
+type FindAppointmentNotificationJobsParams struct {
+	ShopID        uuid.UUID `json:"shop_id"`
+	AppointmentID uuid.UUID `json:"appointment_id"`
+}
+
+type FindAppointmentNotificationJobsRow struct {
+	ID                 uuid.UUID          `json:"id"`
+	Kind               string             `json:"kind"`
+	DeliveryState      string             `json:"delivery_state"`
+	DeliveryReason     string             `json:"delivery_reason"`
+	DeliveryLeaseUntil pgtype.Timestamptz `json:"delivery_lease_until"`
+	DispatchMode       string             `json:"dispatch_mode"`
+	DueAt              pgtype.Timestamptz `json:"due_at"`
+	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
+	State              string             `json:"state"`
+	ReceiptState       int16              `json:"receipt_state"`
+}
+
+func (q *Queries) FindAppointmentNotificationJobs(ctx context.Context, arg FindAppointmentNotificationJobsParams) ([]FindAppointmentNotificationJobsRow, error) {
+	rows, err := q.db.Query(ctx, findAppointmentNotificationJobs, arg.ShopID, arg.AppointmentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FindAppointmentNotificationJobsRow{}
+	for rows.Next() {
+		var i FindAppointmentNotificationJobsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Kind,
+			&i.DeliveryState,
+			&i.DeliveryReason,
+			&i.DeliveryLeaseUntil,
+			&i.DispatchMode,
+			&i.DueAt,
+			&i.ExpiresAt,
+			&i.State,
+			&i.ReceiptState,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getBookingNotificationPolicy = `-- name: GetBookingNotificationPolicy :one
-SELECT enabled,reminder_lead_minutes,version FROM shop_notification_settings WHERE shop_id=$1 FOR SHARE
+SELECT enabled,reminder_lead_minutes,version,delivery_mode FROM shop_notification_settings WHERE shop_id=$1 FOR SHARE
 `
 
 type GetBookingNotificationPolicyRow struct {
-	Enabled             bool  `json:"enabled"`
-	ReminderLeadMinutes int32 `json:"reminder_lead_minutes"`
-	Version             int64 `json:"version"`
+	Enabled             bool   `json:"enabled"`
+	ReminderLeadMinutes int32  `json:"reminder_lead_minutes"`
+	Version             int64  `json:"version"`
+	DeliveryMode        string `json:"delivery_mode"`
 }
 
 func (q *Queries) GetBookingNotificationPolicy(ctx context.Context, shopID uuid.UUID) (GetBookingNotificationPolicyRow, error) {
 	row := q.db.QueryRow(ctx, getBookingNotificationPolicy, shopID)
 	var i GetBookingNotificationPolicyRow
-	err := row.Scan(&i.Enabled, &i.ReminderLeadMinutes, &i.Version)
+	err := row.Scan(
+		&i.Enabled,
+		&i.ReminderLeadMinutes,
+		&i.Version,
+		&i.DeliveryMode,
+	)
 	return i, err
 }
 
 const insertBookingNotificationJob = `-- name: InsertBookingNotificationJob :exec
-INSERT INTO notification_jobs(id,shop_id,appointment_id,schedule_generation,kind,due_at,expires_at)
-VALUES($1,$2,$3,$4,$5,$6,$7)
+INSERT INTO notification_jobs(id,shop_id,appointment_id,schedule_generation,kind,due_at,expires_at,dispatch_mode)
+VALUES($1,$2,$3,$4,$5,$6,$7,$8)
 `
 
 type InsertBookingNotificationJobParams struct {
@@ -42,6 +128,7 @@ type InsertBookingNotificationJobParams struct {
 	Kind               string             `json:"kind"`
 	DueAt              pgtype.Timestamptz `json:"due_at"`
 	ExpiresAt          pgtype.Timestamptz `json:"expires_at"`
+	DispatchMode       string             `json:"dispatch_mode"`
 }
 
 func (q *Queries) InsertBookingNotificationJob(ctx context.Context, arg InsertBookingNotificationJobParams) error {
@@ -53,6 +140,7 @@ func (q *Queries) InsertBookingNotificationJob(ctx context.Context, arg InsertBo
 		arg.Kind,
 		arg.DueAt,
 		arg.ExpiresAt,
+		arg.DispatchMode,
 	)
 	return err
 }
@@ -92,4 +180,31 @@ func (q *Queries) InsertBookingNotificationPlan(ctx context.Context, arg InsertB
 		arg.CreatedAt,
 	)
 	return err
+}
+
+const updateNotificationPolicy = `-- name: UpdateNotificationPolicy :execrows
+UPDATE shop_notification_settings SET enabled=$2,reminder_lead_minutes=$3,delivery_mode=$4,version=version+1,updated_at=clock_timestamp()
+WHERE shop_id=$1 AND version=$5
+`
+
+type UpdateNotificationPolicyParams struct {
+	ShopID              uuid.UUID `json:"shop_id"`
+	Enabled             bool      `json:"enabled"`
+	ReminderLeadMinutes int32     `json:"reminder_lead_minutes"`
+	DeliveryMode        string    `json:"delivery_mode"`
+	Version             int64     `json:"version"`
+}
+
+func (q *Queries) UpdateNotificationPolicy(ctx context.Context, arg UpdateNotificationPolicyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateNotificationPolicy,
+		arg.ShopID,
+		arg.Enabled,
+		arg.ReminderLeadMinutes,
+		arg.DeliveryMode,
+		arg.Version,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }

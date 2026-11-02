@@ -44,6 +44,27 @@ func (t *DeliveryTransactor) WithinDeliveryTx(ctx context.Context, fn func(conte
 
 type DeliveryStore struct{ q *db.Queries }
 
+func (s *DeliveryStore) ListBooking(ctx context.Context, shop, appointment uuid.UUID) ([]app.BookingMessageStatus, error) {
+	rows, err := s.q.FindAppointmentNotificationJobs(ctx, db.FindAppointmentNotificationJobsParams{ShopID: shop, AppointmentID: appointment})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]app.BookingMessageStatus, 0, len(rows))
+	for _, r := range rows {
+		receipt := ""
+		switch r.ReceiptState {
+		case 1:
+			receipt = "accepted"
+		case 2:
+			receipt = "delivered"
+		case 3:
+			receipt = "read"
+		}
+		result = append(result, app.BookingMessageStatus{JobID: r.ID, Kind: r.Kind, State: r.DeliveryState, Receipt: receipt, Reason: domain.DeliveryReason(r.DeliveryReason), Mode: r.DispatchMode, DueAt: r.DueAt.Time.UTC(), ExpiresAt: r.ExpiresAt.Time.UTC(), LeaseUntil: r.DeliveryLeaseUntil.Time.UTC(), IntentInvalidated: r.State != "pending"})
+	}
+	return result, nil
+}
+
 func NewDeliveryStore(q *db.Queries) *DeliveryStore { return &DeliveryStore{q} }
 func (s *DeliveryStore) Reference(ctx context.Context, k app.DeliveryKey) (uuid.UUID, bool, error) {
 	id, err := s.q.GetDeliveryReference(ctx, db.GetDeliveryReferenceParams{ShopID: k.ShopID, ID: k.JobID})
@@ -64,7 +85,7 @@ func (s *DeliveryStore) Connection(ctx context.Context, shop uuid.UUID) (domain.
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.Connection{}, nil
 	}
-	return domain.Connection{ShopID: shop, InstanceName: c.InstanceName, State: domain.ConnectionState(c.State), DesiredConnected: c.DesiredConnected, VerifiedAt: c.VerifiedAt.Time.UTC(), ErrorCode: c.ErrorCode}, err
+	return domain.Connection{ShopID: shop, InstanceName: c.InstanceName, State: domain.ConnectionState(c.State), DesiredConnected: c.DesiredConnected, VerifiedAt: c.VerifiedAt.Time.UTC(), ErrorCode: c.ErrorCode, SendLeaseUntil: c.SendLeaseUntil.Time.UTC()}, err
 }
 func (s *DeliveryStore) Lock(ctx context.Context, k app.DeliveryKey) (app.DeliveryRecord, bool, error) {
 	r, err := s.q.LockNotificationDelivery(ctx, db.LockNotificationDeliveryParams{ShopID: k.ShopID, ID: k.JobID})
@@ -74,7 +95,7 @@ func (s *DeliveryStore) Lock(ctx context.Context, k app.DeliveryKey) (app.Delive
 	if err != nil {
 		return app.DeliveryRecord{}, false, err
 	}
-	return app.DeliveryRecord{Key: k, AppointmentID: r.AppointmentID, Kind: r.Kind,
+	return app.DeliveryRecord{Key: k, AppointmentID: r.AppointmentID, Kind: r.Kind, DispatchSequence: r.DispatchSeq,
 		Scope:   app.PayloadScope{ShopID: r.ShopID, AppointmentID: r.AppointmentID, ScheduleGeneration: r.ScheduleGeneration, ExpiresAt: r.PayloadExpiresAt.Time.UTC()},
 		Payload: app.ProtectedPayload{Version: int(r.PayloadVersion.Int32), KeyID: r.PayloadKeyID.String, Ciphertext: r.EncryptedPayload},
 		Window:  domain.Window{DueAt: r.DueAt.Time.UTC(), ExpiresAt: r.ExpiresAt.Time.UTC()}, IntentInvalidated: r.State != "pending",
@@ -92,16 +113,29 @@ func (s *DeliveryStore) Stop(ctx context.Context, k app.DeliveryKey, state domai
 	n, err := s.q.StopNotificationBeforeSending(ctx, db.StopNotificationBeforeSendingParams{ShopID: k.ShopID, ID: k.JobID, DeliveryState: string(state), DeliveryReason: string(reason)})
 	return changed(n, err)
 }
-func (s *DeliveryStore) Start(ctx context.Context, c app.DeliveryClaim, instance string) error {
+func (s *DeliveryStore) Start(ctx context.Context, c app.DeliveryClaim, instance string, templateVersion int) error {
+	if templateVersion < 1 || templateVersion > 32767 {
+		return app.ErrInvalidDelivery
+	}
+	claimed, err := s.q.ClaimNotificationSender(ctx, db.ClaimNotificationSenderParams{ShopID: c.Key.ShopID, SendToken: pgtype.UUID{Bytes: c.Token, Valid: true}})
+	if err != nil {
+		return err
+	}
+	if claimed != 1 {
+		return app.ErrNotificationSenderBusy
+	}
 	n, err := s.q.StartNotificationDelivery(ctx, db.StartNotificationDeliveryParams{ShopID: c.Key.ShopID, ID: c.Key.JobID, DeliveryToken: pgtype.UUID{Bytes: c.Token, Valid: true}})
 	if err = changed(n, err); err != nil {
 		return err
 	}
-	return s.q.InsertNotificationAttempt(ctx, db.InsertNotificationAttemptParams{ShopID: c.Key.ShopID, ID: c.Key.JobID, DeliveryToken: pgtype.UUID{Bytes: c.Token, Valid: true}, InstanceName: instance})
+	return s.q.InsertNotificationAttempt(ctx, db.InsertNotificationAttemptParams{ShopID: c.Key.ShopID, ID: c.Key.JobID, DeliveryToken: pgtype.UUID{Bytes: c.Token, Valid: true}, InstanceName: instance, TemplateVersion: int32(templateVersion)})
 }
 func (s *DeliveryStore) Complete(ctx context.Context, c app.DeliveryClaim, outcome domain.SendOutcome) error {
 	o := outcome.Normalize()
-	// Lock the job before the attempt, matching Start and cancellation triggers.
+	// Match Start's connection -> job -> attempt order, without calendar locks.
+	if _, err := s.Connection(ctx, c.Key.ShopID); err != nil {
+		return err
+	}
 	r, found, err := s.Lock(ctx, c.Key)
 	if err != nil {
 		return err
@@ -111,14 +145,17 @@ func (s *DeliveryStore) Complete(ctx context.Context, c app.DeliveryClaim, outco
 	}
 	// Idempotent completion cannot regress accepted/failed, or unknown to failure.
 	if r.State != domain.DeliverySending && !(r.State == domain.DeliveryUnknown && o.Disposition == domain.SendAccepted) {
-		return nil
+		return s.q.ReleaseNotificationSender(ctx, db.ReleaseNotificationSenderParams{ShopID: c.Key.ShopID, SendToken: pgtype.UUID{Bytes: c.Token, Valid: true}})
 	}
 	n, err := s.q.CompleteNotificationAttempt(ctx, db.CompleteNotificationAttemptParams{ShopID: c.Key.ShopID, JobID: c.Key.JobID, AttemptID: c.Token, Outcome: string(o.Disposition), ProviderMessageID: text(o.ProviderMessageID), Reason: string(o.Reason)})
 	if err = changed(n, err); err != nil {
 		return err
 	}
 	n, err = s.q.CompleteNotificationDelivery(ctx, db.CompleteNotificationDeliveryParams{ShopID: c.Key.ShopID, ID: c.Key.JobID, DeliveryToken: pgtype.UUID{Bytes: c.Token, Valid: true}, DeliveryState: string(o.State()), DeliveryReason: string(o.Reason)})
-	return changed(n, err)
+	if err = changed(n, err); err != nil {
+		return err
+	}
+	return s.q.ReleaseNotificationSender(ctx, db.ReleaseNotificationSenderParams{ShopID: c.Key.ShopID, SendToken: pgtype.UUID{Bytes: c.Token, Valid: true}})
 }
 func changed(n int64, err error) error {
 	if err != nil {

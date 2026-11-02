@@ -15,6 +15,14 @@ type MessageShops struct{ queries *db.Queries }
 
 func NewMessageShops(q *db.Queries) *MessageShops { return &MessageShops{q} }
 
+func (s *MessageShops) WhatsAppEnabled(ctx context.Context, slug string) (bool, error) {
+	enabled, err := s.queries.GetPublicNotificationOptions(ctx, slug)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	return enabled, err
+}
+
 func (s *MessageShops) LockDeliveryShop(ctx context.Context, shop uuid.UUID) (bool, error) {
 	active, err := s.queries.LockNotificationDeliveryShop(ctx, shop)
 	if errors.Is(err, pgx.ErrNoRows) {

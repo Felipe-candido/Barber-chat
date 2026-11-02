@@ -100,8 +100,9 @@ func (h *Handler) createForStaff(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusOK
 	}
 	response.JSON(w, status, struct {
-		Appointment receiptResponse `json:"appointment"`
-		Code        string          `json:"code"`
-		Replayed    bool            `json:"replayed"`
-	}{receipt(saved.Appointment), saved.Code, saved.Replayed})
+		Appointment receiptResponse          `json:"appointment"`
+		Code        string                   `json:"code"`
+		Replayed    bool                     `json:"replayed"`
+		WhatsApp    *bookingConfirmationJSON `json:"whatsapp,omitempty"`
+	}{receipt(saved.Appointment), saved.Code, saved.Replayed, h.confirmationStatus(r.Context(), saved, input.WhatsAppNotifications)})
 }

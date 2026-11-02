@@ -71,8 +71,24 @@ export function ContactStep({
         />
         <p className={styles.hint}>
           Seus dados serão enviados à barbearia somente ao confirmar. Não será criada uma conta nem
-          enviada uma mensagem pelo WhatsApp nesta etapa.
+          iniciado um envio antes da confirmação.
         </p>
+        {flow.whatsappAvailable && (
+          <label className={styles.whatsappConsent}>
+            <input
+              type="checkbox"
+              checked={flow.whatsappNotifications}
+              disabled={flow.locked}
+              onChange={(e) => flow.setWhatsappNotifications(e.target.checked)}
+            />
+            <span>
+              {flow.staffBooking
+                ? "O cliente autorizou receber a confirmação e um lembrete deste agendamento no WhatsApp informado."
+                : "Quero receber a confirmação e um lembrete deste agendamento no WhatsApp informado."}
+              <small>Opcional, somente para este agendamento. Sem mensagens promocionais.</small>
+            </span>
+          </label>
+        )}
         <Button type="submit">Revisar agendamento</Button>
       </form>
       <Button

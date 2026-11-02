@@ -26,7 +26,10 @@ const appointment = {
   shop_timezone: "America/Sao_Paulo",
 };
 
-async function fixture(page: Page, mode: "normal" | "network" | "conflict" = "normal") {
+async function fixture(
+  page: Page,
+  mode: "normal" | "network" | "conflict" | "whatsapp" | "whatsapp-unknown" = "normal",
+) {
   const attempts: { key: string | undefined; body: unknown }[] = [];
   let cancelled = false;
   let cancels = 0;
@@ -73,7 +76,14 @@ async function fixture(page: Page, mode: "normal" | "network" | "conflict" = "no
         status = 409;
       } else {
         status = attempts.length === 1 ? 201 : 200;
-        json = { appointment, code, replayed: attempts.length > 1 };
+        json = {
+          appointment,
+          code,
+          replayed: attempts.length > 1,
+          ...(mode.startsWith("whatsapp") && request.postDataJSON().whatsapp_notifications === true
+            ? { whatsapp: { state: mode === "whatsapp" ? "accepted" : "unknown" } }
+            : {}),
+        };
       }
     } else if (path.endsWith("/lookup") || path.endsWith("/cancel")) {
       expect(request.url()).not.toContain(code);
@@ -90,13 +100,15 @@ async function fixture(page: Page, mode: "normal" | "network" | "conflict" = "no
           can_cancel: !cancelled,
         };
       }
-    } else throw new Error("Unexpected booking route " + path);
+    } else if (path.endsWith("/notification-options"))
+      json = { whatsapp_enabled: mode.startsWith("whatsapp") };
+    else throw new Error("Unexpected booking route " + path);
     await route.fulfill({ status, json, headers });
   });
   return { attempts, cancels: () => cancels };
 }
 
-async function fillBooking(page: Page) {
+async function fillBooking(page: Page, whatsapp = false) {
   await page.goto("/b/teste");
   await page.getByRole("button", { name: /Corte real/ }).click();
   await page
@@ -106,8 +118,32 @@ async function fillBooking(page: Page) {
   await page.getByLabel("Nome", { exact: true }).fill("Ana");
   await page.getByLabel("Sobrenome", { exact: true }).fill("Silva");
   await page.getByLabel("Telefone com DDD").fill("(11) 91234-5678");
+  if (whatsapp) await page.getByRole("checkbox", { name: /Quero receber a confirmação/ }).check();
   await page.getByRole("button", { name: "Revisar agendamento" }).click();
 }
+
+for (const mode of ["whatsapp", "whatsapp-unknown"] as const) {
+  test(`explicit WhatsApp consent and independent booking success: ${mode}`, async ({ page }) => {
+    const state = await fixture(page, mode);
+    await fillBooking(page, true);
+    await page.getByRole("button", { name: "Confirmar agendamento", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Agendamento registrado!" })).toBeVisible();
+    expect(state.attempts[0].body).toMatchObject({ whatsapp_notifications: true });
+    if (mode === "whatsapp")
+      await expect(
+        page.getByText(/A confirmação foi encaminhada para envio no WhatsApp/),
+      ).toBeVisible();
+    else await expect(page.getByText(/Não faça outra reserva por causa da mensagem/)).toBeVisible();
+  });
+}
+test("available WhatsApp still requires opting in", async ({ page }) => {
+  const state = await fixture(page, "whatsapp");
+  await fillBooking(page);
+  await expect(page.getByText(/sem mensagens de WhatsApp/)).toBeVisible();
+  await page.getByRole("button", { name: "Confirmar agendamento", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Agendamento registrado!" })).toBeVisible();
+  expect(state.attempts[0].body).not.toHaveProperty("whatsapp_notifications");
+});
 
 test("books with real API fields, displays receipt and code, then cancels explicitly", async ({
   page,

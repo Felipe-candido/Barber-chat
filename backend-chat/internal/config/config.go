@@ -35,6 +35,8 @@ type Config struct {
 	StripeWebhookSecret            string
 	StripePortalConfigurationID    string
 	NotificationPlanningEnabled    bool
+	NotificationDeliveryEnabled    bool
+	NotificationAutomaticEnabled   bool
 	NotificationPayloadActiveKeyID string
 	NotificationPayloadKeys        map[string][]byte
 	EvolutionBaseURL               string
@@ -91,6 +93,9 @@ func load(getenv func(string) string) (Config, error) {
 	}
 	if err := c.loadEvolution(getenv); err != nil {
 		return Config{}, err
+	}
+	if c.NotificationDeliveryEnabled && c.EvolutionBaseURL == "" {
+		return Config{}, errors.New("notification delivery requires Evolution configuration")
 	}
 	if c.FrontendOrigin != "" {
 		u, err := url.Parse(c.FrontendOrigin)

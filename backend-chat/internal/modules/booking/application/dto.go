@@ -77,6 +77,7 @@ type AppointmentReceipt struct {
 // Replayed must not change the receipt stored for the first successful request.
 // HTTP/JSON mapping belongs to infra, so these contracts have no JSON tags.
 type CreateAppointmentOutput struct {
+	ShopID      uuid.UUID
 	Appointment AppointmentReceipt
 	Code        string
 	Replayed    bool

@@ -38,5 +38,5 @@ func (b *NotificationDeliveryBookings) LockDeliveryBooking(ctx context.Context, 
 	if r.ProfessionalID != professional {
 		return notifications.DeliveryBooking{}, nil
 	}
-	return notifications.DeliveryBooking{CustomerID: r.CustomerID, Active: r.Status == "scheduled" || r.Status == "confirmed", StartsAt: r.StartsAt.Time.UTC(), EndsAt: r.EndsAt.Time.UTC(), ServiceName: r.ServiceName, ProfessionalName: r.ProfessionalName, PriceCents: r.PriceCents, Currency: r.Currency, Timezone: r.ShopTimezone}, nil
+	return notifications.DeliveryBooking{CustomerID: r.CustomerID, ProfessionalID: r.ProfessionalID, Active: r.Status == "scheduled" || r.Status == "confirmed", StartsAt: r.StartsAt.Time.UTC(), EndsAt: r.EndsAt.Time.UTC(), ServiceName: r.ServiceName, ProfessionalName: r.ProfessionalName, PriceCents: r.PriceCents, Currency: r.Currency, Timezone: r.ShopTimezone}, nil
 }
