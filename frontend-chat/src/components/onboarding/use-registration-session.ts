@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { getSupabaseBrowserClient } from "@/lib/supabase/browser";
 import { clearRegistrationAttempt } from "@/lib/onboarding";
+import { confirmationLinkError, readConfirmationCallback } from "@/lib/supabase/confirmation";
 
 export function useRegistrationSession() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [revision, setRevision] = useState(0);
+  const callback = useRef<ReturnType<typeof readConfirmationCallback> | null>(null);
   useEffect(() => {
     let cancelled = false;
     let unsubscribe: (() => void) | undefined;
@@ -18,10 +20,9 @@ export function useRegistrationSession() {
     setUser(null);
     void (async () => {
       try {
+        callback.current ??= readConfirmationCallback();
+        const initialCallback = callback.current;
         const client = getSupabaseBrowserClient();
-        const initialParams = new URLSearchParams(window.location.search);
-        const hadCallback =
-          initialParams.has("code") || initialParams.has("error") || !!window.location.hash;
         // detectSessionInUrl performs a single PKCE exchange during SDK init.
         const initialized = await client.auth.initialize();
         const params = new URLSearchParams(window.location.search);
@@ -33,12 +34,13 @@ export function useRegistrationSession() {
         // A remaining code was not consumed (for example, a missing verifier).
         // A cached initialization error must not reject a later explicit login.
         if (
+          initialCallback.hasError ||
           params.has("code") ||
           params.has("error") ||
-          (initialized.error && (hadCallback || !session.data.session))
+          (initialized.error && (initialCallback.present || !session.data.session))
         )
           throw new Error(
-            "Não foi possível validar o link. Ele pode ter expirado ou ter sido aberto em outro navegador. Se já confirmou o e-mail, entre pelo login e continue o cadastro.",
+            confirmationLinkError(initialCallback.errorCode || initialized.error?.code),
           );
         if (session.error)
           throw new Error("Não foi possível restaurar sua sessão. Entre novamente.");

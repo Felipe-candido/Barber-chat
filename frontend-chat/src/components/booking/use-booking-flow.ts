@@ -48,11 +48,11 @@ export function useBookingFlow({
     phone_country: "BR",
   });
   const [whatsappAvailable, setWhatsappAvailable] = useState(false);
-  const [whatsappNotifications, setWhatsappNotifications] = useState(false);
+  const [whatsappNotifications, setWhatsappNotifications] = useState(true);
   useEffect(() => {
     const c = new AbortController();
     setWhatsappAvailable(false);
-    setWhatsappNotifications(false);
+    setWhatsappNotifications(true);
     void getNotificationOptions(slug, c.signal, staff?.userID)
       .then((enabled) => {
         if (!c.signal.aborted) setWhatsappAvailable(enabled);

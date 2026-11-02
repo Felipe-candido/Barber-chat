@@ -63,8 +63,9 @@ acontece segurando locks de calendário ou transação SQL.
 
 ## Fluxo inicial sem worker
 
-1. Frontend consulta disponibilidade do opt-in e coleta autorização, desmarcada
-   por padrão. Omissão/false mantém fingerprint antigo de idempotência.
+1. Frontend consulta disponibilidade e apresenta WhatsApp marcado por padrão,
+   permitindo desmarcar antes da confirmação. Omissão/false mantém fingerprint
+   antigo de idempotência.
 2. API autentica/autoriza quando administrativo; agendamento público usa as
    barreiras de publicação/assinatura e validação já existentes.
 3. Booking salva reserva, contato, autorização e plano cifrado com jobs na mesma

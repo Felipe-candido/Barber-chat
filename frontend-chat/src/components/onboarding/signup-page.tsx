@@ -10,6 +10,7 @@ import { Alert, Button, TextField, buttonClasses } from "../ui";
 import { PasswordField } from "../ui/password-field";
 import { OnboardingShell } from "./onboarding-shell";
 import { ErrorSummary } from "./error-summary";
+import { EmailConfirmationForm } from "../auth/email-confirmation-form";
 import styles from "./onboarding.module.css";
 
 export function SignupPage() {
@@ -106,6 +107,7 @@ export function SignupPage() {
             Abra o link no mesmo navegador e endereço usados aqui (localhost e 127.0.0.1 são origens
             diferentes). Se abrir em outro dispositivo, confirme o e-mail e depois faça login.
           </p>
+          <EmailConfirmationForm initialEmail={values.email.trim()} recentlySent />
           <Link href="/cadastro/barbearia" className={buttonClasses()}>
             Já confirmei, continuar
           </Link>
