@@ -168,7 +168,7 @@ func (c *Client) Connect(ctx context.Context, name string) (app.ConnectionChalle
 	} else if err != nil {
 		return app.ConnectionChallenge{}, err
 	}
-	_, _, err = c.request(ctx, "POST", "/webhook/set/"+name, map[string]any{"webhook": map[string]any{"enabled": true, "url": c.callback, "headers": map[string]string{WebhookHeader: WebhookToken(c.secret, name)}, "byEvents": false, "base64": false, "events": []string{"CONNECTION_UPDATE"}}})
+	_, _, err = c.request(ctx, "POST", "/webhook/set/"+name, map[string]any{"webhook": map[string]any{"enabled": true, "url": c.callback, "headers": map[string]string{WebhookHeader: WebhookToken(c.secret, name)}, "byEvents": false, "base64": false, "events": []string{"CONNECTION_UPDATE", "SEND_MESSAGE", "MESSAGES_UPDATE"}}})
 	if err != nil {
 		return app.ConnectionChallenge{}, err
 	}

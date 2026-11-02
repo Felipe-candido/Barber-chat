@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/Felipe-candido/Barber-chat/internal/modules/notifications/domain"
@@ -18,6 +19,12 @@ func NewDeliverNotification(tx DeliveryTransactor, opener PayloadOpener, sender 
 	return &DeliverNotification{tx, opener, sender}
 }
 
+// Recover inspects expired work without ever initiating a new external call.
+func (uc *DeliverNotification) Recover(ctx context.Context, key DeliveryKey) (DeliveryResult, error) {
+	key.recoveryOnly = true
+	return uc.Execute(ctx, key)
+}
+
 // Execute performs at most one external attempt. Both HTTP and a future AMQP
 // consumer can invoke it. No broker ACK, goroutine or business transaction here.
 func (uc *DeliverNotification) Execute(ctx context.Context, key DeliveryKey) (DeliveryResult, error) {
@@ -29,7 +36,7 @@ func (uc *DeliverNotification) Execute(ctx context.Context, key DeliveryKey) (De
 	}
 	token, err := uuid.NewRandom()
 	if err != nil {
-		return DeliveryResult{}, ErrDeliveryUnavailable
+		return DeliveryResult{}, deliveryError(err)
 	}
 	claim := DeliveryClaim{Key: key, Token: token}
 	result := DeliveryResult{State: "not_found"}
@@ -44,8 +51,12 @@ func (uc *DeliverNotification) Execute(ctx context.Context, key DeliveryKey) (De
 		if !locked.found {
 			return nil
 		}
+		if key.DispatchSequence > 0 && key.DispatchSequence != locked.record.DispatchSequence {
+			result = DeliveryResult{State: "superseded"}
+			return nil
+		}
 		result, err = inspectDelivery(ctx, tx, locked)
-		if err != nil || result.State != "ready" {
+		if err != nil || result.State != "ready" || key.recoveryOnly {
 			return err
 		}
 		if err := tx.Store.Claim(ctx, claim); err != nil {
@@ -55,7 +66,7 @@ func (uc *DeliverNotification) Execute(ctx context.Context, key DeliveryKey) (De
 		return nil
 	})
 	if err != nil {
-		return DeliveryResult{}, ErrDeliveryUnavailable
+		return DeliveryResult{}, deliveryError(err)
 	}
 	if !claimed {
 		return result, nil
@@ -91,7 +102,7 @@ func (uc *DeliverNotification) Execute(ctx context.Context, key DeliveryKey) (De
 		locked.record.State = domain.DeliveryReady
 		result, err = inspectDelivery(ctx, tx, locked)
 		if err != nil || result.State != "ready" {
-			if err == nil && result.State == "connection_unavailable" {
+			if err == nil && (result.State == "connection_unavailable" || result.State == "sender_busy") {
 				return tx.Store.Stop(ctx, key, domain.DeliveryReady, "")
 			}
 			return err
@@ -101,20 +112,24 @@ func (uc *DeliverNotification) Execute(ctx context.Context, key DeliveryKey) (De
 			result = DeliveryResult{State: string(domain.DeliveryInvalidated), Reason: domain.ReasonIneligible}
 			return tx.Store.Stop(ctx, key, domain.DeliveryInvalidated, domain.ReasonIneligible)
 		}
-		if err := tx.Store.Start(ctx, claim, locked.connection.InstanceName); err != nil {
+		if err := tx.Store.Start(ctx, claim, locked.connection.InstanceName, BookingMessageTemplateVersion); err != nil {
 			return err
 		}
 		instance, started = locked.connection.InstanceName, true
 		return nil
 	})
 	if err != nil {
-		return DeliveryResult{}, ErrDeliveryUnavailable
+		if errors.Is(err, ErrNotificationSenderBusy) {
+			_, _ = uc.stopUnstarted(ctx, claim, "")
+			return DeliveryResult{State: "sender_busy"}, nil
+		}
+		return DeliveryResult{}, deliveryError(err)
 	}
 	if !started {
 		return result, nil
 	}
 
-	outcome, sendErr := uc.sender.Send(ctx, OutboundNotification{AttemptID: token, InstanceName: instance, Kind: record.Kind, Snapshot: snapshot})
+	outcome, sendErr := uc.sender.Send(ctx, OutboundNotification{AttemptID: token, TemplateVersion: BookingMessageTemplateVersion, InstanceName: instance, Kind: record.Kind, Snapshot: snapshot})
 	if sendErr != nil {
 		outcome = domain.SendOutcome{Disposition: domain.SendUnknown, Reason: domain.ReasonTransportUnknown}
 	}
@@ -122,13 +137,24 @@ func (uc *DeliverNotification) Execute(ctx context.Context, key DeliveryKey) (De
 	// The browser may have gone away after the provider accepted the message.
 	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
+	final := DeliveryResult{State: string(outcome.State()), Reason: outcome.Reason}
 	err = uc.tx.WithinDeliveryTx(cleanup, func(ctx context.Context, tx DeliveryTx) error {
-		return tx.Store.Complete(ctx, claim, outcome)
+		if err := tx.Store.Complete(ctx, claim, outcome); err != nil {
+			return err
+		}
+		current, found, err := tx.Store.Lock(ctx, key)
+		if err != nil {
+			return err
+		}
+		if found {
+			final = DeliveryResult{State: string(current.State), Reason: current.Reason}
+		}
+		return nil
 	})
 	if err != nil {
 		return DeliveryResult{State: string(domain.DeliveryUnknown), Reason: domain.ReasonTransportUnknown}, ErrDeliveryUnavailable
 	}
-	return DeliveryResult{State: string(outcome.State()), Reason: outcome.Reason}, nil
+	return final, nil
 }
 
 type lockedDelivery struct {
@@ -156,6 +182,14 @@ func lockDelivery(ctx context.Context, tx DeliveryTx, key DeliveryKey) (lockedDe
 	if err != nil {
 		return l, err
 	}
+	if key.ActorID != uuid.Nil {
+		if tx.Access == nil {
+			return l, ErrDeliveryAccessDenied
+		}
+		if err := tx.Access.RequireDeliveryStaff(ctx, ConnectionScope{ActorID: key.ActorID, ShopID: key.ShopID}, l.booking.ProfessionalID); err != nil {
+			return l, err
+		}
+	}
 	l.permission, err = tx.Permissions.LockDeliveryPermission(ctx, key.ShopID, appointment)
 	if err != nil {
 		return l, err
@@ -173,8 +207,18 @@ func lockDelivery(ctx context.Context, tx DeliveryTx, key DeliveryKey) (lockedDe
 	if err != nil {
 		return l, err
 	}
+	if l.found && l.record.AppointmentID != appointment {
+		return l, ErrInvalidDelivery
+	}
 	l.now, err = tx.Store.Now(ctx)
 	return l, err
+}
+
+func deliveryError(err error) error {
+	if errors.Is(err, ErrDeliveryAccessDenied) {
+		return ErrDeliveryAccessDenied
+	}
+	return ErrDeliveryUnavailable
 }
 
 func inspectDelivery(ctx context.Context, tx DeliveryTx, l lockedDelivery) (DeliveryResult, error) {
@@ -202,6 +246,9 @@ func inspectDelivery(ctx context.Context, tx DeliveryTx, l lockedDelivery) (Deli
 			return DeliveryResult{State: "not_due"}, nil
 		}
 		c := l.connection
+		if l.now.Before(c.SendLeaseUntil) {
+			return DeliveryResult{State: "sender_busy"}, nil
+		}
 		if c.State != domain.ConnectionConnected || !c.DesiredConnected || c.ErrorCode != "" || !c.FreshAt(l.now) {
 			return DeliveryResult{State: "connection_unavailable"}, nil
 		}

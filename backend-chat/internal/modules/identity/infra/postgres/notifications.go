@@ -5,6 +5,7 @@ import (
 	"errors"
 	db "github.com/Felipe-candido/Barber-chat/internal/database/sqlc"
 	notifications "github.com/Felipe-candido/Barber-chat/internal/modules/notifications/application"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -17,4 +18,15 @@ func (g *ConnectionOwnerGuard) RequireConnectionOwner(ctx context.Context, s not
 		return notifications.ErrConnectionAccessDenied
 	}
 	return err
+}
+
+func (g *ConnectionOwnerGuard) RequireDeliveryStaff(ctx context.Context, s notifications.ConnectionScope, professional uuid.UUID) error {
+	allowed, err := NewRepository(g.queries).CanCreateBooking(ctx, s.ActorID, s.ShopID, professional)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return notifications.ErrDeliveryAccessDenied
+	}
+	return nil
 }

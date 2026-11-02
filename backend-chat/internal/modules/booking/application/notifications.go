@@ -17,6 +17,13 @@ type BookingNotificationPlanner interface {
 	Plan(context.Context, BookingNotificationInput) error
 }
 
+// Transport invokes this only after CreateAppointment has committed. Failure
+// must never roll back/reclassify an already accepted booking.
+type BookingConfirmationDispatcher interface {
+	DispatchConfirmation(context.Context, uuid.UUID, uuid.UUID, bool) (BookingConfirmationStatus, error)
+}
+type BookingConfirmationStatus struct{ State string }
+
 type BookingNotificationInput struct {
 	Appointment           domain.Appointment
 	ShopName, ShopSlug    string

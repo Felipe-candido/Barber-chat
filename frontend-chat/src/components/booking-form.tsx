@@ -47,6 +47,7 @@ export function BookingForm({
         slug={slug}
         code={flow.result.code}
         initial={flow.result.appointment}
+        whatsapp={flow.result.whatsapp}
         onShopName={onShopName}
         onLockedChange={onLockedChange}
       />

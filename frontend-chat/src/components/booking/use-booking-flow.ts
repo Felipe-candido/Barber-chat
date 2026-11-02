@@ -15,6 +15,7 @@ import {
 } from "@/lib/api/booking";
 import { ApiError, errorMessage } from "@/lib/api/client";
 import type { Service } from "@/lib/api/services";
+import { getNotificationOptions } from "@/lib/api/notifications";
 
 export type StaffBookingContext = {
   professionalID: string | null;
@@ -46,6 +47,21 @@ export function useBookingFlow({
     phone: "",
     phone_country: "BR",
   });
+  const [whatsappAvailable, setWhatsappAvailable] = useState(false);
+  const [whatsappNotifications, setWhatsappNotifications] = useState(false);
+  useEffect(() => {
+    const c = new AbortController();
+    setWhatsappAvailable(false);
+    setWhatsappNotifications(false);
+    void getNotificationOptions(slug, c.signal, staff?.userID)
+      .then((enabled) => {
+        if (!c.signal.aborted) setWhatsappAvailable(enabled);
+      })
+      .catch(() => {
+        if (!c.signal.aborted) setWhatsappAvailable(false);
+      });
+    return () => c.abort();
+  }, [slug, staff?.userID]);
   const [step, setStep] = useState<"schedule" | "contact" | "review">("schedule");
   const [professionalsError, setProfessionalsError] = useState("");
   const [availabilityError, setAvailabilityError] = useState("");
@@ -189,6 +205,7 @@ export function useBookingFlow({
             service_id: service.id,
             professional_id: professionalId,
             starts_at: slot.starts_at,
+            ...(whatsappAvailable && whatsappNotifications ? { whatsapp_notifications: true } : {}),
             customer: {
               ...customer,
               first_name: customer.first_name.trim(),
@@ -241,6 +258,10 @@ export function useBookingFlow({
     slot,
     setSlot,
     customer,
+    whatsappAvailable,
+    whatsappNotifications,
+    setWhatsappNotifications,
+    staffBooking: !!staff,
     setCustomer,
     step,
     setStep,

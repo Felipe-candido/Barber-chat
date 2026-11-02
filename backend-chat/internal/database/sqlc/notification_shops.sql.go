@@ -48,3 +48,15 @@ func (q *Queries) GetNotificationMessageShop(ctx context.Context, id uuid.UUID) 
 	)
 	return i, err
 }
+
+const getPublicNotificationOptions = `-- name: GetPublicNotificationOptions :one
+SELECT COALESCE(n.enabled,FALSE)::boolean AS enabled FROM shops s LEFT JOIN shop_notification_settings n ON n.shop_id=s.id
+WHERE s.slug=$1 AND s.active
+`
+
+func (q *Queries) GetPublicNotificationOptions(ctx context.Context, slug string) (bool, error) {
+	row := q.db.QueryRow(ctx, getPublicNotificationOptions, slug)
+	var enabled bool
+	err := row.Scan(&enabled)
+	return enabled, err
+}

@@ -63,7 +63,7 @@ func TestEvolutionConnectCreatesOnceAndConfiguresAuthenticatedWebhook(t *testing
 				} `json:"webhook"`
 			}
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			if body.Webhook.URL != "http://callback.invalid/api/v1/webhooks/evolution" || body.Webhook.Headers[evolution.WebhookHeader] != evolution.WebhookToken(callbackSecret, testInstance) || len(body.Webhook.Events) != 1 || body.Webhook.Events[0] != "CONNECTION_UPDATE" {
+			if body.Webhook.URL != "http://callback.invalid/api/v1/webhooks/evolution" || body.Webhook.Headers[evolution.WebhookHeader] != evolution.WebhookToken(callbackSecret, testInstance) || len(body.Webhook.Events) != 3 || body.Webhook.Events[0] != "CONNECTION_UPDATE" || body.Webhook.Events[1] != "SEND_MESSAGE" || body.Webhook.Events[2] != "MESSAGES_UPDATE" {
 				t.Error("unsafe or incorrect webhook configuration")
 			}
 			_, _ = w.Write([]byte(`{"enabled":true}`))

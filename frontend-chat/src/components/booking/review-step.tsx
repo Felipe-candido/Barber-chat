@@ -51,6 +51,13 @@ export function ReviewStep({
           <dd>{customer.phone}</dd>
         </div>
       </dl>
+      {flow.whatsappAvailable && (
+        <p className={styles.hint}>
+          {flow.whatsappNotifications
+            ? "Confirmação e lembrete por WhatsApp autorizados para esta reserva."
+            : "Você receberá o comprovante e o código na tela, sem mensagens de WhatsApp."}
+        </p>
+      )}
       <p className={styles.hint}>
         O horário só fica reservado após a confirmação. O código será exibido na tela para você
         consultar e cancelar antes do início.

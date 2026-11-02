@@ -27,12 +27,14 @@ export function AppointmentReceipt({
   slug,
   code,
   initial,
+  whatsapp,
   onShopName,
   onLockedChange,
 }: {
   slug: string;
   code: string;
   initial?: Appointment;
+  whatsapp?: { state: string };
   onShopName?: (name: string) => void;
   onLockedChange?: (locked: boolean) => void;
 }) {
@@ -127,6 +129,13 @@ export function AppointmentReceipt({
         {initial && <Check size={22} aria-hidden="true" />}
         {initial ? "Agendamento registrado!" : "Informações do agendamento"}
       </h2>
+      {initial && whatsapp && (
+        <Alert tone={whatsapp.state === "accepted" ? "info" : "warning"}>
+          {whatsapp.state === "accepted"
+            ? "A confirmação foi encaminhada para envio no WhatsApp. Guarde também o código exibido abaixo."
+            : "Seu agendamento foi registrado. Não foi possível confirmar o envio pelo WhatsApp; guarde o código abaixo para consultar ou cancelar. Não faça outra reserva por causa da mensagem."}
+        </Alert>
+      )}
       {loading && (
         <p className={styles.loading} role="status">
           Conferindo a situação atual da reserva…
@@ -217,7 +226,8 @@ export function AppointmentReceipt({
           </dl>
           <p className={styles.hint}>
             Horários da barbearia: {appointment.shop_timezone}. O intervalo reservado pode incluir
-            margem entre atendimentos. Nenhuma mensagem será enviada pelo WhatsApp nesta etapa.
+            margem entre atendimentos. Guarde seu código mesmo que tenha autorizado mensagens pelo
+            WhatsApp.
           </p>
         </>
       )}

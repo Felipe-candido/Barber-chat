@@ -28,6 +28,7 @@ import {
   buttonClasses,
 } from "../ui";
 import { SettingsReview } from "./settings-review";
+import { WhatsAppSettings } from "./whatsapp-settings";
 import { ShopCommercialCard } from "./shop-commercial-card";
 import styles from "./shop-settings.module.css";
 
@@ -133,6 +134,9 @@ function OwnerSettings({ shopID, slug, userID }: { shopID: string; slug: string;
       />
       <div className={styles.content}>
         {editor.mode !== "blocked" && (
+          <WhatsAppSettings slug={slug} shopID={shopID} userID={userID} />
+        )}
+        {editor.mode !== "blocked" && (
           <ShopCommercialCard
             commercial={commercial}
             checkout={checkout}
@@ -213,6 +217,7 @@ function OwnerSettings({ shopID, slug, userID }: { shopID: string; slug: string;
               </Alert>
             )}
             <form
+              aria-label="Cadastro da barbearia"
               noValidate
               className={styles.form}
               aria-busy={editor.mode === "saving"}

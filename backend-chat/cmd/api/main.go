@@ -193,11 +193,13 @@ func run(
 		catalogapp.NewListProfessionals(catalogRepository), cfg.OperationTimeout, logger)
 
 	var payloadSealer notificationsapp.PayloadSealer
+	var payloadOpener notificationsapp.PayloadOpener
 	if len(cfg.NotificationPayloadKeys) > 0 {
-		payloadSealer, err = notificationssecurity.NewPayloadCipher(cfg.NotificationPayloadActiveKeyID, cfg.NotificationPayloadKeys)
-		if err != nil {
-			return fmt.Errorf("configure notification payload protection: %w", err)
+		cipher, cipherErr := notificationssecurity.NewPayloadCipher(cfg.NotificationPayloadActiveKeyID, cfg.NotificationPayloadKeys)
+		if cipherErr != nil {
+			return fmt.Errorf("configure notification payload protection: %w", cipherErr)
 		}
+		payloadSealer, payloadOpener = cipher, cipher
 	}
 	prepareNotifications := notificationsapp.NewPrepareBookingNotifications(payloadSealer)
 	bookingTransactions := bookingpostgres.NewTransactor(pool, func(q *db.Queries) bookingapp.BookingTx {
@@ -230,10 +232,16 @@ func run(
 	})
 	lifecycleHandler := bookinghttp.NewLifecycleHandler(bookingapp.NewManageAppointmentStatus(lifecycleTx), cfg.OperationTimeout, logger)
 	var connectionProvider notificationsapp.ConnectionProvider
+	var notificationSender notificationsapp.NotificationSender
 	if cfg.EvolutionBaseURL != "" {
-		connectionProvider, err = notificationsevolution.NewClient(cfg.EvolutionBaseURL, cfg.EvolutionAPIKey, cfg.EvolutionWebhookURL, cfg.EvolutionWebhookSecret, nil)
+		client, clientErr := notificationsevolution.NewClient(cfg.EvolutionBaseURL, cfg.EvolutionAPIKey, cfg.EvolutionWebhookURL, cfg.EvolutionWebhookSecret, nil)
+		err = clientErr
+		connectionProvider = client
 		if err != nil {
 			return fmt.Errorf("configure Evolution client: %w", err)
+		}
+		if cfg.NotificationDeliveryEnabled {
+			notificationSender = client
 		}
 	}
 	connectionRepository := notificationspg.NewConnections(pool, func(q *db.Queries) notificationsapp.ConnectionOwnerAccess {
@@ -241,8 +249,20 @@ func run(
 	})
 	manageConnections := notificationsapp.NewManageConnections(connectionRepository, connectionProvider)
 	connectionHandler := notificationshttp.NewConnectionHandler(manageConnections, cfg.EvolutionWebhookSecret, cfg.OperationTimeout)
+	connectionHandler.WithReceipts(notificationsapp.NewRecordProviderReceipt(notificationspg.NewReceiptStore(pool)))
+	deliveryTx := notificationspg.NewDeliveryTransactor(pool, func(q *db.Queries) notificationsapp.DeliveryTx {
+		return notificationsapp.DeliveryTx{
+			Store: notificationspg.NewDeliveryStore(q), Shops: shopspostgres.NewMessageShops(q), Permissions: customerspostgres.NewBookingPermissions(q), Bookings: bookingpostgres.NewNotificationDeliveryBookings(q), Access: identitypostgres.NewConnectionOwnerGuard(q),
+		}
+	})
+	deliver := notificationsapp.NewDeliverNotification(deliveryTx, payloadOpener, notificationSender)
+	messages := notificationsapp.NewManageBookingMessages(deliveryTx, deliver, cfg.NotificationDeliveryEnabled)
+	settings := notificationsapp.NewManageNotificationSettings(notificationspg.NewSettings(connectionRepository), cfg.NotificationDeliveryEnabled, cfg.NotificationAutomaticEnabled)
+	notificationHandler := notificationshttp.NewMessageHandler(settings, messages, shopspostgres.NewMessageShops(queries), cfg.NotificationDeliveryEnabled, cfg.OperationTimeout)
+	bookingHandler.WithBookingConfirmation(notificationsinfra.NewBookingConfirmation(messages))
 	handler := httpapi.NewHandler(httpapi.HandlerConfig{
-		WhatsApp: connectionHandler, EvolutionWebhookEnabled: connectionProvider != nil,
+		Notifications: notificationHandler,
+		WhatsApp:      connectionHandler, EvolutionWebhookEnabled: connectionProvider != nil,
 		CheckDB:              pool.Ping,
 		Catalog:              catalogHandler,
 		Professionals:        professionalHandler,

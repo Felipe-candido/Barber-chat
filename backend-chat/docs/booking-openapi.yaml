@@ -433,6 +433,12 @@ components:
               appointment: {$ref: '#/components/schemas/Receipt'}
               code: {type: string}
               replayed: {type: boolean}
+              whatsapp:
+                type: object
+                description: Optional, only when requested and delivery configured. Confirmation is attempted after commit; failure never rolls back the booking. Replay reads state without sending again. Accepted is not delivered/read. Unknown must not cause a new booking or blind resend.
+                required: [state]
+                properties:
+                  state: {type: string, maxLength: 40}
     Details:
       description: Current receipt and cancellation eligibility; no customer contact information
       content:

@@ -2,6 +2,7 @@ import { agendaDate, type AdminAppointment } from "@/lib/api/agenda";
 import { bookingTime } from "@/lib/api/booking";
 import { formatDate, money } from "@/lib/model";
 import { AppointmentStatus } from "./appointment-status";
+import { AppointmentNotifications } from "./appointment-notifications";
 import { Button } from "../ui";
 import styles from "./agenda.module.css";
 
@@ -50,6 +51,11 @@ export function AppointmentDetails({
           </div>
         ))}
       </dl>
+      <AppointmentNotifications
+        key={item.id}
+        id={item.id}
+        revision={item.status + ":" + (item.version ?? 0)}
+      />
       <p>
         {item.version === undefined
           ? "Consulta dos dados da reserva. Atualize a API para gerenciar a situação pelo painel."

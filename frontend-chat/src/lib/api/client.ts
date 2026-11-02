@@ -15,6 +15,15 @@ export class ApiError extends Error {
   }
 }
 const messages: Record<string, string> = {
+  connection_busy:
+    "Já existe uma operação de conexão em andamento. Confira o estado antes de tentar novamente.",
+  activation_required:
+    "A integração de WhatsApp precisa ser ativada pelo responsável pela plataforma.",
+  provider_not_configured: "A integração de WhatsApp ainda não está configurada.",
+  settings_conflict:
+    "As preferências de WhatsApp mudaram. Confira o estado e revise antes de salvar.",
+  invalid_settings:
+    "Confira o modo de envio e a antecedência. O envio automático precisa estar disponível neste ambiente.",
   invalid_report_query:
     "Confira as datas e os filtros (até 366 dias). Atualize a consulta para reiniciar o histórico.",
   report_unavailable: "Não foi possível validar os dados do relatório. Atualize a consulta.",

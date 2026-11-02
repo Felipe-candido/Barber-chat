@@ -29,6 +29,34 @@ export const emptyAgenda = {
 };
 
 export async function mockAdminAccess(page: Page, shops = [testShop]) {
+  await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/whatsapp/connection", (route) =>
+    route.fulfill({
+      json: {
+        state: "not_configured",
+        desired_connected: false,
+        stale: true,
+        provider_configured: false,
+        verified_at: null,
+        last_connected_at: null,
+        error_code: "",
+      },
+    }),
+  );
+  await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/notifications/settings", (route) =>
+    route.fulfill({
+      json: {
+        enabled: false,
+        delivery_mode: "request",
+        reminder_lead_minutes: 1440,
+        version: 0,
+        delivery_available: false,
+        automatic_available: false,
+      },
+    }),
+  );
+  await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/notifications/options", (route) =>
+    route.fulfill({ json: { whatsapp_enabled: false } }),
+  );
   await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/commercial-status", (route) => {
     const slug = new URL(route.request().url()).pathname.split("/").at(-2);
     const shop = shops.find((item) => item.slug === slug);
@@ -60,6 +88,10 @@ export async function mockAdminAccess(page: Page, shops = [testShop]) {
   );
   await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/appointments*", (route) =>
     route.fulfill({ json: emptyAgenda }),
+  );
+  await page.route(
+    "http://127.0.0.1:8080/api/v1/admin/shops/*/appointments/*/notifications",
+    (route) => route.fulfill({ json: { messages: [], delivery_available: false } }),
   );
   for (const [path, payload] of [
     ["me", testIdentity],

@@ -26,6 +26,7 @@ import (
 
 type HandlerConfig struct {
 	WhatsApp                *notificationshttp.ConnectionHandler
+	Notifications           *notificationshttp.MessageHandler
 	EvolutionWebhookEnabled bool
 	CheckDB                 func(context.Context) error
 	Catalog                 *cataloghttp.Handler
@@ -102,6 +103,24 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 		publicGates = append(publicGates, cfg.PublicShopGate)
 	}
 	shopAccess := accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)
+	if cfg.Notifications != nil {
+		base := "/api/v1/admin/shops/{slug}"
+		router.Options(base+"/notifications/options", accessmiddleware.Preflight(http.MethodGet))
+		router.With(authenticate, shopAccess).Get(base+"/notifications/options", cfg.Notifications.PublicOptions)
+		router.Options(base+"/notifications/settings", accessmiddleware.Preflight(http.MethodGet, http.MethodPut))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).MethodFunc(http.MethodGet, base+"/notifications/settings", cfg.Notifications.Settings)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).MethodFunc(http.MethodPut, base+"/notifications/settings", cfg.Notifications.Settings)
+		status := base + "/appointments/{appointmentID}/notifications"
+		router.Options(status, accessmiddleware.Preflight(http.MethodGet))
+		router.With(authenticate, shopAccess).Get(status, cfg.Notifications.BookingStatus)
+		router.Options(status+"/confirmation", accessmiddleware.Preflight(http.MethodPost))
+		router.With(authenticate, shopAccess).Post(status+"/confirmation", cfg.Notifications.SendConfirmation)
+		router.Options(status+"/reminder", accessmiddleware.Preflight(http.MethodPost))
+		router.With(authenticate, shopAccess).Post(status+"/reminder", cfg.Notifications.SendReminder)
+		public := "/api/v1/public/shops/{slug}/notification-options"
+		router.Options(public, accessmiddleware.Preflight(http.MethodGet))
+		router.With(publicGates...).Get(public, cfg.Notifications.PublicOptions)
+	}
 	if cfg.WhatsApp != nil {
 		base := "/api/v1/admin/shops/{slug}/whatsapp"
 		router.Options(base+"/connection", accessmiddleware.Preflight(http.MethodGet))

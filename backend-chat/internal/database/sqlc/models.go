@@ -50,6 +50,7 @@ type AppointmentNotificationPlan struct {
 	EncryptedPayload   []byte             `json:"encrypted_payload"`
 	PayloadExpiresAt   pgtype.Timestamptz `json:"payload_expires_at"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	PayloadPurgedAt    pgtype.Timestamptz `json:"payload_purged_at"`
 }
 
 type AppointmentStatusCommand struct {
@@ -191,6 +192,9 @@ type NotificationAttempt struct {
 	Reason            string             `json:"reason"`
 	StartedAt         pgtype.Timestamptz `json:"started_at"`
 	FinishedAt        pgtype.Timestamptz `json:"finished_at"`
+	TemplateVersion   pgtype.Int4        `json:"template_version"`
+	ReceiptState      int16              `json:"receipt_state"`
+	ReceiptAt         pgtype.Timestamptz `json:"receipt_at"`
 }
 
 type NotificationJob struct {
@@ -208,6 +212,29 @@ type NotificationJob struct {
 	DeliveryLeaseUntil   pgtype.Timestamptz `json:"delivery_lease_until"`
 	DeliveryAttemptCount int32              `json:"delivery_attempt_count"`
 	DeliveryReason       string             `json:"delivery_reason"`
+	DispatchMode         string             `json:"dispatch_mode"`
+	DispatchSeq          int64              `json:"dispatch_seq"`
+	DispatchNextAt       pgtype.Timestamptz `json:"dispatch_next_at"`
+}
+
+type NotificationOutbox struct {
+	ID             uuid.UUID          `json:"id"`
+	ShopID         uuid.UUID          `json:"shop_id"`
+	JobID          uuid.UUID          `json:"job_id"`
+	DispatchSeq    int64              `json:"dispatch_seq"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	NextPublishAt  pgtype.Timestamptz `json:"next_publish_at"`
+	OperationToken pgtype.UUID        `json:"operation_token"`
+	LeaseUntil     pgtype.Timestamptz `json:"lease_until"`
+	PublishedAt    pgtype.Timestamptz `json:"published_at"`
+	ConsumedAt     pgtype.Timestamptz `json:"consumed_at"`
+	PublishCount   int32              `json:"publish_count"`
+}
+
+type NotificationWorkerHeartbeat struct {
+	WorkerID  uuid.UUID          `json:"worker_id"`
+	CheckedAt pgtype.Timestamptz `json:"checked_at"`
+	Healthy   bool               `json:"healthy"`
 }
 
 type Product struct {
@@ -392,6 +419,7 @@ type ShopNotificationSetting struct {
 	ReminderLeadMinutes int32              `json:"reminder_lead_minutes"`
 	Version             int64              `json:"version"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	DeliveryMode        string             `json:"delivery_mode"`
 }
 
 type ShopWhatsappConnection struct {
@@ -408,6 +436,8 @@ type ShopWhatsappConnection struct {
 	ErrorCode        string             `json:"error_code"`
 	OperationToken   pgtype.UUID        `json:"operation_token"`
 	LeaseUntil       pgtype.Timestamptz `json:"lease_until"`
+	SendToken        pgtype.UUID        `json:"send_token"`
+	SendLeaseUntil   pgtype.Timestamptz `json:"send_lease_until"`
 }
 
 type StaffAccount struct {

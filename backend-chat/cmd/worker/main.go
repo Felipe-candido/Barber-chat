@@ -38,6 +38,9 @@ func run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 		return err
 	}
 	defer pool.Close()
+	if cfg.NotificationAutomaticEnabled {
+		return runNotifications(ctx, pool, cfg, logger)
+	}
 	conn, err := rabbitmq.Open(ctx, cfg.RabbitMQURL, cfg.DBTimeout)
 	if err != nil {
 		return err

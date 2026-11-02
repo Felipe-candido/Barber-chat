@@ -1,0 +1,40 @@
+.panel {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+  min-width: 0;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.heading h3 {
+  font-size: var(--text-body);
+  font-weight: var(--weight-semibold);
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.row > div {
+  flex: 1 1 15rem;
+  min-width: 0;
+}
+.row p,
+.note {
+  color: var(--color-text-secondary);
+  font-size: var(--text-small);
+  line-height: var(--line-body);
+}
+.row strong {
+  display: block;
+  margin-bottom: var(--space-1);
+}

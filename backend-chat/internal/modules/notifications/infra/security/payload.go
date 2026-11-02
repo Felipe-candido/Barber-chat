@@ -32,6 +32,7 @@ type PayloadCipher struct {
 }
 
 var _ application.PayloadSealer = (*PayloadCipher)(nil)
+var _ application.PayloadOpener = (*PayloadCipher)(nil)
 
 func NewPayloadCipher(activeKeyID string, keys map[string][]byte) (*PayloadCipher, error) {
 	if !validKeyID(activeKeyID) || len(keys) == 0 {

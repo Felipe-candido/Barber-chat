@@ -17,16 +17,22 @@ import (
 )
 
 type ConnectionHandler struct {
-	usecase *app.ManageConnections
-	secret  string
-	timeout time.Duration
+	usecase  *app.ManageConnections
+	secret   string
+	timeout  time.Duration
+	receipts app.ProviderReceiptRecorder
 }
 
 func NewConnectionHandler(uc *app.ManageConnections, secret string, timeout time.Duration) *ConnectionHandler {
 	if timeout <= 0 {
 		timeout = 20 * time.Second
 	}
-	return &ConnectionHandler{uc, secret, timeout}
+	return &ConnectionHandler{usecase: uc, secret: secret, timeout: timeout}
+}
+
+func (h *ConnectionHandler) WithReceipts(recorder app.ProviderReceiptRecorder) *ConnectionHandler {
+	h.receipts = recorder
+	return h
 }
 func connectionScope(r *http.Request) (app.ConnectionScope, bool) {
 	i, ok := requestctx.StaffIdentityFromContext(r.Context())
@@ -135,10 +141,12 @@ func (h *ConnectionHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 	var body struct {
-		Event    string `json:"event"`
-		Instance string `json:"instance"`
+		Event    string          `json:"event"`
+		Instance string          `json:"instance"`
+		Data     json.RawMessage `json:"data"`
 	}
 	decoder := json.NewDecoder(r.Body)
+	defer func() { clear(body.Data) }()
 	if decoder.Decode(&body) != nil || decoder.Decode(new(any)) != io.EOF || !evolution.ValidInstanceName(body.Instance) {
 		response.Error(w, 400, "invalid_event", "invalid provider event")
 		return
@@ -148,13 +156,17 @@ func (h *ConnectionHandler) Webhook(w http.ResponseWriter, r *http.Request) {
 		response.Error(w, 401, "invalid_webhook", "invalid provider authentication")
 		return
 	}
-	if body.Event != "connection.update" {
-		w.WriteHeader(204)
-		return
-	}
 	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
 	defer cancel()
-	if err := h.usecase.RequestRecheck(ctx, body.Instance); err != nil {
+	var err error
+	if body.Event == "connection.update" {
+		err = h.usecase.RequestRecheck(ctx, body.Instance)
+	} else if h.receipts != nil {
+		if hint, ok := receiptHint(body.Event, body.Instance, body.Data); ok {
+			err = h.receipts.RecordReceipt(ctx, hint)
+		}
+	}
+	if err != nil {
 		response.Error(w, 503, "whatsapp_unavailable", "event could not be recorded")
 		return
 	}

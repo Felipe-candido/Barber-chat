@@ -12,6 +12,7 @@ export type Professionals = {
 export type Slot = { starts_at: string; ends_at: string };
 export type Availability = { shop_timezone: string; slots: Slot[] };
 export type BookingInput = {
+  whatsapp_notifications?: boolean;
   service_id: string;
   professional_id: string;
   starts_at: string;
@@ -31,7 +32,12 @@ export type Appointment = {
   ends_at: string;
   shop_timezone: string;
 };
-export type BookingResult = { appointment: Appointment; code: string; replayed: boolean };
+export type BookingResult = {
+  appointment: Appointment;
+  code: string;
+  replayed: boolean;
+  whatsapp?: { state: string };
+};
 export type AppointmentDetails = { appointment: Appointment; can_cancel: boolean };
 
 function invalid(): never {
@@ -217,6 +223,19 @@ async function createBooking(
     appointment: appointment(result.appointment),
     code: result.code,
     replayed: result.replayed,
+    whatsapp:
+      result.whatsapp === undefined
+        ? undefined
+        : {
+            state:
+              result.whatsapp &&
+              typeof result.whatsapp === "object" &&
+              "state" in result.whatsapp &&
+              typeof result.whatsapp.state === "string" &&
+              result.whatsapp.state.length <= 40
+                ? result.whatsapp.state
+                : "unknown",
+          },
   };
 }
 export async function lookupAppointment(

@@ -160,8 +160,8 @@ export function BookingChat({ slug }: { slug: string }) {
             </li>
           </ol>
           <p className={styles.hint}>
-            Não é preciso criar uma conta. Nesta etapa, o comprovante é exibido aqui, sem envio pelo
-            WhatsApp.
+            O comprovante e o código aparecem nesta tela. Quando disponível, o WhatsApp é opcional
+            para confirmação e lembrete do agendamento.
           </p>
         </aside>
       </main>

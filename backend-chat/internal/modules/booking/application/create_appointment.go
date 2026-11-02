@@ -108,7 +108,7 @@ func (uc *CreateAppointment) execute(ctx context.Context, input CreateAppointmen
 			}
 		}
 		if replayed {
-			output = CreateAppointmentOutput{Appointment: previous.Appointment, Code: previous.Code, Replayed: true}
+			output = CreateAppointmentOutput{ShopID: shop.ShopID, Appointment: previous.Appointment, Code: previous.Code, Replayed: true}
 			return nil
 		}
 		if staff != nil && shop.SelfService {
@@ -212,7 +212,7 @@ func (uc *CreateAppointment) execute(ctx context.Context, input CreateAppointmen
 		}); err != nil {
 			return fmt.Errorf("plan booking notifications: %w", err)
 		}
-		output = CreateAppointmentOutput{Appointment: receiptOf(appointment, shop.Name), Code: code}
+		output = CreateAppointmentOutput{ShopID: shop.ShopID, Appointment: receiptOf(appointment, shop.Name), Code: code}
 		return tx.Idempotency.CompleteCreateAppointment(ctx, shop.ShopID, input.IdempotencyKey, ClaimedReceipt{Appointment: output.Appointment, Code: code})
 	})
 	if err != nil {

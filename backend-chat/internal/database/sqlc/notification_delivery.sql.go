@@ -15,7 +15,8 @@ import (
 const claimNotificationDelivery = `-- name: ClaimNotificationDelivery :execrows
 UPDATE notification_jobs SET delivery_state='leased',delivery_token=$3,
  delivery_lease_until=clock_timestamp()+interval '90 seconds',delivery_reason=''
-WHERE shop_id=$1 AND id=$2 AND state='pending' AND delivery_state IN('ready','leased')
+WHERE shop_id=$1 AND id=$2 AND state='pending' AND
+ (delivery_state='ready' OR (delivery_state='leased' AND delivery_lease_until<=clock_timestamp()))
 `
 
 type ClaimNotificationDeliveryParams struct {
@@ -135,16 +136,17 @@ func (q *Queries) GetDeliveryReference(ctx context.Context, arg GetDeliveryRefer
 }
 
 const insertNotificationAttempt = `-- name: InsertNotificationAttempt :exec
-INSERT INTO notification_attempts(attempt_id,shop_id,job_id,attempt_number,instance_name,started_at)
-SELECT j.delivery_token,j.shop_id,j.id,j.delivery_attempt_count,$4,clock_timestamp()
+INSERT INTO notification_attempts(attempt_id,shop_id,job_id,attempt_number,instance_name,started_at,template_version)
+SELECT j.delivery_token,j.shop_id,j.id,j.delivery_attempt_count,$4,clock_timestamp(),$5::integer
 FROM notification_jobs j WHERE j.shop_id=$1 AND j.id=$2 AND j.delivery_token=$3 AND j.delivery_state='sending'
 `
 
 type InsertNotificationAttemptParams struct {
-	ShopID        uuid.UUID   `json:"shop_id"`
-	ID            uuid.UUID   `json:"id"`
-	DeliveryToken pgtype.UUID `json:"delivery_token"`
-	InstanceName  string      `json:"instance_name"`
+	ShopID          uuid.UUID   `json:"shop_id"`
+	ID              uuid.UUID   `json:"id"`
+	DeliveryToken   pgtype.UUID `json:"delivery_token"`
+	InstanceName    string      `json:"instance_name"`
+	TemplateVersion int32       `json:"template_version"`
 }
 
 func (q *Queries) InsertNotificationAttempt(ctx context.Context, arg InsertNotificationAttemptParams) error {
@@ -153,12 +155,13 @@ func (q *Queries) InsertNotificationAttempt(ctx context.Context, arg InsertNotif
 		arg.ID,
 		arg.DeliveryToken,
 		arg.InstanceName,
+		arg.TemplateVersion,
 	)
 	return err
 }
 
 const lockDeliveryConnection = `-- name: LockDeliveryConnection :one
-SELECT instance_name,state,desired_connected,verified_at,error_code FROM shop_whatsapp_connections WHERE shop_id=$1 FOR SHARE
+SELECT instance_name,state,desired_connected,verified_at,error_code,send_lease_until FROM shop_whatsapp_connections WHERE shop_id=$1 FOR UPDATE
 `
 
 type LockDeliveryConnectionRow struct {
@@ -167,6 +170,7 @@ type LockDeliveryConnectionRow struct {
 	DesiredConnected bool               `json:"desired_connected"`
 	VerifiedAt       pgtype.Timestamptz `json:"verified_at"`
 	ErrorCode        string             `json:"error_code"`
+	SendLeaseUntil   pgtype.Timestamptz `json:"send_lease_until"`
 }
 
 func (q *Queries) LockDeliveryConnection(ctx context.Context, shopID uuid.UUID) (LockDeliveryConnectionRow, error) {
@@ -178,12 +182,13 @@ func (q *Queries) LockDeliveryConnection(ctx context.Context, shopID uuid.UUID) 
 		&i.DesiredConnected,
 		&i.VerifiedAt,
 		&i.ErrorCode,
+		&i.SendLeaseUntil,
 	)
 	return i, err
 }
 
 const lockNotificationDelivery = `-- name: LockNotificationDelivery :one
-SELECT j.id, j.shop_id, j.appointment_id, j.schedule_generation, j.kind, j.due_at, j.expires_at, j.state, j.invalidated_at, j.delivery_state, j.delivery_token, j.delivery_lease_until, j.delivery_attempt_count, j.delivery_reason,p.payload_version,p.payload_key_id,p.encrypted_payload,p.payload_expires_at
+SELECT j.id, j.shop_id, j.appointment_id, j.schedule_generation, j.kind, j.due_at, j.expires_at, j.state, j.invalidated_at, j.delivery_state, j.delivery_token, j.delivery_lease_until, j.delivery_attempt_count, j.delivery_reason, j.dispatch_mode, j.dispatch_seq, j.dispatch_next_at,p.payload_version,p.payload_key_id,p.encrypted_payload,p.payload_expires_at
 FROM notification_jobs j JOIN appointment_notification_plans p USING(shop_id,appointment_id,schedule_generation)
 WHERE j.shop_id=$1 AND j.id=$2 FOR UPDATE OF j
 `
@@ -208,6 +213,9 @@ type LockNotificationDeliveryRow struct {
 	DeliveryLeaseUntil   pgtype.Timestamptz `json:"delivery_lease_until"`
 	DeliveryAttemptCount int32              `json:"delivery_attempt_count"`
 	DeliveryReason       string             `json:"delivery_reason"`
+	DispatchMode         string             `json:"dispatch_mode"`
+	DispatchSeq          int64              `json:"dispatch_seq"`
+	DispatchNextAt       pgtype.Timestamptz `json:"dispatch_next_at"`
 	PayloadVersion       pgtype.Int4        `json:"payload_version"`
 	PayloadKeyID         pgtype.Text        `json:"payload_key_id"`
 	EncryptedPayload     []byte             `json:"encrypted_payload"`
@@ -232,6 +240,9 @@ func (q *Queries) LockNotificationDelivery(ctx context.Context, arg LockNotifica
 		&i.DeliveryLeaseUntil,
 		&i.DeliveryAttemptCount,
 		&i.DeliveryReason,
+		&i.DispatchMode,
+		&i.DispatchSeq,
+		&i.DispatchNextAt,
 		&i.PayloadVersion,
 		&i.PayloadKeyID,
 		&i.EncryptedPayload,

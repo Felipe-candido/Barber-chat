@@ -1,7 +1,7 @@
 # Evolution local e conexão por barbearia
 
-Entrega C, 2026-11-01. Integração de conexão implementada; mensagens de agendamento
-continuam nas entregas D/E. O painel de configuração está previsto na entrega F.
+Atualizado em 2026-11-02. Conexão, mensagens de agendamento, painel e worker
+implementados. Operação sem worker: [guia de notificações](notifications-operations.md).
 
 ## Ambiente separado
 
@@ -139,14 +139,18 @@ verificação válida, connected é apresentado como unknown/stale. Falhas do
 provider não renovam verified_at. Na entrega D esse trabalho pode migrar de
 processo sem alterar a persistência/contrato.
 
-Webhook recebe apenas evento de conexão: header X-BarberChat-Evolution com HMAC
+Webhook recebe conexão e recibos: header X-BarberChat-Evolution com HMAC
 derivado por instância. Não é assinatura do corpo. Não confiar em apikey ou
-estado informados no JSON. O evento somente marca dirty para nova consulta
+estado informados no JSON. O evento connection.update somente marca dirty para nova consulta
 ativa, com coalescência/limite de frequência. Eventos atrasados ou repetidos não
-regridem a projeção diretamente. Polling recupera eventos perdidos.
+regridem a projeção diretamente. Polling recupera eventos perdidos de conexão.
+SEND_MESSAGE e MESSAGES_UPDATE só reconciliam tentativas com ID conhecido e
+fromMe=true. Recibos não mudam presença, cancelamento ou conclusão do atendimento.
+Após atualizar uma instalação antiga, POST /whatsapp/connect reutiliza a instância
+e registra os três eventos; não precisa apagar sessão ou parear um número novo.
 
 Estado da conexão, aceitação de mensagem, entrega/leitura e estado do atendimento
-são informações diferentes. A entrega C não envia confirmações/lembretes.
+são informações diferentes. Entrega/leitura depende de recibos disponíveis no provedor.
 
 ## Testes
 
