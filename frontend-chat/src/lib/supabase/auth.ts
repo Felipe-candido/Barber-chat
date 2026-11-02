@@ -28,6 +28,18 @@ export async function signInWithPassword(email: string, password: string): Promi
 
   const result = await client.auth.signInWithPassword({ email: email.trim(), password });
   if (result.error) {
+    if (result.error.code === "email_not_confirmed") {
+      throw new AuthenticationError(
+        "Confirme seu e-mail antes de entrar. Se o link expirou, use Reenviar confirmação de e-mail.",
+        "email_not_confirmed",
+      );
+    }
+    if (result.error.status === 429) {
+      throw new AuthenticationError(
+        "Muitas tentativas de acesso. Aguarde alguns minutos e tente novamente.",
+        result.error.code ?? "rate_limited",
+      );
+    }
     const genericCredentialsError = result.error.status === 400 || result.error.status === 401;
     throw new AuthenticationError(
       genericCredentialsError
@@ -42,6 +54,52 @@ export async function signInWithPassword(email: string, password: string): Promi
   return result.data.session;
 }
 
+function signupConfirmationRedirect() {
+  return new URL("/cadastro/barbearia", window.location.origin).href;
+}
+
+// Reuses Supabase's signup confirmation flow, including SDK-managed PKCE.
+// It neither creates an account nor changes passwords or local permissions.
+export async function resendSignupConfirmation(email: string): Promise<void> {
+  const normalized = email.trim();
+  if (normalized.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
+    throw new AuthenticationError("Informe um e-mail válido.", "invalid_email");
+  }
+  let client;
+  try {
+    client = getSupabaseBrowserClient();
+  } catch (error) {
+    throw configurationError(error);
+  }
+  const { error } = await client.auth.resend({
+    type: "signup",
+    email: normalized,
+    options: { emailRedirectTo: signupConfirmationRedirect() },
+  });
+  if (!error) return;
+  // Keep the public result neutral for absent/already-confirmed accounts.
+  if (
+    ["user_not_found", "email_not_found", "email_exists", "email_already_confirmed"].includes(
+      error.code ?? "",
+    )
+  )
+    return;
+  if (
+    error.status === 429 ||
+    error.code === "over_email_send_rate_limit" ||
+    error.code === "over_request_rate_limit"
+  ) {
+    throw new AuthenticationError(
+      "O limite de envio foi atingido. Aguarde alguns minutos antes de solicitar outro link.",
+      "confirmation_rate_limited",
+    );
+  }
+  throw new AuthenticationError(
+    "Não foi possível confirmar o reenvio. Confira sua caixa de entrada e o spam antes de tentar novamente. Se persistir, fale com o responsável pelo sistema.",
+    "confirmation_unavailable",
+  );
+}
+
 // The SDK manages PKCE and exchanges the confirmation code on the fixed page.
 // Metadata is a UI prefill only, never a source of permissions for the Go API.
 export async function signUpOwner(email: string, password: string, displayName: string) {
@@ -49,7 +107,7 @@ export async function signUpOwner(email: string, password: string, displayName: 
     email: email.trim(),
     password,
     options: {
-      emailRedirectTo: new URL("/cadastro/barbearia", window.location.origin).href,
+      emailRedirectTo: signupConfirmationRedirect(),
       data: { display_name: displayName.trim() },
     },
   });

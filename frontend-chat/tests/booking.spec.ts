@@ -108,7 +108,7 @@ async function fixture(
   return { attempts, cancels: () => cancels };
 }
 
-async function fillBooking(page: Page, whatsapp = false) {
+async function fillBooking(page: Page, whatsapp?: boolean) {
   await page.goto("/b/teste");
   await page.getByRole("button", { name: /Corte real/ }).click();
   await page
@@ -118,12 +118,18 @@ async function fillBooking(page: Page, whatsapp = false) {
   await page.getByLabel("Nome", { exact: true }).fill("Ana");
   await page.getByLabel("Sobrenome", { exact: true }).fill("Silva");
   await page.getByLabel("Telefone com DDD").fill("(11) 91234-5678");
-  if (whatsapp) await page.getByRole("checkbox", { name: /Quero receber a confirmação/ }).check();
+  if (whatsapp !== undefined) {
+    const option = page.getByRole("checkbox", { name: /Quero receber a confirmação/ });
+    await expect(option).toBeChecked();
+    if (!whatsapp) await option.uncheck();
+  }
   await page.getByRole("button", { name: "Revisar agendamento" }).click();
 }
 
 for (const mode of ["whatsapp", "whatsapp-unknown"] as const) {
-  test(`explicit WhatsApp consent and independent booking success: ${mode}`, async ({ page }) => {
+  test(`WhatsApp selected by default and independent booking success: ${mode}`, async ({
+    page,
+  }) => {
     const state = await fixture(page, mode);
     await fillBooking(page, true);
     await page.getByRole("button", { name: "Confirmar agendamento", exact: true }).click();
@@ -136,9 +142,9 @@ for (const mode of ["whatsapp", "whatsapp-unknown"] as const) {
     else await expect(page.getByText(/Não faça outra reserva por causa da mensagem/)).toBeVisible();
   });
 }
-test("available WhatsApp still requires opting in", async ({ page }) => {
+test("WhatsApp can be unchecked before confirming the booking", async ({ page }) => {
   const state = await fixture(page, "whatsapp");
-  await fillBooking(page);
+  await fillBooking(page, false);
   await expect(page.getByText(/sem mensagens de WhatsApp/)).toBeVisible();
   await page.getByRole("button", { name: "Confirmar agendamento", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Agendamento registrado!" })).toBeVisible();

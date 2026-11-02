@@ -233,6 +233,9 @@ export function ShopRegistrationPage() {
           <Link href="/login" className={buttonClasses()}>
             Entrar com minha conta
           </Link>
+          <Link href="/confirmar-email" className={buttonClasses("secondary")}>
+            Reenviar confirmação
+          </Link>
           <Link href="/cadastro" className={buttonClasses("secondary")}>
             Criar conta
           </Link>
@@ -248,6 +251,9 @@ export function ShopRegistrationPage() {
           </Alert>
           <Link href="/login" className={buttonClasses()}>
             Voltar ao login
+          </Link>
+          <Link href="/confirmar-email" className={buttonClasses("secondary")}>
+            Reenviar confirmação
           </Link>
         </>
       ) : created ? (

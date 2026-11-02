@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight, ArrowUpRight, CalendarDays, Eye, EyeOff, Scissors, Users } from "lucide-react";
@@ -8,6 +8,7 @@ import { Alert, Brand, Button, Modal, TextField, buttonClasses } from "./ui";
 import { useFeedback } from "./feedback-provider";
 import { signInWithPassword } from "@/lib/supabase/auth";
 import { ApiError } from "@/lib/api/client";
+import { confirmationLinkError, readConfirmationCallback } from "@/lib/supabase/confirmation";
 import { useAdminAccess } from "./admin-access-provider";
 import styles from "./login-page.module.css";
 
@@ -21,6 +22,13 @@ export function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [canCompleteSignup, setCanCompleteSignup] = useState(false);
+  useEffect(() => {
+    const callback = readConfirmationCallback();
+    if (callback.hasError) {
+      setLoginError(confirmationLinkError(callback.errorCode));
+      window.history.replaceState(window.history.state, "", "/login");
+    }
+  }, []);
   function closeHelp() {
     setHelp(null);
     setRecoveryPreview(false);
@@ -163,9 +171,11 @@ export function LoginPage() {
               Criar minha conta
             </Link>
           </p>
-          <Link href="/admin" className={buttonClasses("secondary", styles.fullWidth)}>
-            Continuar com sessão ativa
-          </Link>
+          <p className={styles.help}>
+            <Link href="/confirmar-email" className={styles.textAction}>
+              Reenviar confirmação de e-mail
+            </Link>
+          </p>
           <p className={styles.help}>
             Ainda não recebeu seu acesso?{" "}
             <button
