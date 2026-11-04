@@ -97,6 +97,7 @@ export function AppointmentLifecyclePanel({
       {data && (
         <AppointmentDetails
           item={data.appointment}
+          completionMode={data.completion_mode}
           timezone={timezone}
           onSell={command.locked ? undefined : () => onSell(data.appointment)}
         />

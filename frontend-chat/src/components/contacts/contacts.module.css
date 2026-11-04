@@ -1,0 +1,119 @@
+.page,
+.form {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+}
+.toolbar,
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+.toolbar > div {
+  flex: 1 1 18rem;
+  min-width: 0;
+}
+.actions {
+  justify-content: flex-end;
+}
+.fields {
+  display: grid;
+  gap: var(--space-4);
+  padding: 0;
+  margin: 0;
+  border: 0;
+  min-width: 0;
+}
+.list {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-panel);
+  background: var(--color-surface);
+  overflow: hidden;
+}
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(11rem, auto) minmax(11rem, auto);
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-5);
+  overflow-wrap: anywhere;
+}
+.row + .row {
+  border-top: 1px solid var(--color-border);
+}
+.person {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+}
+.row h2,
+.found h3 {
+  font-size: var(--text-body);
+  margin: 0;
+}
+.row a {
+  color: var(--color-link);
+  text-underline-offset: 0.2em;
+}
+.row p,
+.note {
+  font-size: var(--text-small);
+  color: var(--color-text-secondary);
+  line-height: var(--line-body);
+  margin: 0;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  color: var(--color-text-secondary);
+}
+.empty {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  padding: var(--space-6) var(--space-5);
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-panel);
+}
+.empty h2 {
+  font-size: var(--text-body);
+  margin: 0;
+}
+.empty p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  max-width: 55ch;
+  line-height: var(--line-body);
+}
+.found {
+  border: 1px solid var(--color-border);
+  padding: var(--space-4);
+  border-radius: var(--radius-control);
+  overflow-wrap: anywhere;
+}
+.found p {
+  margin: var(--space-2) 0 0;
+}
+@media (max-width: 800px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+  .toolbar > button {
+    flex: 1 1 auto;
+  }
+  .actions > * {
+    flex: 1 1 auto;
+  }
+  .row p {
+    margin-top: var(--space-1);
+  }
+}

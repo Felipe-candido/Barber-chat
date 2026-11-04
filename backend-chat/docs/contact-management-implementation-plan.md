@@ -1,7 +1,8 @@
 # Contatos da barbearia — plano de implementação
 
-Data: 2026-11-02. Estado: planejado; este documento não implementa endpoints,
-interface ou migration. Não altera README, doc.go, configuração ou banco.
+Data: 2026-11-02. Estado: entregas A–E implementadas. API e painel estão ligados.
+Migration 00029 validada somente no banco local de testes; aplicação no banco
+real é uma etapa de publicação. README, doc.go e configurações foram preservados.
 
 Decisão do usuário: proprietário e barbeiros podem consultar e cadastrar todos
 os contatos da unidade. O painel deve continuar simples.
@@ -131,17 +132,14 @@ dos agendamentos e conteúdo cifrado das notificações continuam com seus contr
 
 ### A — Contratos e regras do módulo customers
 
-Criar durante a implementação, sem antecipar stubs:
+Estrutura entregue, sem stubs:
 
 ```text
 internal/modules/customers/
   domain/contact.go
-  domain/errors.go
   application/dto.go
   application/ports.go
-  application/list_contacts.go
-  application/get_contact.go
-  application/create_contact.go
+  application/contacts.go
 ```
 
 DTOs próprios: scope autenticado, entrada manual, filtros, item da lista e página.
@@ -162,7 +160,7 @@ acentos, formatos nacionais/internacionais e telefone inválido.
 Adicionar `db/queries/customer_contacts.sql` e adaptador concreto em
 `customers/infra/postgres/contacts.go`, usando pgx/sqlc existentes.
 
-Criar migration com o próximo número disponível no momento da implementação:
+Migration entregue: `00029_customer_contacts.sql`:
 
 - Ajustar a constraint de last_name para aceitar sobrenome vazio no cadastro manual,
   mantendo NOT NULL e permitindo que reservas já existentes continuem válidas.
@@ -276,3 +274,37 @@ validação; não há migration a executar apenas por criar este plano.
 Ordem inicial recomendada: A → B → C → D, com validação em cada parte e encerramento
 pela entrega E. Explicar arquivos e fluxo ao concluir cada bloco. As extensões
 acima exigem outra decisão de escopo e não atrasam a lista/cadastro solicitados.
+
+## 6. Entrega e publicação
+
+Os três casos de uso ficaram em `application/contacts.go`, como métodos de
+ManageContacts, para evitar três estruturas iguais numa capacidade pequena.
+Domínio e portas ficam separados. Identity implementa a porta de acesso;
+customers/infra/postgres compartilha a transação e implementa as queries.
+
+Rotas reais: GET/POST `/api/v1/admin/shops/{slug}/contacts` e GET
+`/api/v1/admin/shops/{slug}/contacts/{contactID}`. Contrato em
+[contacts-openapi.yaml](contacts-openapi.yaml), ligado ao OpenAPI principal 0.16.0.
+Decisão em [ADR 0046](adr/0046-shop-contact-directory.md).
+
+Contatos aparece para owner e barber. No celular fica no menu Mais. Não precisa
+habilitar feature flag, configurar worker ou alterar Supabase Auth.
+
+A migration foi aplicada/revertida/reaplicada apenas no PostgreSQL descartável.
+Para publicar no banco configurado no .env do backend, executar explicitamente:
+
+```powershell
+cd C:\Users\felip\Barber-chat\backend-chat
+. .\scripts\Load-Env.ps1
+goose -dir .\db\migrations postgres "$env:DATABASE_URL" up
+```
+
+Conferir o destino antes de executar. Depois, atualizar a API na Render e o
+frontend na Netlify com a mesma revisão. Publicar somente o frontend deixa os
+novos endpoints indisponíveis. Para execução local: `go run ./cmd/api` no backend
+e `npm run dev` no frontend.
+
+Homologação: abrir Contatos; verificar clientes antigos; cadastrar nome sem
+sobrenome e telefone; repetir o telefone com outra formatação e conferir o
+conflito; confirmar a lista pela conta de barbeiro. Um agendamento com esse
+número deve reutilizar o contato sem alterar seu nome.

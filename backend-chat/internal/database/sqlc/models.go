@@ -396,6 +396,14 @@ type ShopAddress struct {
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
+type ShopAppointmentCompletionSetting struct {
+	ShopID         uuid.UUID          `json:"shop_id"`
+	Mode           string             `json:"mode"`
+	Version        int64              `json:"version"`
+	AutomaticSince pgtype.Timestamptz `json:"automatic_since"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
 type ShopCreationRequest struct {
 	UserID      uuid.UUID          `json:"user_id"`
 	KeyHash     []byte             `json:"key_hash"`

@@ -220,6 +220,32 @@ func reportValues(t *testing.T, o report.ActivityOverview, service, product, for
 }
 
 func TestReportingPostgres(t *testing.T) {
+	t.Run("manual open appointments exclude service revenue while linked product sales remain separate", func(t *testing.T) {
+		f := newReportingFixture(t)
+		f.exec("UPDATE shop_appointment_completion_settings SET mode='manual',automatic_since=NULL,version=version+1 WHERE shop_id=$1", f.shop)
+		a := f.appointment("2026-10-12T12:30:00Z", f.profA, domain.StatusScheduled, 5000, "Cut")
+		sale := f.sale("2026-10-12T14:30:00Z", f.profA, a, 1)
+		if sale.AppointmentID != a {
+			t.Fatal("sale lost appointment link")
+		}
+		before, err := f.overview(f.owner, f.query())
+		if err != nil {
+			t.Fatal(err)
+		}
+		reportValues(t, before, 0, f.products[0].PriceCents, 5000, 0, 1, 1)
+		f.change(a, domain.StatusCompleted)
+		after, err := f.overview(f.owner, f.query())
+		if err != nil {
+			t.Fatal(err)
+		}
+		reportValues(t, after, 5000, f.products[0].PriceCents, 0, 1, 1, 1)
+		f.change(a, domain.StatusNoShow)
+		absent, err := f.overview(f.owner, f.query())
+		if err != nil {
+			t.Fatal(err)
+		}
+		reportValues(t, absent, 0, f.products[0].PriceCents, 0, 0, 1, 1)
+	})
 	t.Run("registered HTTP reports enforce current database scope and cursor bindings", func(t *testing.T) {
 		f := newReportingFixture(t)
 		a := f.appointment("2026-10-12T12:30:00Z", f.profA, domain.StatusCompleted, 5000, "Cut")

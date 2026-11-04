@@ -42,6 +42,7 @@ type statusEventResponse struct {
 	OccurredAt     time.Time           `json:"occurred_at"`
 }
 type lifecycleResponse struct {
+	CompletionMode   domain.CompletionMode    `json:"completion_mode,omitempty"`
 	Appointment      adminAppointmentResponse `json:"appointment"`
 	History          []statusEventResponse    `json:"history"`
 	HistoryTruncated bool                     `json:"history_truncated"`
@@ -59,7 +60,7 @@ func lifecycleReceipt(out application.AppointmentLifecycleOutput) lifecycleRespo
 		}
 		history = append(history, statusEventResponse{e.Version, e.PreviousStatus, e.Status, e.Source, actor, e.Reason, e.OccurredAt})
 	}
-	return lifecycleResponse{adminReceipt(out.Appointment), history, out.HistoryTruncated, out.Replayed, out.ResultVersion}
+	return lifecycleResponse{Appointment: adminReceipt(out.Appointment), History: history, HistoryTruncated: out.HistoryTruncated, Replayed: out.Replayed, ResultVersion: out.ResultVersion, CompletionMode: out.CompletionMode}
 }
 func lifecycleScope(w http.ResponseWriter, r *http.Request) (application.LifecycleScope, uuid.UUID, bool) {
 	a, ok := requestctx.StaffIdentityFromContext(r.Context())

@@ -39,6 +39,7 @@ type StatusEvent struct {
 	OccurredAt             time.Time
 }
 type AppointmentLifecycleOutput struct {
+	CompletionMode   domain.CompletionMode
 	Appointment      AdminAppointment
 	History          []StatusEvent
 	HistoryTruncated bool

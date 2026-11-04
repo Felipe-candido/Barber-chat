@@ -141,6 +141,7 @@ test("barber cannot see the settings menu or mount the form through a direct URL
   await expect(
     page.getByText("Somente o proprietário pode consultar e editar", { exact: false }),
   ).toBeVisible();
+  await expect(page.getByLabel("Modo de fechamento")).toHaveCount(0);
   await expect(name(page)).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Configurações", exact: true })).toHaveCount(0);
   expect(calls).toBe(0);

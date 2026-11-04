@@ -624,3 +624,19 @@ para indisponibilidade comprovada antes do envio; timeout/erro genérico do prov
 é incerto. Não há promessa de exactly-once entre PostgreSQL e WhatsApp.
 
 Retenção e comandos de operação: [guia de notificações](notifications-operations.md).
+
+## Fechamento por unidade
+
+GET/PUT `/api/v1/admin/shops/{slug}/appointment-completion`: somente o proprietário
+com vínculo ativo pode consultar/alterar o modo da unidade inteira. PUT recebe
+somente `{mode: automatic|manual, version}` e retorna a versão incrementada. 409
+ou resposta incerta exige consultar GET antes de outra escrita.
+
+O padrão de todas as lojas existentes e novas é automático. Manual mantém a reserva
+em aberto até um comando de situação da equipe. Não muda registros já finalizados
+nem o vínculo de produtos. Reativar automático preserva pendências anteriores ao
+instante da reativação. Detalhes administrativos de atendimento incluem
+`completion_mode`; fonte/histórico da situação continuam representando o ocorrido.
+
+Contrato: [OpenAPI do fechamento](appointment-completion-openapi.yaml). Decisão e
+concorrência: [ADR 0047](adr/0047-shop-appointment-completion-mode.md).

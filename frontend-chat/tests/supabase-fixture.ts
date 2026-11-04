@@ -29,6 +29,19 @@ export const emptyAgenda = {
 };
 
 export async function mockAdminAccess(page: Page, shops = [testShop]) {
+  await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/appointment-completion", (route) => {
+    const slug = new URL(route.request().url()).pathname.split("/").at(-2);
+    const shop = shops.find((item) => item.slug === slug);
+    return route.fulfill({
+      json: {
+        shop_id: shop?.shop_id,
+        mode: "automatic",
+        version: 1,
+        automatic_since: "2026-10-31T00:00:00Z",
+        updated_at: "2026-10-31T00:00:00Z",
+      },
+    });
+  });
   await page.route("http://127.0.0.1:8080/api/v1/admin/shops/*/whatsapp/connection", (route) =>
     route.fulfill({
       json: {

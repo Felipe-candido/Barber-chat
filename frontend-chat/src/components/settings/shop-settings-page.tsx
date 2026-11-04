@@ -29,6 +29,7 @@ import {
 } from "../ui";
 import { SettingsReview } from "./settings-review";
 import { WhatsAppSettings } from "./whatsapp-settings";
+import { AppointmentCompletionSettings } from "./appointment-completion-settings";
 import { ShopCommercialCard } from "./shop-commercial-card";
 import styles from "./shop-settings.module.css";
 
@@ -36,6 +37,7 @@ export function ShopSettingsPage() {
   const shop = useSelectedShop();
   const access = useSelectedShopAccess();
   const { state } = useAdminAccess();
+  if (state.status !== "ready") return null;
   if (access.role !== "owner")
     return (
       <section className={styles.page}>
@@ -51,7 +53,6 @@ export function ShopSettingsPage() {
         </Link>
       </section>
     );
-  if (state.status !== "ready") return null;
   return (
     <OwnerSettings
       key={`${shop.shop_id}:${state.identity.user_id}`}
@@ -133,6 +134,7 @@ function OwnerSettings({ shopID, slug, userID }: { shopID: string; slug: string;
         }
       />
       <div className={styles.content}>
+        <AppointmentCompletionSettings slug={slug} shopID={shopID} userID={userID} />
         {editor.mode !== "blocked" && (
           <WhatsAppSettings slug={slug} shopID={shopID} userID={userID} />
         )}

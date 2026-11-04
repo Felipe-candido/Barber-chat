@@ -119,6 +119,48 @@ async function open(page: Page) {
   return dialog;
 }
 
+test("manual appointment stays open and can be finalized with products available", async ({
+  page,
+}) => {
+  const app = await setup(page);
+  app.current = {
+    ...app.current,
+    completion_mode: "manual",
+    appointment: {
+      ...app.current.appointment,
+      status: "scheduled",
+      version: 1,
+      status_source: "booking",
+      status_reason: "",
+      status_actor_id: null,
+    },
+    history: [],
+    result_version: 1,
+  };
+  await page.route(base + "/appointments/" + id + "/status", (route) => {
+    const body = route.request().postDataJSON();
+    expect(body).toEqual({
+      status: "completed",
+      expected_version: 1,
+      reason: "Atendimento realizado",
+    });
+    app.writes.push({ key: route.request().headers()["idempotency-key"], body });
+    app.current = { ...changed(app.current, body), completion_mode: "manual" };
+    return route.fulfill({ json: app.current });
+  });
+  const dialog = await open(page);
+  await expect(dialog).toContainText("Fechamento manual");
+  await expect(
+    dialog.getByRole("button", { name: "Registrar produtos neste atendimento" }),
+  ).toBeVisible();
+  expect(app.writes).toHaveLength(0);
+  await dialog.getByLabel("Nova situação").selectOption("completed");
+  await dialog.getByLabel("Motivo da alteração").fill("Atendimento realizado");
+  await dialog.getByRole("button", { name: "Salvar situação" }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(app.writes).toHaveLength(1);
+});
+
 test("main owner account corrects any barber and preserves the automatic audit", async ({
   page,
 }) => {

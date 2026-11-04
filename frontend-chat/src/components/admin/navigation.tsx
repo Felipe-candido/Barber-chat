@@ -9,6 +9,7 @@ import {
   Settings,
   Users,
   UserRoundCog,
+  ContactRound,
 } from "lucide-react";
 import type { AccessibleShop, ShopAccess, StaffIdentity } from "@/lib/api/identity";
 import { adminShopPath } from "@/lib/api/config";
@@ -23,6 +24,7 @@ export function adminDestinations(slug: string, role: ShopAccess["role"]) {
     { href: root + "/produtos", label: "Produtos", icon: Package },
     { href: root + "/vendas", label: "Vendas", icon: ReceiptText },
     { href: root + "/relatorios", label: "Relatórios", icon: ChartNoAxesCombined },
+    { href: root + "/contatos", label: "Contatos", icon: ContactRound },
     ...(role === "owner"
       ? [
           { href: root + "/barbeiros", label: "Barbeiros", icon: Users },

@@ -20,7 +20,7 @@ WITH activity AS (
         a.service_id, '00000000-0000-0000-0000-000000000000'::uuid AS product_id,
         a.professional_id, a.service_name::text AS label, a.professional_name::text AS professional_name,
         a.currency::text AS currency, a.status::text AS appointment_status, a.status_source::text AS status_source,
-        ''::text AS sale_status, (c.first_name || ' ' || c.last_name)::text AS customer_name,
+        ''::text AS sale_status, btrim(c.first_name || ' ' || c.last_name)::text AS customer_name,
         c.phone_e164::text AS customer_phone, a.starts_at AS occurred_at,
         1::bigint AS quantity, a.price_cents::bigint AS unit_price_cents,
         a.price_cents::bigint AS value_cents,
@@ -33,7 +33,7 @@ WITH activity AS (
       AND a.starts_at>=$10::timestamptz AND a.starts_at<$11::timestamptz
       AND ($12::uuid='00000000-0000-0000-0000-000000000000'::uuid OR a.professional_id=$12)
       AND ($13::uuid='00000000-0000-0000-0000-000000000000'::uuid OR a.service_id=$13)
-      AND ($14::text='' OR (c.first_name || ' ' || c.last_name) ILIKE $14 ESCAPE E'\\')
+      AND ($14::text='' OR btrim(c.first_name || ' ' || c.last_name) ILIKE $14 ESCAPE E'\\')
       AND ($15::text='' OR c.phone_e164=$15)
       AND ($16::text='' OR a.status=$16)
     UNION ALL
@@ -42,7 +42,7 @@ WITH activity AS (
         COALESCE(s.professional_id,'00000000-0000-0000-0000-000000000000'::uuid),
         i.product_name_snapshot::text, s.professional_name_snapshot::text, i.currency::text,
         ''::text, ''::text, s.status::text,
-        COALESCE(c.first_name || ' ' || c.last_name,'')::text, COALESCE(c.phone_e164,'')::text,
+        COALESCE(btrim(c.first_name || ' ' || c.last_name),'')::text, COALESCE(c.phone_e164,'')::text,
         s.sold_at, i.quantity::bigint, i.unit_price_cents, i.line_total_cents,
         to_char(s.sold_at AT TIME ZONE $7::text, 'YYYY-MM-DD')::text
     FROM public.sales s
@@ -55,7 +55,7 @@ WITH activity AS (
       AND s.sold_at>=$10::timestamptz AND s.sold_at<$11::timestamptz
       AND ($12::uuid='00000000-0000-0000-0000-000000000000'::uuid OR s.professional_id=$12)
       AND ($17::uuid='00000000-0000-0000-0000-000000000000'::uuid OR i.product_id=$17)
-      AND ($14::text='' OR (c.first_name || ' ' || c.last_name) ILIKE $14 ESCAPE E'\\')
+      AND ($14::text='' OR btrim(c.first_name || ' ' || c.last_name) ILIKE $14 ESCAPE E'\\')
       AND ($15::text='' OR c.phone_e164=$15)
       AND ($18::text='' OR s.status=$18)
 )
@@ -181,7 +181,7 @@ WITH activity AS (
         a.service_id, '00000000-0000-0000-0000-000000000000'::uuid AS product_id,
         a.professional_id, a.service_name::text AS label, a.professional_name::text AS professional_name,
         a.currency::text AS currency, a.status::text AS appointment_status, a.status_source::text AS status_source,
-        ''::text AS sale_status, (c.first_name || ' ' || c.last_name)::text AS customer_name,
+        ''::text AS sale_status, btrim(c.first_name || ' ' || c.last_name)::text AS customer_name,
         c.phone_e164::text AS customer_phone, a.starts_at AS occurred_at,
         1::bigint AS quantity, a.price_cents::bigint AS unit_price_cents,
         a.price_cents::bigint AS value_cents,
@@ -194,7 +194,7 @@ WITH activity AS (
       AND a.starts_at>=$4::timestamptz AND a.starts_at<$5::timestamptz
       AND ($6::uuid='00000000-0000-0000-0000-000000000000'::uuid OR a.professional_id=$6)
       AND ($7::uuid='00000000-0000-0000-0000-000000000000'::uuid OR a.service_id=$7)
-      AND ($8::text='' OR (c.first_name || ' ' || c.last_name) ILIKE $8 ESCAPE E'\\')
+      AND ($8::text='' OR btrim(c.first_name || ' ' || c.last_name) ILIKE $8 ESCAPE E'\\')
       AND ($9::text='' OR c.phone_e164=$9)
       AND ($10::text='' OR a.status=$10)
     UNION ALL
@@ -203,7 +203,7 @@ WITH activity AS (
         COALESCE(s.professional_id,'00000000-0000-0000-0000-000000000000'::uuid),
         i.product_name_snapshot::text, s.professional_name_snapshot::text, i.currency::text,
         ''::text, ''::text, s.status::text,
-        COALESCE(c.first_name || ' ' || c.last_name,'')::text, COALESCE(c.phone_e164,'')::text,
+        COALESCE(btrim(c.first_name || ' ' || c.last_name),'')::text, COALESCE(c.phone_e164,'')::text,
         s.sold_at, i.quantity::bigint, i.unit_price_cents, i.line_total_cents,
         to_char(s.sold_at AT TIME ZONE $1::text, 'YYYY-MM-DD')::text
     FROM public.sales s
@@ -216,7 +216,7 @@ WITH activity AS (
       AND s.sold_at>=$4::timestamptz AND s.sold_at<$5::timestamptz
       AND ($6::uuid='00000000-0000-0000-0000-000000000000'::uuid OR s.professional_id=$6)
       AND ($11::uuid='00000000-0000-0000-0000-000000000000'::uuid OR i.product_id=$11)
-      AND ($8::text='' OR (c.first_name || ' ' || c.last_name) ILIKE $8 ESCAPE E'\\')
+      AND ($8::text='' OR btrim(c.first_name || ' ' || c.last_name) ILIKE $8 ESCAPE E'\\')
       AND ($9::text='' OR c.phone_e164=$9)
       AND ($12::text='' OR s.status=$12)
 ),

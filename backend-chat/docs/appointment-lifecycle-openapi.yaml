@@ -97,9 +97,10 @@ components:
         occurred_at: {type: string, format: date-time}
     Detail:
       type: object
-      required: [appointment, history, history_truncated, replayed, result_version]
+      required: [appointment, history, history_truncated, replayed, result_version, completion_mode]
       properties:
         appointment: {$ref: '#/components/schemas/AdminAppointment'}
+        completion_mode: {type: string, enum: [automatic, manual], description: Current shop policy; never rewrites past completion source or history}
         history: {type: array, maxItems: 100, items: {$ref: '#/components/schemas/Event'}}
         history_truncated: {type: boolean, description: Only the 100 newest events are included; pre-migration transitions are not fabricated}
         replayed: {type: boolean}
