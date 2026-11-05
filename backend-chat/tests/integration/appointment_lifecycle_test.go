@@ -25,6 +25,7 @@ import (
 	identitypg "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/postgres"
 	shopspg "github.com/Felipe-candido/Barber-chat/internal/modules/shops/infra/postgres"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -423,6 +424,128 @@ func TestAppointmentLifecycle(t *testing.T) {
 			if w.Code != 204 {
 				t.Fatal("preflight", w.Code)
 			}
+		}
+	})
+	t.Run("shop_completion_mode_preserves_manual_backlog_and_serializes_with_scheduler", func(t *testing.T) {
+		settings := booking.NewManageCompletionSettings(bookingpg.NewCompletionSettingsTransactor(pool, func(q *db.Queries) booking.CompletionSettingsAccess { return identitypg.NewCompletionSettingsAccess(q) }))
+		ownerScope := booking.CompletionSettingsScope{ActorID: owner, ShopID: shop}
+		barberScope := booking.CompletionSettingsScope{ActorID: barber, ShopID: shop}
+		initial, err := settings.Read(ctx, ownerScope)
+		if err != nil || initial.Mode != domain.CompletionAutomatic || initial.Version != 1 {
+			t.Fatal("existing default", initial, err)
+		}
+		otherSettings, err := db.New(pool).GetShopAppointmentCompletion(ctx, other)
+		if err != nil || otherSettings.Mode != "automatic" {
+			t.Fatal("new shop default", otherSettings, err)
+		}
+		completed, _ := seed(freshProfessional(), now())
+		if _, err = due.Execute(ctx); err != nil {
+			t.Fatal(err)
+		}
+		// A pending policy write must be skipped rather than completed from a stale snapshot.
+		locked, err := pool.Begin(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer locked.Rollback(context.Background())
+		if _, err = locked.Exec(ctx, "UPDATE shop_appointment_completion_settings SET mode='manual',automatic_since=NULL,version=version+1 WHERE shop_id=$1", shop); err != nil {
+			t.Fatal(err)
+		}
+		pending, _ := seed(freshProfessional(), now())
+		short, cancel := context.WithTimeout(ctx, 2*time.Second)
+		_, err = due.Execute(short)
+		cancel()
+		if err != nil {
+			t.Fatal("scheduler blocked behind settings", err)
+		}
+		if detail(pending).Appointment.Version != 1 {
+			t.Fatal("scheduler used stale automatic policy")
+		}
+		if err = locked.Commit(ctx); err != nil {
+			t.Fatal(err)
+		}
+		manual, err := settings.Read(ctx, ownerScope)
+		if err != nil || manual.Mode != domain.CompletionManual || !manual.AutomaticSince.IsZero() {
+			t.Fatal(manual, err)
+		}
+		for i := 0; i < 2; i++ {
+			if _, err = due.Execute(ctx); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if got := detail(pending); got.Appointment.Version != 1 || got.CompletionMode != domain.CompletionManual {
+			t.Fatal("manual appointment auto completed", got)
+		}
+		_, err = pool.Exec(ctx, "UPDATE appointments SET status='completed',version=version+1,status_source='automatic',status_reason='Reserved interval elapsed',status_actor_id=NULL,updated_at=clock_timestamp() WHERE id=$1", pending)
+		var pgErr *pgconn.PgError
+		if !errors.As(err, &pgErr) || pgErr.Code != "23514" || pgErr.ConstraintName != "appointment_completion_mode" {
+			t.Fatal("database did not enforce manual mode", err)
+		}
+		if _, err = manage.Change(ctx, input(pending, domain.StatusCompleted)); err != nil {
+			t.Fatal("owner manual completion", err)
+		}
+		if got := detail(completed); got.Appointment.StatusSource != domain.SourceAutomatic || got.Appointment.Version != 2 {
+			t.Fatal("past completion was rewritten", got)
+		}
+		if _, err = settings.Save(ctx, ownerScope, domain.CompletionMode("invalid"), manual.Version); !errors.Is(err, booking.ErrInvalidCompletionSettings) {
+			t.Fatal(err)
+		}
+		if _, err = settings.Save(ctx, barberScope, domain.CompletionAutomatic, manual.Version); !errors.Is(err, booking.ErrCompletionSettingsAccessDenied) {
+			t.Fatal("barber changed shop policy", err)
+		}
+		if _, err = settings.Save(ctx, booking.CompletionSettingsScope{ActorID: outsider, ShopID: shop}, domain.CompletionAutomatic, manual.Version); !errors.Is(err, booking.ErrCompletionSettingsAccessDenied) {
+			t.Fatal("tenant leak", err)
+		}
+		exec("UPDATE shop_memberships SET active=FALSE WHERE user_id=$1 AND shop_id=$2", owner, shop)
+		_, err = settings.Read(ctx, ownerScope)
+		exec("UPDATE shop_memberships SET active=TRUE WHERE user_id=$1 AND shop_id=$2", owner, shop)
+		if !errors.Is(err, booking.ErrCompletionSettingsAccessDenied) {
+			t.Fatal("revoked account read policy", err)
+		}
+		backlog, _ := seed(freshProfessional(), now())
+		// Two tabs using the same version cannot overwrite one another.
+		start := make(chan struct{})
+		results := make(chan error, 2)
+		for _, s := range []booking.CompletionSettingsScope{ownerScope, ownerScope} {
+			go func(s booking.CompletionSettingsScope) {
+				<-start
+				_, e := settings.Save(ctx, s, domain.CompletionAutomatic, manual.Version)
+				results <- e
+			}(s)
+		}
+		close(start)
+		success, conflicts := 0, 0
+		for i := 0; i < 2; i++ {
+			e := <-results
+			if e == nil {
+				success++
+			} else if errors.Is(e, booking.ErrCompletionSettingsConflict) {
+				conflicts++
+			} else {
+				t.Fatal(e)
+			}
+		}
+		if success != 1 || conflicts != 1 {
+			t.Fatal(success, conflicts)
+		}
+		automatic, err := settings.Read(ctx, ownerScope)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// End after the cutover, using the database clock, without changing immutable dates.
+		eligible, _ := seed(freshProfessional(), now())
+		if _, err = due.Execute(ctx); err != nil {
+			t.Fatal(err)
+		}
+		if detail(backlog).Appointment.Version != 1 || detail(eligible).Appointment.StatusSource != domain.SourceAutomatic {
+			t.Fatal("automatic cutover closed backlog or skipped new eligible booking")
+		}
+		same, err := settings.Save(ctx, ownerScope, domain.CompletionAutomatic, automatic.Version)
+		if err != nil || !same.AutomaticSince.Equal(automatic.AutomaticSince) {
+			t.Fatal("same-mode save moved cutover", same, err)
+		}
+		if _, err = settings.Save(ctx, ownerScope, domain.CompletionManual, manual.Version); !errors.Is(err, booking.ErrCompletionSettingsConflict) {
+			t.Fatal("stale version accepted", err)
 		}
 	})
 }

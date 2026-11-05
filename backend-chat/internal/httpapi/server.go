@@ -13,6 +13,7 @@ import (
 	billinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/billing/infra/http"
 	bookinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/http"
 	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
+	customershttp "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra/http"
 	identityapp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/application"
 	identityhttp "github.com/Felipe-candido/Barber-chat/internal/modules/identity/infra/http"
 	notificationshttp "github.com/Felipe-candido/Barber-chat/internal/modules/notifications/infra/http"
@@ -25,6 +26,7 @@ import (
 )
 
 type HandlerConfig struct {
+	Contacts                *customershttp.ContactHandler
 	WhatsApp                *notificationshttp.ConnectionHandler
 	Notifications           *notificationshttp.MessageHandler
 	EvolutionWebhookEnabled bool
@@ -37,6 +39,7 @@ type HandlerConfig struct {
 	Booking                 *bookinghttp.Handler
 	Agenda                  *bookinghttp.AgendaHandler
 	AppointmentLifecycle    *bookinghttp.LifecycleHandler
+	CompletionSettings      *bookinghttp.CompletionSettingsHandler
 	Accounts                *identityhttp.AccountHandler
 	Authenticate            *identityapp.Authenticate
 	AuthorizeShop           *identityapp.AuthorizeShopAction
@@ -70,6 +73,16 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	router.Use(middleware.Recoverer)
 	router.Use(accessmiddleware.CORS(cfg.FrontendOrigin))
 	router.Use(accessmiddleware.RequestTimeout(cfg.RequestTimeout))
+	if cfg.Contacts != nil {
+		base := "/api/v1/admin/shops/{slug}/contacts"
+		router.Options(base, accessmiddleware.Preflight(http.MethodGet, http.MethodPost))
+		router.Options(base+"/{contactID}", accessmiddleware.Preflight(http.MethodGet))
+		auth := accessmiddleware.Authentication(cfg.Authenticate, cfg.Logger)
+		shop := accessmiddleware.ShopAccess(cfg.AuthorizeShop, cfg.Logger)
+		router.With(auth, shop).Method(http.MethodGet, base, cfg.Contacts)
+		router.With(auth, shop).Method(http.MethodPost, base, cfg.Contacts)
+		router.With(auth, shop).Method(http.MethodGet, base+"/{contactID}", cfg.Contacts)
+	}
 	if cfg.WhatsApp != nil && cfg.EvolutionWebhookEnabled {
 		router.Post("/api/v1/webhooks/evolution", cfg.WhatsApp.Webhook)
 	}
@@ -162,6 +175,12 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	}
 	router.Options("/api/v1/admin/shops/{slug}/access", accessmiddleware.Preflight(http.MethodGet))
 	router.With(authenticate, shopAccess).Get("/api/v1/admin/shops/{slug}/access", identityhttp.Access)
+	if cfg.CompletionSettings != nil {
+		base := "/api/v1/admin/shops/{slug}/appointment-completion"
+		router.Options(base, accessmiddleware.Preflight(http.MethodGet, http.MethodPut))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Method(http.MethodGet, base, cfg.CompletionSettings)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Method(http.MethodPut, base, cfg.CompletionSettings)
+	}
 	if cfg.ShopSettings != nil {
 		base := "/api/v1/admin/shops/{slug}/settings"
 		router.Options(base, accessmiddleware.Preflight(http.MethodGet, http.MethodPut))

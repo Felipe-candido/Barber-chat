@@ -5,7 +5,7 @@ SELECT id, slug, name, timezone FROM shops WHERE id = $1 AND active = TRUE;
 SELECT a.id, a.status, a.service_name, a.duration_minutes, a.price_cents,
        a.currency, a.professional_id, a.professional_name, a.shop_timezone,
        a.starts_at, a.ends_at, a.version,a.status_source,a.status_reason,a.status_actor_id,a.updated_at,
-       (c.first_name || ' ' || c.last_name)::text AS customer_name, c.phone_e164
+       btrim(c.first_name || ' ' || c.last_name)::text AS customer_name, c.phone_e164
 FROM appointments a
 JOIN customers c ON c.shop_id = a.shop_id AND c.id = a.customer_id
 JOIN shops s ON s.id = a.shop_id AND s.active = TRUE

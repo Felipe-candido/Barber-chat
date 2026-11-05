@@ -88,7 +88,7 @@ func (s *LifecycleStore) ReadDetail(ctx context.Context, shopID, id uuid.UUID) (
 	if err != nil {
 		return application.AppointmentLifecycleOutput{}, err
 	}
-	out := application.AppointmentLifecycleOutput{Appointment: a, History: make([]application.StatusEvent, 0, len(rows)), ResultVersion: r.Version}
+	out := application.AppointmentLifecycleOutput{Appointment: a, CompletionMode: domain.CompletionMode(r.CompletionMode), History: make([]application.StatusEvent, 0, len(rows)), ResultVersion: r.Version}
 	if len(rows) > 100 {
 		out.HistoryTruncated = true
 		rows = rows[:100]

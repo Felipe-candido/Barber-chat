@@ -25,6 +25,7 @@ export type AppointmentStatusEvent = {
   occurred_at: string;
 };
 export type AppointmentStatusDetail = {
+  completion_mode?: "automatic" | "manual";
   appointment: AdminAppointment & AppointmentMetadata;
   history: AppointmentStatusEvent[];
   history_truncated: boolean;
@@ -65,6 +66,7 @@ function parse(value: unknown, id: string): AppointmentStatusDetail {
   if (
     !v ||
     !v.appointment ||
+    (v.completion_mode !== undefined && !["automatic", "manual"].includes(v.completion_mode)) ||
     !Array.isArray(v.history) ||
     v.history.length > 100 ||
     typeof v.history_truncated !== "boolean" ||

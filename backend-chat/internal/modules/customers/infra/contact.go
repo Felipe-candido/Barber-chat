@@ -3,10 +3,9 @@ package infra
 import (
 	"errors"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	booking "github.com/Felipe-candido/Barber-chat/internal/modules/booking/application"
+	"github.com/Felipe-candido/Barber-chat/internal/modules/customers/domain"
 	"github.com/nyaruka/phonenumbers/v2"
 )
 
@@ -14,13 +13,17 @@ type ContactNormalizer struct{}
 
 var errInvalidPhone = errors.New("invalid phone")
 
+func (ContactNormalizer) NormalizeContactPhone(raw, country string) (string, error) {
+	return normalizePhone(raw, country)
+}
+
 func (ContactNormalizer) Normalize(input booking.CustomerInput) (booking.CustomerInput, error) {
 	input.FirstName = strings.TrimSpace(input.FirstName)
 	input.LastName = strings.TrimSpace(input.LastName)
 	input.Phone = strings.TrimSpace(input.Phone)
 	input.PhoneCountry = strings.ToUpper(strings.TrimSpace(input.PhoneCountry))
 	for _, name := range []string{input.FirstName, input.LastName} {
-		if !utf8.ValidString(name) || utf8.RuneCountInString(name) < 1 || utf8.RuneCountInString(name) > 100 || strings.ContainsFunc(name, unicode.IsControl) {
+		if !domain.ValidName(name, false) {
 			return booking.CustomerInput{}, booking.ErrInvalidCustomer
 		}
 	}

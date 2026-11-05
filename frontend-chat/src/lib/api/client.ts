@@ -15,6 +15,18 @@ export class ApiError extends Error {
   }
 }
 const messages: Record<string, string> = {
+  completion_settings_changed:
+    "O modo de fechamento mudou. Consulte o modo atual e revise antes de salvar novamente.",
+  invalid_completion_settings: "Selecione um modo de fechamento válido e consulte a versão atual.",
+  invalid_contact: "Confira o nome e o telefone completo com DDD. O sobrenome é opcional.",
+  invalid_contact_query:
+    "Confira a busca. Para telefone, informe o número completo com DDD; para reiniciar a lista, limpe a busca.",
+  contact_exists: "Já existe um contato com esse telefone nesta barbearia.",
+  contact_access_denied:
+    "Seu acesso aos contatos não está disponível. Confira sua sessão e o vínculo com a barbearia.",
+  contact_not_found: "Contato não encontrado nesta barbearia.",
+  contact_unavailable:
+    "Não foi possível confirmar a operação. Confira a lista antes de cadastrar novamente.",
   connection_busy:
     "Já existe uma operação de conexão em andamento. Confira o estado antes de tentar novamente.",
   activation_required:

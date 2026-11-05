@@ -10,10 +10,12 @@ export function AppointmentDetails({
   item,
   timezone,
   onSell,
+  completionMode,
 }: {
   item: AdminAppointment;
   timezone: string;
   onSell?: () => void;
+  completionMode?: "automatic" | "manual";
 }) {
   const details = [
     ["Cliente", item.customer_name],
@@ -59,7 +61,11 @@ export function AppointmentDetails({
       <p>
         {item.version === undefined
           ? "Consulta dos dados da reserva. Atualize a API para gerenciar a situação pelo painel."
-          : "Atendimentos são concluídos automaticamente após o horário reservado. Ausências e cancelamentos podem ser corrigidos com um motivo."}
+          : completionMode === "manual"
+            ? "Fechamento manual: o atendimento permanece em aberto até a equipe registrar realizado, ausência ou cancelamento."
+            : completionMode === "automatic"
+              ? "O modo atual é automático, após o horário reservado. Pendências anteriores à ativação precisam de fechamento manual. Ausências e cancelamentos podem ser corrigidos com um motivo."
+              : "Consulte e atualize a situação do atendimento abaixo. Registre um motivo para a alteração."}
       </p>
       {onSell && ["scheduled", "confirmed", "completed"].includes(item.status) && (
         <Button variant="secondary" onClick={onSell}>

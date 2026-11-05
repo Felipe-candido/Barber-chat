@@ -21,7 +21,9 @@ import (
 	bookinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/http"
 	bookingpostgres "github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/postgres"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/security"
+	customersapp "github.com/Felipe-candido/Barber-chat/internal/modules/customers/application"
 	customersinfra "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra"
+	customershttp "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra/http"
 	customerspostgres "github.com/Felipe-candido/Barber-chat/internal/modules/customers/infra/postgres"
 	notificationsapp "github.com/Felipe-candido/Barber-chat/internal/modules/notifications/application"
 	notificationsinfra "github.com/Felipe-candido/Barber-chat/internal/modules/notifications/infra"
@@ -94,6 +96,8 @@ func run(
 	queries := db.New(pool)
 
 	catalogRepository := catalogpostgres.NewRepository(queries)
+	contactTx := customerspostgres.NewContactTransactor(pool, func(q *db.Queries) customersapp.ContactAccess { return identitypostgres.NewContactAccess(q) })
+	contactHandler := customershttp.NewContactHandler(customersapp.NewManageContacts(contactTx, customersinfra.ContactNormalizer{}), cfg.OperationTimeout, logger)
 	productTx := catalogpostgres.NewProductTransactor(pool, func(q *db.Queries) catalogapp.ProductTx {
 		store := catalogpostgres.NewProductStore(q)
 		return catalogapp.ProductTx{Access: identitypostgres.NewProductGuard(q), Products: store, Stock: store, Commands: store, Reader: store}
@@ -231,6 +235,10 @@ func run(
 		return bookingapp.AppointmentLifecycleTx{Access: identitypostgres.NewRepository(q), Store: bookingpostgres.NewLifecycleStore(q)}
 	})
 	lifecycleHandler := bookinghttp.NewLifecycleHandler(bookingapp.NewManageAppointmentStatus(lifecycleTx), cfg.OperationTimeout, logger)
+	completionSettingsTx := bookingpostgres.NewCompletionSettingsTransactor(pool, func(q *db.Queries) bookingapp.CompletionSettingsAccess {
+		return identitypostgres.NewCompletionSettingsAccess(q)
+	})
+	completionSettingsHandler := bookinghttp.NewCompletionSettingsHandler(bookingapp.NewManageCompletionSettings(completionSettingsTx), cfg.OperationTimeout, logger)
 	var connectionProvider notificationsapp.ConnectionProvider
 	var notificationSender notificationsapp.NotificationSender
 	if cfg.EvolutionBaseURL != "" {
@@ -262,6 +270,7 @@ func run(
 	bookingHandler.WithBookingConfirmation(notificationsinfra.NewBookingConfirmation(messages))
 	handler := httpapi.NewHandler(httpapi.HandlerConfig{
 		Notifications: notificationHandler,
+		Contacts:      contactHandler,
 		WhatsApp:      connectionHandler, EvolutionWebhookEnabled: connectionProvider != nil,
 		CheckDB:              pool.Ping,
 		Catalog:              catalogHandler,
@@ -269,6 +278,7 @@ func run(
 		Booking:              bookingHandler,
 		Agenda:               agendaHandler,
 		AppointmentLifecycle: lifecycleHandler,
+		CompletionSettings:   completionSettingsHandler,
 		Accounts:             accountHandler,
 		Authenticate:         authenticate,
 		AuthorizeShop:        authorizeShop,

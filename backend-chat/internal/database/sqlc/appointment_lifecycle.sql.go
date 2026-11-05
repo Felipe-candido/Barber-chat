@@ -71,16 +71,23 @@ const completeDueAppointments = `-- name: CompleteDueAppointments :many
 WITH candidates AS MATERIALIZED (
     SELECT a.shop_id,a.id,a.professional_id FROM public.appointments a
     JOIN public.appointment_completion_policy policy ON policy.id
-    WHERE a.status IN('scheduled','confirmed') AND a.ends_at>=policy.activated_at AND a.ends_at<=statement_timestamp()
+    JOIN public.shop_appointment_completion_settings completion ON completion.shop_id=a.shop_id AND completion.mode='automatic'
+    JOIN public.shops s ON s.id=a.shop_id AND s.active
+    WHERE a.status IN('scheduled','confirmed') AND a.ends_at>=policy.activated_at AND a.ends_at>=completion.automatic_since AND a.ends_at<=statement_timestamp()
     ORDER BY a.ends_at,a.id LIMIT $1::integer
+), policies_locked AS MATERIALIZED (
+    SELECT policy.shop_id,policy.automatic_since FROM public.shop_appointment_completion_settings policy
+    WHERE policy.mode='automatic' AND EXISTS(SELECT 1 FROM candidates c WHERE c.shop_id=policy.shop_id)
+    ORDER BY policy.shop_id FOR SHARE OF policy SKIP LOCKED
 ), professionals_locked AS MATERIALIZED (
     SELECT p.shop_id,p.id FROM public.professionals p
-    WHERE EXISTS(SELECT 1 FROM candidates c WHERE c.shop_id=p.shop_id AND c.professional_id=p.id)
+    WHERE EXISTS(SELECT 1 FROM candidates c JOIN policies_locked policy ON policy.shop_id=c.shop_id WHERE c.shop_id=p.shop_id AND c.professional_id=p.id)
     ORDER BY p.id FOR UPDATE OF p SKIP LOCKED
 ), appointments_locked AS MATERIALIZED (
     SELECT a.shop_id,a.id FROM public.appointments a JOIN candidates c ON c.shop_id=a.shop_id AND c.id=a.id
     JOIN professionals_locked p ON p.shop_id=a.shop_id AND p.id=a.professional_id
-    WHERE a.status IN('scheduled','confirmed') AND a.ends_at<=statement_timestamp()
+    JOIN policies_locked policy ON policy.shop_id=a.shop_id
+    WHERE a.status IN('scheduled','confirmed') AND a.ends_at<=statement_timestamp() AND a.ends_at>=policy.automatic_since
     ORDER BY a.id FOR NO KEY UPDATE OF a SKIP LOCKED
 )
 UPDATE public.appointments a SET status='completed',version=a.version+1,status_source='automatic',status_actor_id=NULL,
@@ -110,9 +117,10 @@ func (q *Queries) CompleteDueAppointments(ctx context.Context, batchSize int32) 
 }
 
 const getAdminAppointmentDetail = `-- name: GetAdminAppointmentDetail :one
-SELECT a.id, a.shop_id, a.customer_id, a.service_id, a.professional_id, a.service_name, a.duration_minutes, a.price_cents, a.currency, a.professional_name, a.shop_timezone, a.starts_at, a.ends_at, a.status, a.version, a.code_hash, a.created_at, a.updated_at, a.status_source, a.status_reason, a.status_actor_id,s.name AS shop_name,(c.first_name||' '||c.last_name)::text AS customer_name,c.phone_e164
+SELECT a.id, a.shop_id, a.customer_id, a.service_id, a.professional_id, a.service_name, a.duration_minutes, a.price_cents, a.currency, a.professional_name, a.shop_timezone, a.starts_at, a.ends_at, a.status, a.version, a.code_hash, a.created_at, a.updated_at, a.status_source, a.status_reason, a.status_actor_id,s.name AS shop_name,btrim(c.first_name||' '||c.last_name)::text AS customer_name,c.phone_e164,completion.mode AS completion_mode
 FROM public.appointments a JOIN public.shops s ON s.id=a.shop_id
 JOIN public.customers c ON c.shop_id=a.shop_id AND c.id=a.customer_id
+JOIN public.shop_appointment_completion_settings completion ON completion.shop_id=a.shop_id
 WHERE a.shop_id=$1 AND a.id=$2
 `
 
@@ -146,6 +154,7 @@ type GetAdminAppointmentDetailRow struct {
 	ShopName         string             `json:"shop_name"`
 	CustomerName     string             `json:"customer_name"`
 	PhoneE164        string             `json:"phone_e164"`
+	CompletionMode   string             `json:"completion_mode"`
 }
 
 func (q *Queries) GetAdminAppointmentDetail(ctx context.Context, arg GetAdminAppointmentDetailParams) (GetAdminAppointmentDetailRow, error) {
@@ -176,6 +185,7 @@ func (q *Queries) GetAdminAppointmentDetail(ctx context.Context, arg GetAdminApp
 		&i.ShopName,
 		&i.CustomerName,
 		&i.PhoneE164,
+		&i.CompletionMode,
 	)
 	return i, err
 }

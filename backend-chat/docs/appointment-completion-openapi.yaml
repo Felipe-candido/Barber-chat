@@ -1,0 +1,62 @@
+paths:
+  settings:
+    parameters:
+      - {in: path, name: slug, required: true, schema: {type: string}}
+    get:
+      operationId: getAppointmentCompletionSettings
+      summary: Owner reads the shop appointment completion mode
+      description: Revalidates active local user, shop and membership in the transaction. No query parameters. No subscription gate. Returns no-store.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Current settings
+          content: {application/json: {schema: {$ref: '#/components/schemas/Settings'}}}
+        '400': {description: Query parameters are not supported}
+        '401': {description: Authentication required}
+        '403': {description: Current shop access denied}
+        '503': {description: Settings unavailable; repeat only the read}
+    put:
+      operationId: replaceAppointmentCompletionSettings
+      summary: Owner changes the mode for the entire shop
+      description: Exact current version required. Only mode and version accepted; maximum 8 KiB. Manual keeps scheduled/confirmed appointments open. Existing completions and staff timing/reason/idempotency rules remain. Switching manual to automatic sets a database-clock cutover and does not complete earlier backlog. Saving automatic unchanged preserves the cutover. After conflict or uncertain response GET current settings before another PUT; do not automatically retry. No subscription gate.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [mode, version]
+              properties:
+                mode: {type: string, enum: [automatic, manual]}
+                version: {type: integer, minimum: 1, maximum: 9007199254740990}
+      responses:
+        '200':
+          description: Saved mode and incremented version; no-store
+          content: {application/json: {schema: {$ref: '#/components/schemas/Settings'}}}
+        '400': {description: Malformed body, missing version, unknown fields or unsupported query}
+        '401': {description: Authentication required}
+        '403': {description: Current shop access denied}
+        '409': {description: completion_settings_changed; read before saving again}
+        '413': {description: Body exceeds 8 KiB}
+        '415': {description: Content-Type must be application/json}
+        '422': {description: invalid_completion_settings; invalid mode or version}
+        '503': {description: Save could not be confirmed; GET before another write}
+    options:
+      responses:
+        '204': {description: Allowed origin/method/headers}
+        '403': {description: Origin or preflight denied}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  schemas:
+    Settings:
+      type: object
+      required: [shop_id, mode, version, automatic_since, updated_at]
+      properties:
+        shop_id: {type: string, format: uuid}
+        mode: {type: string, enum: [automatic, manual]}
+        version: {type: integer, minimum: 1, maximum: 9007199254740991}
+        automatic_since: {type: [string, 'null'], format: date-time, description: Null in manual mode; persisted eligibility cutover in automatic mode}
+        updated_at: {type: string, format: date-time}
