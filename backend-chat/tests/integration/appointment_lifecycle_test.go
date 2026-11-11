@@ -426,6 +426,61 @@ func TestAppointmentLifecycle(t *testing.T) {
 			}
 		}
 	})
+	t.Run("completion_settings_http_enforces_owner_scope_and_versions", func(t *testing.T) {
+		isolated := uuid.New()
+		isolatedSlug := "completion-" + isolated.String()
+		exec("INSERT INTO shops(id,name,slug) VALUES($1,'Completion HTTP fixture',$2)", isolated, isolatedSlug)
+		exec("INSERT INTO shop_memberships(user_id,shop_id,role) VALUES($1,$2,'owner')", owner, isolated)
+		q := db.New(pool)
+		repo := identitypg.NewRepository(q)
+		logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+		settings := booking.NewManageCompletionSettings(bookingpg.NewCompletionSettingsTransactor(pool, func(q *db.Queries) booking.CompletionSettingsAccess {
+			return identitypg.NewCompletionSettingsAccess(q)
+		}))
+		h := httpapi.NewHandler(httpapi.HandlerConfig{CompletionSettings: bookinghttp.NewCompletionSettingsHandler(settings, 10*time.Second, logger), Authenticate: identity.NewAuthenticate(settingsVerifier{}, repo), AuthorizeShop: identity.NewAuthorizeShopAction(repo, shopspg.NewResolver(q)), FrontendOrigin: "http://127.0.0.1:3000", Logger: logger})
+		path := "/api/v1/admin/shops/" + isolatedSlug + "/appointment-completion"
+		request := func(method, target string, actor uuid.UUID, body string) *httptest.ResponseRecorder {
+			r := httptest.NewRequest(method, target, strings.NewReader(body))
+			r.Header.Set("Origin", "http://127.0.0.1:3000")
+			if actor != uuid.Nil {
+				r.Header.Set("Authorization", "Bearer "+actor.String())
+			}
+			if body != "" {
+				r.Header.Set("Content-Type", "application/json")
+			}
+			w := httptest.NewRecorder()
+			h.ServeHTTP(w, r)
+			return w
+		}
+		for _, tc := range []struct {
+			method, target string
+			actor          uuid.UUID
+			body           string
+			want           int
+		}{
+			{"GET", path, uuid.Nil, "", 401},
+			{"GET", path, outsider, "", 403},
+			{"GET", "/api/v1/admin/shops/" + slug + "/appointment-completion", barber, "", 403},
+			{"PUT", "/api/v1/admin/shops/" + slug + "/appointment-completion", barber, `{"mode":"manual","version":1}`, 403},
+			{"GET", path, owner, "", 200},
+			{"PUT", path, owner, `{"mode":"manual","version":1}`, 200},
+			{"PUT", path, owner, `{"mode":"automatic","version":1}`, 409},
+			{"PUT", path, owner, `{"mode":"automatic","version":2}`, 200},
+		} {
+			w := request(tc.method, tc.target, tc.actor, tc.body)
+			if w.Code != tc.want {
+				t.Fatalf("%s completion settings: got %d want %d: %s", tc.method, w.Code, tc.want, w.Body.String())
+			}
+		}
+		var saved struct {
+			ShopID  uuid.UUID `json:"shop_id"`
+			Mode    string    `json:"mode"`
+			Version int       `json:"version"`
+		}
+		if w := request("GET", path, owner, ""); json.Unmarshal(w.Body.Bytes(), &saved) != nil || saved.ShopID != isolated || saved.Mode != "automatic" || saved.Version != 3 {
+			t.Fatal("completion mode was not persisted", saved)
+		}
+	})
 	t.Run("shop_completion_mode_preserves_manual_backlog_and_serializes_with_scheduler", func(t *testing.T) {
 		settings := booking.NewManageCompletionSettings(bookingpg.NewCompletionSettingsTransactor(pool, func(q *db.Queries) booking.CompletionSettingsAccess { return identitypg.NewCompletionSettingsAccess(q) }))
 		ownerScope := booking.CompletionSettingsScope{ActorID: owner, ShopID: shop}

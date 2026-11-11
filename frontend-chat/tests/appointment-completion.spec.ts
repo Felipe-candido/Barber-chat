@@ -95,3 +95,62 @@ test("failed initial GET never exposes an editable assumed default", async ({ pa
   await expect(page.getByLabel("Modo de fechamento")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Salvar modo de fechamento" })).toBeDisabled();
 });
+
+test("unavailable completion endpoint has contextual recovery and no assumed default", async ({
+  page,
+}) => {
+  await installSupabaseSession(page);
+  await mockAdminAccess(page);
+  let available = false,
+    writes = 0;
+  await page.route(endpoint, (route) => {
+    if (route.request().method() === "PUT") writes++;
+    return available ? route.fulfill({ json: initial }) : route.abort("failed");
+  });
+  await page.goto(path);
+  await expect(
+    page.getByText("Não foi possível carregar o modo de fechamento.", { exact: false }),
+  ).toBeVisible();
+  await expect(page.getByLabel("Modo de fechamento")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Salvar modo de fechamento" })).toBeDisabled();
+  available = true;
+  await page.getByRole("button", { name: "Consultar modo atual" }).click();
+  await expect(page.getByLabel("Modo de fechamento")).toHaveValue("automatic");
+  expect(writes).toBe(0);
+});
+
+test("concurrent completion change requires reload before an explicit new save", async ({
+  page,
+}) => {
+  await installSupabaseSession(page);
+  await mockAdminAccess(page);
+  let current = structuredClone(initial),
+    writes = 0;
+  await page.route(endpoint, (route) => {
+    if (route.request().method() === "PUT") {
+      writes++;
+      if (writes === 1) {
+        current = { ...current, version: 2 };
+        return route.fulfill({
+          status: 409,
+          json: { error: { code: "completion_settings_changed" } },
+        });
+      }
+      expect(route.request().postDataJSON()).toEqual({ mode: "manual", version: 2 });
+      current = { ...current, mode: "manual", version: 3, automatic_since: null };
+    }
+    return route.fulfill({ json: current });
+  });
+  await page.goto(path);
+  await page.getByLabel("Modo de fechamento").selectOption("manual");
+  await page.getByRole("button", { name: "Salvar modo de fechamento" }).click();
+  await expect(page.getByText("O modo de fechamento mudou.", { exact: false })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Salvar modo de fechamento" })).toBeDisabled();
+  await page.getByRole("button", { name: "Consultar modo atual" }).click();
+  await expect(page.getByLabel("Modo de fechamento")).toHaveValue("automatic");
+  expect(writes).toBe(1);
+  await page.getByLabel("Modo de fechamento").selectOption("manual");
+  await page.getByRole("button", { name: "Salvar modo de fechamento" }).click();
+  await expect(page.getByText("Modo de fechamento salvo.")).toBeVisible();
+  expect(writes).toBe(2);
+});

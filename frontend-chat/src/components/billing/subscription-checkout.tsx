@@ -40,8 +40,13 @@ export function SubscriptionCheckoutControl({
     flow.checkout &&
     Date.parse(flow.checkout.expires_at) > Date.now() + 30_000;
   async function proceedToPayment() {
-    if (openingPayment.current || configurationPending || disabled ||
-        (flow.mode !== "review" && !readyLink)) return;
+    if (
+      openingPayment.current ||
+      configurationPending ||
+      disabled ||
+      (flow.mode !== "review" && !readyLink)
+    )
+      return;
     openingPayment.current = true;
     setPaymentError("");
     // Reserve the tab during the user gesture; opening after await can be blocked.
@@ -49,19 +54,24 @@ export function SubscriptionCheckoutControl({
     try {
       paymentWindow = window.open("about:blank", "_blank");
       if (!paymentWindow) {
-        setPaymentError("Seu navegador bloqueou a aba de pagamento. Permita a abertura de uma nova aba e clique em Prosseguir para pagamento novamente.");
+        setPaymentError(
+          "Seu navegador bloqueou a aba de pagamento. Permita a abertura de uma nova aba e clique em Prosseguir para pagamento novamente.",
+        );
         return;
       }
       paymentWindow.opener = null;
       paymentWindow.document.title = "Pagamento da assinatura";
-      paymentWindow.document.body.textContent = "Aguarde enquanto preparamos seu pagamento na Stripe…";
+      paymentWindow.document.body.textContent =
+        "Aguarde enquanto preparamos seu pagamento na Stripe…";
       const checkout = readyLink ? flow.checkout : await flow.confirm();
       if (!checkout) {
         paymentWindow.close();
         return;
       }
       if (paymentWindow.closed) {
-        setPaymentError("A aba de pagamento foi fechada. Clique em Prosseguir para pagamento para abrir a mesma tentativa.");
+        setPaymentError(
+          "A aba de pagamento foi fechada. Clique em Prosseguir para pagamento para abrir a mesma tentativa.",
+        );
         return;
       }
       if (Date.parse(checkout.expires_at) <= Date.now() + 30_000) {
@@ -74,7 +84,9 @@ export function SubscriptionCheckoutControl({
       setPaymentOpened(true);
     } catch {
       paymentWindow?.close();
-      setPaymentError("Não foi possível abrir o pagamento. Confira a situação antes de tentar novamente.");
+      setPaymentError(
+        "Não foi possível abrir o pagamento. Confira a situação antes de tentar novamente.",
+      );
     } finally {
       openingPayment.current = false;
     }
@@ -131,7 +143,11 @@ export function SubscriptionCheckoutControl({
               </>
             )}
             {flow.mode === "opening" && (
-              <p role="status">{inline ? "Abrindo o pagamento na Stripe…" : "Preparando ou recuperando o Checkout na API…"}</p>
+              <p role="status">
+                {inline
+                  ? "Abrindo o pagamento na Stripe…"
+                  : "Preparando ou recuperando o Checkout na API…"}
+              </p>
             )}
             {flow.mode === "ready" && (
               <Alert>
@@ -218,7 +234,8 @@ function CheckoutContainer({
       <section aria-label="Assinatura mensal da barbearia" className={styles.feedback}>
         <h3>Assinatura mensal da barbearia</h3>
         <p className={styles.note}>
-          Revise as condições e prossiga para o pagamento na Stripe. Ele abre em outra aba para manter os dados do agendamento nesta janela.
+          Revise as condições e prossiga para o pagamento na Stripe. Ele abre em outra aba para
+          manter os dados do agendamento nesta janela.
         </p>
         {children}
       </section>
