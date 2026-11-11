@@ -1,0 +1,170 @@
+# Add this file only when starting the WhatsApp stage.
+x-logging: &logging
+  driver: local
+  options: {max-size: "10m", max-file: "3"}
+
+x-notifications: &notifications
+  NOTIFICATION_PLANNING_ENABLED: ${NOTIFICATION_PLANNING_ENABLED:-false}
+  NOTIFICATION_DELIVERY_ENABLED: ${NOTIFICATION_DELIVERY_ENABLED:-false}
+  NOTIFICATION_AUTOMATIC_ENABLED: ${NOTIFICATION_AUTOMATIC_ENABLED:-false}
+  NOTIFICATION_PAYLOAD_ACTIVE_KEY_ID: ${NOTIFICATION_PAYLOAD_ACTIVE_KEY_ID:-}
+  NOTIFICATION_PAYLOAD_KEYS: ${NOTIFICATION_PAYLOAD_KEYS:-}
+  EVOLUTION_BASE_URL: http://evolution:8080
+  EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:?Run Initialize-Environment.ps1}
+  EVOLUTION_WEBHOOK_URL: http://api:8082/api/v1/webhooks/evolution
+  EVOLUTION_WEBHOOK_SECRET: ${EVOLUTION_WEBHOOK_SECRET:?Run Initialize-Environment.ps1}
+
+services:
+  api:
+    environment:
+      <<: *notifications
+      EVOLUTION_WEBHOOK_ADDR: 0.0.0.0:8082
+    networks:
+      provider: {}
+
+  worker:
+    profiles: [worker]
+    image: ${BACKEND_IMAGE:-barberchat/backend:aws-local}
+    command: [/app/worker]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 40s
+    environment:
+      <<: *notifications
+      APP_ENV: production
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?Set the HTTPS Netlify origin}
+      DATABASE_URL: ${DATABASE_URL:?Set the Supabase PostgreSQL connection}
+      RABBITMQ_URL: amqp://barber:${RABBITMQ_PASSWORD:?Run Initialize-Environment.ps1}@rabbitmq:5672/
+      DB_TIMEOUT: ${DB_TIMEOUT:-5s}
+      OPERATION_TIMEOUT: ${OPERATION_TIMEOUT:-30s}
+      SHUTDOWN_TIMEOUT: 30s
+      WORKER_INTERVAL: 30s
+      LOG_LEVEL: INFO
+    # Business readiness is the durable scheduler/AMQP heartbeat in PostgreSQL.
+    # A running PID alone must not be advertised as a healthy sender.
+    depends_on:
+      api: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      evolution: {condition: service_healthy}
+    networks: [provider, jobs]
+    logging: *logging
+
+  rabbitmq:
+    profiles: [worker]
+    image: rabbitmq:4.3.5-management@sha256:57bddb6fbc3498b5d8b5a14dc6f4506073ebcf94c66ba2a7678c335faa8dd631
+    hostname: rabbitmq
+    restart: unless-stopped
+    stop_grace_period: 60s
+    security_opt: [no-new-privileges:true]
+    environment:
+      RABBITMQ_DEFAULT_USER: barber
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Run Initialize-Environment.ps1}
+      RABBITMQ_NODENAME: rabbit@rabbitmq
+    volumes: [rabbitmq_data:/var/lib/rabbitmq]
+    healthcheck:
+      test: [CMD, rabbitmq-diagnostics, -q, ping]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 45s
+    networks: [jobs]
+    logging: *logging
+
+  evolution:
+    image: ${EVOLUTION_IMAGE:-barberchat/evolution:e273b904}
+    build:
+      context: ../../backend-chat/infra/evolution
+      additional_contexts:
+        evolution_source: https://github.com/evolution-foundation/evolution-api.git#e273b904d53f5726970fd6a244ed9caa61dfeb9a
+    restart: unless-stopped
+    init: true
+    security_opt: [no-new-privileges:true]
+    # Manager is reachable only through the EC2 host (SSM port forwarding).
+    ports: ["127.0.0.1:${EVOLUTION_MANAGER_PORT:-8081}:8080"]
+    environment:
+      SERVER_TYPE: http
+      SERVER_PORT: "8080"
+      SERVER_URL: http://127.0.0.1:${EVOLUTION_MANAGER_PORT:-8081}
+      CORS_ORIGIN: "*"
+      CORS_CREDENTIALS: "false"
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY:?Run Initialize-Environment.ps1}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "false"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${EVOLUTION_DB_PASSWORD:?Run Initialize-Environment.ps1}@evolution-db:5432/evolution?schema=public
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_LABELS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://evolution-redis:6379/0
+      CACHE_REDIS_PREFIX_KEY: barberchat_evolution
+      CACHE_REDIS_SAVE_INSTANCES: "true"
+      DEL_INSTANCE: "false"
+      LOG_LEVEL: ERROR,WARN
+      LOG_BAILEYS: error
+      TELEMETRY_ENABLED: "false"
+      SENTRY_DSN: ""
+      WEBHOOK_GLOBAL_ENABLED: "false"
+      RABBITMQ_ENABLED: "false"
+    depends_on:
+      evolution-db: {condition: service_healthy}
+      evolution-redis: {condition: service_healthy}
+    volumes: [evolution_instances:/evolution/instances]
+    healthcheck:
+      # Provider HTTP health is separate from activation and phone pairing.
+      test: [CMD, node, -e, 'fetch("http://127.0.0.1:8080/license/status").then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))']
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+    networks: [provider, evolution-data]
+    logging: *logging
+
+  evolution-db:
+    image: postgres:18.6-bookworm@sha256:3725f4e2499eef5134592b3b4ab79a543ed7f8e533b05b5b637af926630f6650
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${EVOLUTION_DB_PASSWORD:?Run Initialize-Environment.ps1}
+      POSTGRES_DB: evolution
+    volumes: [evolution_postgres:/var/lib/postgresql]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U evolution -d evolution']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks: [evolution-data]
+    logging: *logging
+
+  evolution-redis:
+    image: redis:8-alpine@sha256:21090af93f8324db2f0f0f4f38a7c60369d47d917e000c3423d89d2ae2883537
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    command: [redis-server, --appendonly, "yes", --maxmemory, 128mb, --maxmemory-policy, noeviction]
+    volumes: [evolution_redis:/data]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [evolution-data]
+    logging: *logging
+
+networks:
+  provider: {}
+  jobs: {internal: true}
+  evolution-data: {internal: true}
+
+volumes:
+  rabbitmq_data:
+  evolution_instances:
+  evolution_postgres:
+  evolution_redis:

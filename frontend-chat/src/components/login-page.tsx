@@ -36,7 +36,7 @@ export function LoginPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <Link href="/login" aria-label="Barber-chat — acesso">
+        <Link href="/login" aria-label="Na Régua — acesso">
           <Brand />
         </Link>
         <Link href="/chat" className={styles.publicLink}>
@@ -188,7 +188,7 @@ export function LoginPage() {
           </p>
         </section>
       </main>
-      <footer className={styles.footer}>Barber-chat · Agendamento e gestão de barbearias</footer>
+      <footer className={styles.footer}>Na Régua · Agendamento e gestão de barbearias</footer>
       {help && (
         <Modal
           open

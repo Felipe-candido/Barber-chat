@@ -13,12 +13,17 @@ import (
 )
 
 const ensureCheckoutAccount = `-- name: EnsureCheckoutAccount :exec
-INSERT INTO public.billing_accounts (shop_id, stripe_mode) VALUES ($1, 'test')
+INSERT INTO public.billing_accounts (shop_id, stripe_mode) VALUES ($1, $2)
 ON CONFLICT (shop_id) DO NOTHING
 `
 
-func (q *Queries) EnsureCheckoutAccount(ctx context.Context, shopID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, ensureCheckoutAccount, shopID)
+type EnsureCheckoutAccountParams struct {
+	ShopID     uuid.UUID `json:"shop_id"`
+	StripeMode string    `json:"stripe_mode"`
+}
+
+func (q *Queries) EnsureCheckoutAccount(ctx context.Context, arg EnsureCheckoutAccountParams) error {
+	_, err := q.db.Exec(ctx, ensureCheckoutAccount, arg.ShopID, arg.StripeMode)
 	return err
 }
 
@@ -104,17 +109,18 @@ func (q *Queries) InsertBillingCheckout(ctx context.Context, arg InsertBillingCh
 
 const linkBillingCheckoutCustomer = `-- name: LinkBillingCheckoutCustomer :execrows
 UPDATE public.billing_accounts SET stripe_customer_id = $1, updated_at = now()
-WHERE shop_id = $2 AND stripe_mode = 'test'
+WHERE shop_id = $2 AND stripe_mode = $3
     AND (stripe_customer_id IS NULL OR stripe_customer_id = $1)
 `
 
 type LinkBillingCheckoutCustomerParams struct {
 	CustomerID pgtype.Text `json:"customer_id"`
 	ShopID     uuid.UUID   `json:"shop_id"`
+	StripeMode string      `json:"stripe_mode"`
 }
 
 func (q *Queries) LinkBillingCheckoutCustomer(ctx context.Context, arg LinkBillingCheckoutCustomerParams) (int64, error) {
-	result, err := q.db.Exec(ctx, linkBillingCheckoutCustomer, arg.CustomerID, arg.ShopID)
+	result, err := q.db.Exec(ctx, linkBillingCheckoutCustomer, arg.CustomerID, arg.ShopID, arg.StripeMode)
 	if err != nil {
 		return 0, err
 	}
@@ -153,7 +159,7 @@ WHERE a.id = $5 AND a.shop_id = $6 AND a.protocol_version = 1
     AND (a.stripe_session_id IS NULL OR a.stripe_session_id = $1)
     AND (a.state IN ('preparing', 'open') OR (a.state = 'review' AND $4 = 'review'))
     AND EXISTS (SELECT 1 FROM public.billing_accounts b WHERE b.shop_id = a.shop_id
-        AND b.stripe_mode = 'test' AND b.stripe_customer_id = $7)
+        AND b.stripe_mode = $7 AND b.stripe_customer_id = $8)
 `
 
 type RecordBillingCheckoutSessionParams struct {
@@ -163,6 +169,7 @@ type RecordBillingCheckoutSessionParams struct {
 	NextState   string             `json:"next_state"`
 	AttemptID   uuid.UUID          `json:"attempt_id"`
 	ShopID      uuid.UUID          `json:"shop_id"`
+	StripeMode  string             `json:"stripe_mode"`
 	CustomerID  pgtype.Text        `json:"customer_id"`
 }
 
@@ -174,6 +181,7 @@ func (q *Queries) RecordBillingCheckoutSession(ctx context.Context, arg RecordBi
 		arg.NextState,
 		arg.AttemptID,
 		arg.ShopID,
+		arg.StripeMode,
 		arg.CustomerID,
 	)
 	if err != nil {

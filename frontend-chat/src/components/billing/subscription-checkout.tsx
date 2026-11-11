@@ -1,6 +1,6 @@
 "use client";
 import { ArrowUpRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { useSubscriptionCheckout } from "@/hooks/use-subscription-checkout";
 import { Alert, Badge, Button, Modal, buttonClasses } from "../ui";
 import styles from "./subscription-checkout.module.css";
@@ -20,6 +20,15 @@ export function SubscriptionCheckoutControl({
   inline?: boolean;
   backLabel?: string;
 }) {
+  const openingPayment = useRef(false);
+  const [paymentOpened, setPaymentOpened] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+  useEffect(() => {
+    if (flow.mode === "closed" || flow.mode === "loading") {
+      setPaymentOpened(false);
+      setPaymentError("");
+    }
+  }, [flow.mode]);
   const offer = flow.offer;
   const amount = offer
     ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: offer.currency }).format(
@@ -30,6 +39,46 @@ export function SubscriptionCheckoutControl({
     flow.mode === "ready" &&
     flow.checkout &&
     Date.parse(flow.checkout.expires_at) > Date.now() + 30_000;
+  async function proceedToPayment() {
+    if (openingPayment.current || configurationPending || disabled ||
+        (flow.mode !== "review" && !readyLink)) return;
+    openingPayment.current = true;
+    setPaymentError("");
+    // Reserve the tab during the user gesture; opening after await can be blocked.
+    let paymentWindow: Window | null = null;
+    try {
+      paymentWindow = window.open("about:blank", "_blank");
+      if (!paymentWindow) {
+        setPaymentError("Seu navegador bloqueou a aba de pagamento. Permita a abertura de uma nova aba e clique em Prosseguir para pagamento novamente.");
+        return;
+      }
+      paymentWindow.opener = null;
+      paymentWindow.document.title = "Pagamento da assinatura";
+      paymentWindow.document.body.textContent = "Aguarde enquanto preparamos seu pagamento na Stripe…";
+      const checkout = readyLink ? flow.checkout : await flow.confirm();
+      if (!checkout) {
+        paymentWindow.close();
+        return;
+      }
+      if (paymentWindow.closed) {
+        setPaymentError("A aba de pagamento foi fechada. Clique em Prosseguir para pagamento para abrir a mesma tentativa.");
+        return;
+      }
+      if (Date.parse(checkout.expires_at) <= Date.now() + 30_000) {
+        paymentWindow.close();
+        setPaymentError("O endereço de pagamento expirou. Consulte as condições novamente.");
+        return;
+      }
+      // confirm() returns only the Stripe URL validated by the API client.
+      paymentWindow.location.replace(checkout.url);
+      setPaymentOpened(true);
+    } catch {
+      paymentWindow?.close();
+      setPaymentError("Não foi possível abrir o pagamento. Confira a situação antes de tentar novamente.");
+    } finally {
+      openingPayment.current = false;
+    }
+  }
   return (
     <>
       {!inline && (
@@ -48,9 +97,16 @@ export function SubscriptionCheckoutControl({
       {flow.mode !== "closed" && (
         <CheckoutContainer inline={inline} onClose={flow.close}>
           <div className={styles.feedback}>
-            <Badge tone="warning">Modo de teste — não use cartão real</Badge>
+            {!inline && flow.offer && (
+              <Badge tone={flow.offer.livemode ? "info" : "warning"}>
+                {flow.offer.livemode
+                  ? "Assinatura com cobrança real"
+                  : "Modo de teste — não use cartão real"}
+              </Badge>
+            )}
             {flow.mode === "loading" && <p role="status">Consultando as condições na API…</p>}
             {flow.error && <Alert tone="error">{flow.error}</Alert>}
+            {paymentError && <Alert tone="error">{paymentError}</Alert>}
             {flow.uncertain && (
               <Alert tone="warning">
                 A tentativa pode ter sido registrada. Consulte novamente as condições para recuperar
@@ -75,12 +131,13 @@ export function SubscriptionCheckoutControl({
               </>
             )}
             {flow.mode === "opening" && (
-              <p role="status">Preparando ou recuperando o Checkout na API…</p>
+              <p role="status">{inline ? "Abrindo o pagamento na Stripe…" : "Preparando ou recuperando o Checkout na API…"}</p>
             )}
             {flow.mode === "ready" && (
               <Alert>
-                Checkout preparado. Conclua na Stripe e depois confira a assinatura. Isso não
-                publica a barbearia nem cria agendamento automaticamente.
+                {inline
+                  ? "Conclua o pagamento na Stripe e depois confira a assinatura para retomar seu agendamento."
+                  : "Checkout preparado. Conclua na Stripe e depois confira a assinatura. Isso não publica a barbearia nem cria agendamento automaticamente."}
               </Alert>
             )}
             {configurationPending && (
@@ -89,15 +146,15 @@ export function SubscriptionCheckoutControl({
               </p>
             )}
             <div className={styles.actions}>
-              {flow.mode === "review" && (
+              {(flow.mode === "review" || (inline && readyLink && !paymentOpened)) && (
                 <Button
                   disabled={configurationPending || disabled}
-                  onClick={() => void flow.confirm()}
+                  onClick={() => void (inline ? proceedToPayment() : flow.confirm())}
                 >
-                  Preparar Checkout
+                  {inline ? "Prosseguir para pagamento" : "Preparar Checkout"}
                 </Button>
               )}
-              {readyLink && !configurationPending && !disabled && (
+              {!inline && readyLink && !configurationPending && !disabled && (
                 <a
                   href={flow.checkout!.url}
                   target="_blank"
@@ -161,8 +218,7 @@ function CheckoutContainer({
       <section aria-label="Assinatura mensal da barbearia" className={styles.feedback}>
         <h3>Assinatura mensal da barbearia</h3>
         <p className={styles.note}>
-          Revise as condições antes de preparar o Checkout. O pagamento abre em outra aba; mantenha
-          este agendamento aberto.
+          Revise as condições e prossiga para o pagamento na Stripe. Ele abre em outra aba para manter os dados do agendamento nesta janela.
         </p>
         {children}
       </section>

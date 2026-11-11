@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Felipe-candido/Barber-chat/internal/modules/billing/application"
+	"github.com/Felipe-candido/Barber-chat/internal/modules/billing/domain"
 	"github.com/google/uuid"
 )
 
@@ -24,6 +25,7 @@ var providerID = regexp.MustCompile(`^[A-Za-z0-9_]+$`)
 var pricePattern = regexp.MustCompile(`^price_[A-Za-z0-9]+$`)
 
 type Client struct {
+	mode   domain.BillingMode
 	secret string
 	http   *http.Client
 }
@@ -39,8 +41,12 @@ func ValidPriceID(id string) bool {
 }
 
 func NewClient(secret string, client *http.Client) (*Client, error) {
-	if !ValidTestKey(secret) {
-		return nil, errors.New("Stripe Checkout requires a server-side sk_test_ key; live mode is disabled")
+	return NewClientForMode(secret, domain.BillingTest, client)
+}
+
+func NewClientForMode(secret string, mode domain.BillingMode, client *http.Client) (*Client, error) {
+	if !mode.Valid() || len(secret) <= len("sk_"+string(mode)+"_") || len(secret) > 512 || !strings.HasPrefix(secret, "sk_"+string(mode)+"_") || !providerID.MatchString(secret) {
+		return nil, errors.New("Stripe secret must match the explicitly configured billing mode")
 	}
 	if client == nil {
 		client = &http.Client{}
@@ -48,7 +54,7 @@ func NewClient(secret string, client *http.Client) (*Client, error) {
 	copy := *client
 	copy.Timeout = 8 * time.Second
 	copy.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
-	return &Client{secret: secret, http: &copy}, nil
+	return &Client{secret: secret, http: &copy, mode: mode}, nil
 }
 
 func (c *Client) request(ctx context.Context, method, path, key string, form url.Values, out any) error {
@@ -138,7 +144,7 @@ func (c *Client) ReadCheckoutPrice(ctx context.Context, priceID string) (applica
 	if err := c.request(ctx, "GET", "/prices/"+priceID, "", nil, &price); err != nil {
 		return application.CheckoutPrice{}, err
 	}
-	if price.ID != priceID || price.Object != "price" || !price.Active || price.LiveMode == nil || *price.LiveMode ||
+	if price.ID != priceID || price.Object != "price" || !price.Active || price.LiveMode == nil || *price.LiveMode != c.mode.Live() ||
 		price.Currency != "brl" || price.Type != "recurring" || price.BillingScheme != "per_unit" || price.UnitAmount == nil || *price.UnitAmount <= 0 || *price.UnitAmount > 9007199254740991 ||
 		(len(price.CustomAmount) != 0 && string(price.CustomAmount) != "null") ||
 		(len(price.Transform) != 0 && string(price.Transform) != "null") || price.Recurring == nil ||
@@ -160,19 +166,25 @@ func (c *Client) CreateCheckoutCustomer(ctx context.Context, shopID uuid.UUID) (
 		Metadata map[string]string `json:"metadata"`
 	}
 	// Deliberately no mutable shop name/email/address in an idempotent request.
-	err := c.request(ctx, "POST", "/customers", "barber:test:customer:"+shopID.String(), url.Values{
+	err := c.request(ctx, "POST", "/customers", "barber:"+string(c.mode)+":customer:"+shopID.String(), url.Values{
 		"metadata[shop_id]": {shopID.String()},
 	}, &customer)
 	if err != nil {
 		return "", err
 	}
-	if !validID(customer.ID, "cus_") || customer.Object != "customer" || customer.LiveMode == nil || *customer.LiveMode || customer.Metadata["shop_id"] != shopID.String() {
+	if !validID(customer.ID, "cus_") || customer.Object != "customer" || customer.LiveMode == nil || *customer.LiveMode != c.mode.Live() || customer.Metadata["shop_id"] != shopID.String() {
 		return "", ErrProviderResponse
 	}
 	return customer.ID, nil
 }
 
 func (c *Client) CreateCheckoutSession(ctx context.Context, a application.CheckoutAttempt, customerID string) (application.CheckoutSession, error) {
+	if c.mode.Live() {
+		back, err := url.Parse(a.ReturnURL)
+		if err != nil || back.Scheme != "https" || back.Hostname() == "" || back.User != nil {
+			return application.CheckoutSession{}, ErrProviderResponse
+		}
+	}
 	if a.ID == uuid.Nil || a.ShopID == uuid.Nil || !a.Intent.Valid() || !ValidPriceID(a.PriceID) || !validID(customerID, "cus_") {
 		return application.CheckoutSession{}, ErrProviderResponse
 	}
@@ -192,7 +204,7 @@ func (c *Client) CreateCheckoutSession(ctx context.Context, a application.Checko
 		"cancel_url":  {a.ReturnURL + "?checkout=canceled"},
 	}
 	var raw sessionJSON
-	key := "barber:test:checkout:" + a.ID.String()
+	key := "barber:" + string(c.mode) + ":checkout:" + a.ID.String()
 	err = c.request(ctx, "POST", "/checkout/sessions", key, form, &raw)
 	if legacyPaymentParameterRejected(err) {
 		// Stripe can cache the old 400, so replacing its body under the same
@@ -208,7 +220,7 @@ func (c *Client) CreateCheckoutSession(ctx context.Context, a application.Checko
 	if err != nil {
 		return application.CheckoutSession{}, err
 	}
-	return parseSession(raw)
+	return parseSession(raw, c.mode)
 }
 
 func legacyPaymentParameterRejected(err error) bool {
@@ -219,14 +231,14 @@ func legacyPaymentParameterRejected(err error) bool {
 }
 
 func (c *Client) FindCheckoutSession(ctx context.Context, id string) (application.CheckoutSession, error) {
-	if !validID(id, "cs_test_") {
+	if !validID(id, sessionPrefix(c.mode)) {
 		return application.CheckoutSession{}, ErrProviderResponse
 	}
 	var raw sessionJSON
 	if err := c.request(ctx, "GET", "/checkout/sessions/"+id, "", nil, &raw); err != nil {
 		return application.CheckoutSession{}, err
 	}
-	result, err := parseSession(raw)
+	result, err := parseSession(raw, c.mode)
 	if result.ID != id {
 		return application.CheckoutSession{}, ErrProviderResponse
 	}
@@ -250,12 +262,12 @@ type sessionJSON struct {
 	AmountTotal       int64             `json:"amount_total"`
 }
 
-func parseSession(raw sessionJSON) (application.CheckoutSession, error) {
+func parseSession(raw sessionJSON, mode domain.BillingMode) (application.CheckoutSession, error) {
 	attempt, aerr := uuid.Parse(raw.ClientReferenceID)
 	shop, serr := uuid.Parse(raw.Metadata["shop_id"])
 	if aerr != nil || serr != nil || attempt == uuid.Nil || shop == uuid.Nil || raw.Metadata["attempt_id"] != attempt.String() ||
-		!validID(raw.ID, "cs_test_") || !validID(raw.Customer, "cus_") || raw.Object != "checkout.session" ||
-		raw.LiveMode == nil || *raw.LiveMode || raw.Mode != "subscription" || raw.ExpiresAt <= 0 || raw.ExpiresAt > 253402300799 {
+		!validID(raw.ID, sessionPrefix(mode)) || !validID(raw.Customer, "cus_") || raw.Object != "checkout.session" ||
+		raw.LiveMode == nil || *raw.LiveMode != mode.Live() || raw.Mode != "subscription" || raw.ExpiresAt <= 0 || raw.ExpiresAt > 253402300799 {
 		return application.CheckoutSession{}, ErrProviderResponse
 	}
 	if raw.Status != "open" && raw.Status != "complete" && raw.Status != "expired" {
@@ -274,4 +286,11 @@ func parseSession(raw sessionJSON) (application.CheckoutSession, error) {
 
 func validID(id, prefix string) bool {
 	return len(id) > len(prefix) && len(id) <= 255 && strings.HasPrefix(id, prefix) && providerID.MatchString(id)
+}
+
+func sessionPrefix(mode domain.BillingMode) string {
+	if mode.Live() {
+		return "cs_live_"
+	}
+	return "cs_test_"
 }

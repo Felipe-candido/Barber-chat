@@ -1,0 +1,18 @@
+{
+	local_certs
+	admin off
+}
+
+https://localhost {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+	@privateCallback path /api/v1/webhooks/evolution /api/v1/webhooks/evolution/*
+	respond @privateCallback 404
+	@probes path /health /ready
+	respond @probes 404
+	reverse_proxy api:8080
+}

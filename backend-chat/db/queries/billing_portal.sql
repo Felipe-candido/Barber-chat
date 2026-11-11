@@ -3,7 +3,7 @@
 -- An abandoned Checkout/Customer alone does not expose a portal.
 SELECT a.shop_id, a.stripe_customer_id, a.stripe_mode, a.created_at
 FROM public.billing_accounts a
-WHERE a.shop_id = $1 AND a.stripe_mode = 'test' AND a.stripe_customer_id IS NOT NULL
+WHERE a.shop_id = $1 AND a.stripe_mode = $2 AND a.stripe_customer_id IS NOT NULL
   AND EXISTS (
     SELECT 1 FROM public.billing_subscriptions s
     JOIN public.billing_checkout_attempts c ON c.shop_id = s.shop_id AND c.id = s.checkout_attempt_id

@@ -1,0 +1,40 @@
+# Local disposable fixture only. Never used by the EC2 deployment.
+services:
+  test-db:
+    image: postgres:18.6-bookworm@sha256:3725f4e2499eef5134592b3b4ab79a543ed7f8e533b05b5b637af926630f6650
+    environment:
+      POSTGRES_USER: deployment_test
+      POSTGRES_PASSWORD: local_container_test_only
+      POSTGRES_DB: deployment_test
+    volumes: [test_database:/var/lib/postgresql]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U deployment_test -d deployment_test']
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    networks:
+      edge: {ipv4_address: 172.30.88.4}
+      provider: {}
+  api:
+    environment:
+      DATABASE_URL: postgres://deployment_test:local_container_test_only@test-db:5432/deployment_test?sslmode=disable
+      SUPABASE_URL: https://deployment-fixture.supabase.co
+      SUPABASE_PUBLISHABLE_KEY: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+      STRIPE_MODE: test
+      STRIPE_SECRET_KEY: ""
+      STRIPE_MONTHLY_PRICE_ID: ""
+      STRIPE_WEBHOOK_SECRET: ""
+      STRIPE_PORTAL_CONFIGURATION_ID: ""
+    healthcheck: {interval: 3s, start_period: 5s}
+  worker:
+    environment:
+      DATABASE_URL: postgres://deployment_test:local_container_test_only@test-db:5432/deployment_test?sslmode=disable
+  migrate:
+    environment:
+      GOOSE_DBSTRING: postgres://deployment_test:local_container_test_only@test-db:5432/deployment_test?sslmode=disable
+  caddy:
+    volumes:
+      - ./tests/Caddyfile:/etc/caddy/Caddyfile:ro
+volumes:
+  test_database:

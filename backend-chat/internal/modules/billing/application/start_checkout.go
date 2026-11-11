@@ -26,7 +26,7 @@ func (uc *StartCheckout) Execute(ctx context.Context, input StartCheckoutInput) 
 	if input.Scope.ActorID == uuid.Nil || input.Scope.ShopID == uuid.Nil || !input.Intent.Valid() {
 		return CheckoutOutput{}, ErrInvalidCheckout
 	}
-	if uc.provider == nil || uc.plan.Key == "" || uc.plan.PriceID == "" || uc.plan.FrontendOrigin == "" {
+	if uc.provider == nil || !uc.plan.Mode.Effective().Valid() || uc.plan.Key == "" || uc.plan.PriceID == "" || uc.plan.FrontendOrigin == "" {
 		return CheckoutOutput{}, ErrBillingNotConfigured
 	}
 	if len(input.OfferID) != 64 || strings.Trim(input.OfferID, "0123456789abcdef") != "" {
@@ -80,7 +80,7 @@ func (uc *StartCheckout) Execute(ctx context.Context, input StartCheckoutInput) 
 	if err != nil {
 		return CheckoutOutput{}, err
 	}
-	if attempt.Protocol != 1 || account.Mode != "test" {
+	if attempt.Protocol != 1 || account.Mode != string(uc.plan.Mode.Effective()) {
 		return CheckoutOutput{}, ErrCheckoutReview
 	}
 	if attempt.State == "review" {
@@ -173,7 +173,7 @@ func (uc *StartCheckout) Execute(ctx context.Context, input StartCheckoutInput) 
 	if session.URL == "" || !session.ExpiresAt.After(uc.clock.Now().Add(30*time.Second)) {
 		return CheckoutOutput{}, ErrCheckoutReview
 	}
-	return CheckoutOutput{AttemptID: attempt.ID, Intent: attempt.Intent, URL: session.URL, ExpiresAt: session.ExpiresAt.UTC()}, nil
+	return CheckoutOutput{AttemptID: attempt.ID, Intent: attempt.Intent, URL: session.URL, ExpiresAt: session.ExpiresAt.UTC(), LiveMode: uc.plan.Mode.Live()}, nil
 }
 
 func checkoutOwner(ctx context.Context, tx CheckoutTx, scope BillingScope) (CheckoutShop, error) {

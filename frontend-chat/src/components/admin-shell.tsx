@@ -84,7 +84,7 @@ export function AdminShell({
         </main>
         <footer className={styles.footer}>
           <span>{shop.name}</span>
-          <span>Barber-chat</span>
+          <span>Na Régua</span>
         </footer>
       </div>
       <BottomNavigation

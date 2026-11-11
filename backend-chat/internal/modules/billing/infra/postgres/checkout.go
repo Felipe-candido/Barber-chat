@@ -14,14 +14,22 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type CheckoutStore struct{ queries *db.Queries }
+type CheckoutStore struct {
+	queries *db.Queries
+	mode    domain.BillingMode
+}
 
 var _ application.CheckoutStore = (*CheckoutStore)(nil)
 
-func NewCheckoutStore(q *db.Queries) *CheckoutStore { return &CheckoutStore{queries: q} }
+func NewCheckoutStore(q *db.Queries) *CheckoutStore {
+	return NewCheckoutStoreForMode(q, domain.BillingTest)
+}
+func NewCheckoutStoreForMode(q *db.Queries, mode domain.BillingMode) *CheckoutStore {
+	return &CheckoutStore{queries: q, mode: mode.Effective()}
+}
 
 func (s *CheckoutStore) FindPortalAccount(ctx context.Context, shopID uuid.UUID) (application.CheckoutAccount, bool, error) {
-	row, err := s.queries.FindBillingPortalAccount(ctx, shopID)
+	row, err := s.queries.FindBillingPortalAccount(ctx, db.FindBillingPortalAccountParams{ShopID: shopID, StripeMode: string(s.mode)})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return application.CheckoutAccount{}, false, nil
 	}
@@ -60,7 +68,7 @@ func (s *CheckoutStore) ReadCheckoutOfferState(ctx context.Context, shopID uuid.
 }
 
 func (s *CheckoutStore) ReserveAccount(ctx context.Context, shopID uuid.UUID) (application.CheckoutAccount, error) {
-	if err := s.queries.EnsureCheckoutAccount(ctx, shopID); err != nil {
+	if err := s.queries.EnsureCheckoutAccount(ctx, db.EnsureCheckoutAccountParams{ShopID: shopID, StripeMode: string(s.mode)}); err != nil {
 		return application.CheckoutAccount{}, err
 	}
 	row, err := s.queries.LockCheckoutAccount(ctx, shopID)
@@ -101,14 +109,14 @@ func (s *CheckoutStore) InsertCheckout(ctx context.Context, a application.Checko
 }
 
 func (s *CheckoutStore) LinkCheckoutCustomer(ctx context.Context, shopID uuid.UUID, customerID string) (bool, error) {
-	count, err := s.queries.LinkBillingCheckoutCustomer(ctx, db.LinkBillingCheckoutCustomerParams{ShopID: shopID, CustomerID: checkoutText(customerID)})
+	count, err := s.queries.LinkBillingCheckoutCustomer(ctx, db.LinkBillingCheckoutCustomerParams{ShopID: shopID, CustomerID: checkoutText(customerID), StripeMode: string(s.mode)})
 	return count == 1, err
 }
 
 func (s *CheckoutStore) RecordCheckoutSession(ctx context.Context, a application.CheckoutAttempt, session application.CheckoutSession, state string) (bool, error) {
 	count, err := s.queries.RecordBillingCheckoutSession(ctx, db.RecordBillingCheckoutSessionParams{AttemptID: a.ID, ShopID: a.ShopID,
 		CustomerID: checkoutText(session.CustomerID), SessionID: checkoutText(session.ID), CheckoutUrl: checkoutText(session.URL),
-		ExpiresAt: pgtype.Timestamptz{Time: session.ExpiresAt, Valid: true}, NextState: state})
+		ExpiresAt: pgtype.Timestamptz{Time: session.ExpiresAt, Valid: true}, NextState: state, StripeMode: string(s.mode)})
 	return count == 1, err
 }
 

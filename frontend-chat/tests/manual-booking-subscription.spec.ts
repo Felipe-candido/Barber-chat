@@ -47,6 +47,9 @@ function commercial(paid: boolean, status = paid ? "active" : "none") {
 }
 const dialog = (page: Page) => page.getByRole("dialog", { name: "Novo agendamento", exact: true });
 async function setup(page: Page, role: "owner" | "barber" = "owner") {
+  await page.context().route("https://checkout.stripe.com/**", (route) =>
+    route.fulfill({ contentType: "text/html", body: "<title>Pagamento da assinatura</title>Pagamento Stripe simulado" }),
+  );
   const session = await installSupabaseSession(page);
   await mockAdminAccess(page);
   await page.route(base + "/access", (route) =>
@@ -177,15 +180,20 @@ test("owner pays from the same booking draft and explicitly reviews before creat
   await expect(dialog(page)).toContainText("Seus dados foram mantidos");
   await dialog(page).getByRole("button", { name: "Ver plano e assinar" }).click();
   await expect(dialog(page)).toContainText("R$ 39,90");
+  await expect(dialog(page)).not.toContainText("Modo de teste");
   expect(state.checkoutWrites).toEqual([]);
+  const payment = page.waitForEvent("popup");
   await dialog(page)
-    .getByRole("button", { name: "Preparar Checkout" })
+    .getByRole("button", { name: "Prosseguir para pagamento" })
     .evaluate((button) => {
       (button as HTMLButtonElement).click();
       (button as HTMLButtonElement).click();
     });
-  const link = dialog(page).getByRole("link", { name: "Continuar na Stripe" });
-  await expect(link).toHaveAttribute("target", "_blank");
+  const paymentPage = await payment;
+  await expect(paymentPage).toHaveURL("https://checkout.stripe.com/c/pay/cs_test_existing");
+  expect(await paymentPage.evaluate(() => window.opener === null)).toBe(true);
+  await expect(dialog(page).getByRole("link", { name: "Continuar na Stripe" })).toHaveCount(0);
+  await expect(dialog(page).getByRole("button", { name: "Prosseguir para pagamento" })).toHaveCount(0);
   expect(state.checkoutWrites).toEqual([{ intent: "manual_booking", offer_id: offer.offer_id }]);
   state.paid = true;
   await dialog(page).getByRole("button", { name: "Conferir assinatura", exact: true }).click();
@@ -331,14 +339,18 @@ test("lost Checkout response preserves the booking and retry stays explicit", as
   await fillBooking(page);
   await submit(page);
   await dialog(page).getByRole("button", { name: "Ver plano e assinar" }).click();
-  await dialog(page).getByRole("button", { name: "Preparar Checkout" }).click();
+  const firstPayment = page.waitForEvent("popup");
+  await dialog(page).getByRole("button", { name: "Prosseguir para pagamento" }).click();
   await expect(dialog(page)).toContainText("A tentativa pode ter sido registrada");
+  const failedPayment = await firstPayment;
+  await expect.poll(() => failedPayment.isClosed()).toBe(true);
   await dialog(page).getByRole("button", { name: "Consultar condições novamente" }).click();
   await expect(dialog(page)).toContainText("R$ 39,90");
   expect(writes).toBe(1);
   expect(state.bookings).toHaveLength(1);
-  await dialog(page).getByRole("button", { name: "Preparar Checkout" }).click();
-  await expect(dialog(page).getByRole("link", { name: "Continuar na Stripe" })).toBeVisible();
+  const secondPayment = page.waitForEvent("popup");
+  await dialog(page).getByRole("button", { name: "Prosseguir para pagamento" }).click();
+  await expect(await secondPayment).toHaveURL("https://checkout.stripe.com/c/pay/cs_test_existing");
   expect(writes).toBe(2);
   await page.keyboard.press("Escape");
   await expect(dialog(page)).toContainText("Descartar os dados deste agendamento?");
@@ -352,13 +364,13 @@ test("manual subscription recovery fits a narrow viewport and enlarged text", as
   await fillBooking(page);
   await submit(page);
   await dialog(page).getByRole("button", { name: "Ver plano e assinar" }).click();
-  await expect(dialog(page).getByRole("button", { name: "Preparar Checkout" })).toBeVisible();
+  await expect(dialog(page).getByRole("button", { name: "Prosseguir para pagamento" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({
     path: "test-results/manual-booking-subscription-390.png",
     fullPage: true,
   });
-  await page.addStyleTag({ content: "html {font-size:200% !important;}" });
+  await page.evaluate(() => document.documentElement.style.setProperty("font-size", "200%", "important"));
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const layout = await dialog(page).evaluate((element) => ({
     width: element.clientWidth,

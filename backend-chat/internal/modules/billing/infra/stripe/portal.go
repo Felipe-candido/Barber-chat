@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Felipe-candido/Barber-chat/internal/modules/billing/application"
+	"github.com/Felipe-candido/Barber-chat/internal/modules/billing/domain"
 	"github.com/google/uuid"
 )
 
@@ -40,9 +41,9 @@ type portalConfiguration struct {
 func portalBool(value *bool, want bool) bool { return value != nil && *value == want }
 func portalNull(value json.RawMessage) bool  { return len(value) == 0 || string(value) == "null" }
 
-func (p portalConfiguration) valid(id string) bool {
+func (p portalConfiguration) valid(id string, mode domain.BillingMode) bool {
 	return p.ID == id && validID(id, "bpc_") && p.Object == "billing_portal.configuration" &&
-		portalBool(p.Active, true) && portalBool(p.LiveMode, false) && portalNull(p.Application) &&
+		portalBool(p.Active, true) && portalBool(p.LiveMode, mode.Live()) && portalNull(p.Application) &&
 		p.Metadata["barber_portal_protocol"] == "1" && portalBool(p.LoginPage.Enabled, false) &&
 		portalBool(p.Features.CustomerUpdate.Enabled, false) && portalBool(p.Features.SubscriptionUpdate.Enabled, false) &&
 		portalBool(p.Features.InvoiceHistory.Enabled, true) && portalBool(p.Features.PaymentMethodUpdate.Enabled, true) &&
@@ -53,9 +54,15 @@ func (p portalConfiguration) valid(id string) bool {
 // ProvisionTestPortalConfiguration creates a dedicated, repeatable TEST policy.
 // It does not change existing Customers, subscriptions or the account default.
 func (c *Client) ProvisionTestPortalConfiguration(ctx context.Context) (string, error) {
+	if c.mode.Live() {
+		return "", ErrProviderResponse
+	}
+	return c.ProvisionPortalConfiguration(ctx)
+}
+func (c *Client) ProvisionPortalConfiguration(ctx context.Context) (string, error) {
 	var configuration portalConfiguration
-	err := c.request(ctx, "POST", "/billing_portal/configurations", "barber:test:portal-policy:v1:reasons-v2", url.Values{
-		"name":                                                           {"BarberChat - gerenciamento de assinatura TEST v1"},
+	err := c.request(ctx, "POST", "/billing_portal/configurations", "barber:"+string(c.mode)+":portal-policy:v1:reasons-v2", url.Values{
+		"name":                                                           {"BarberChat - gerenciamento de assinatura " + string(c.mode) + " v1"},
 		"metadata[barber_portal_protocol]":                               {"1"},
 		"login_page[enabled]":                                            {"false"},
 		"features[customer_update][enabled]":                             {"false"},
@@ -72,7 +79,7 @@ func (c *Client) ProvisionTestPortalConfiguration(ctx context.Context) (string, 
 	if err != nil {
 		return "", err
 	}
-	if !configuration.valid(configuration.ID) {
+	if !configuration.valid(configuration.ID, c.mode) {
 		return "", ErrProviderResponse
 	}
 	return configuration.ID, nil
@@ -86,7 +93,7 @@ func (c *Client) CheckPortalConfiguration(ctx context.Context, id string) error 
 	if err := c.request(ctx, "GET", "/billing_portal/configurations/"+id, "", nil, &configuration); err != nil {
 		return err
 	}
-	if !configuration.valid(id) {
+	if !configuration.valid(id, c.mode) {
 		return ErrProviderResponse
 	}
 	return nil
@@ -97,7 +104,7 @@ func (c *Client) CreatePortalSession(ctx context.Context, input application.Port
 		return application.PortalSession{}, ErrProviderResponse
 	}
 	back, err := url.Parse(input.ReturnURL)
-	if err != nil || back.Hostname() == "" || back.User != nil || (back.Scheme != "http" && back.Scheme != "https") {
+	if err != nil || back.Hostname() == "" || back.User != nil || (back.Scheme != "http" && back.Scheme != "https") || (c.mode.Live() && back.Scheme != "https") {
 		return application.PortalSession{}, ErrProviderResponse
 	}
 	if err := c.CheckPortalConfiguration(ctx, input.ConfigurationID); err != nil {
@@ -113,7 +120,7 @@ func (c *Client) CreatePortalSession(ctx context.Context, input application.Port
 	if err := c.request(ctx, "GET", "/customers/"+input.CustomerID, "", nil, &customer); err != nil {
 		return application.PortalSession{}, err
 	}
-	if customer.ID != input.CustomerID || customer.Object != "customer" || !portalBool(customer.LiveMode, false) || customer.Deleted || customer.Metadata["shop_id"] != input.ShopID.String() {
+	if customer.ID != input.CustomerID || customer.Object != "customer" || !portalBool(customer.LiveMode, c.mode.Live()) || customer.Deleted || customer.Metadata["shop_id"] != input.ShopID.String() {
 		return application.PortalSession{}, ErrProviderResponse
 	}
 	var session struct {
@@ -130,13 +137,13 @@ func (c *Client) CreatePortalSession(ctx context.Context, input application.Port
 	}
 	// Each explicit click creates a fresh short-lived session. Never retry POST
 	// automatically or reuse a shop-wide key that might return an expired URL.
-	err = c.request(ctx, "POST", "/billing_portal/sessions", "barber:test:portal:"+uuid.NewString(), url.Values{
+	err = c.request(ctx, "POST", "/billing_portal/sessions", "barber:"+string(c.mode)+":portal:"+uuid.NewString(), url.Values{
 		"customer": {input.CustomerID}, "configuration": {input.ConfigurationID}, "return_url": {input.ReturnURL}, "locale": {"pt-BR"},
 	}, &session)
 	if err != nil {
 		return application.PortalSession{}, err
 	}
-	if !validID(session.ID, "bps_") || session.Object != "billing_portal.session" || !portalBool(session.LiveMode, false) ||
+	if !validID(session.ID, "bps_") || session.Object != "billing_portal.session" || !portalBool(session.LiveMode, c.mode.Live()) ||
 		session.Customer != input.CustomerID || session.Configuration != input.ConfigurationID || session.ReturnURL != input.ReturnURL ||
 		!portalNull(session.Flow) || !portalNull(session.OnBehalfOf) || !ValidPortalURL(session.URL) || session.Created <= 0 {
 		return application.PortalSession{}, ErrProviderResponse

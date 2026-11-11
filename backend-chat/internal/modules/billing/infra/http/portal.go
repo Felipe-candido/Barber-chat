@@ -74,7 +74,7 @@ func (h *PortalHandler) Open(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, application.ErrPortalNotAvailable):
 			response.Error(w, 409, "portal_not_available", "a reconciled subscription is required")
 		case errors.Is(err, application.ErrPortalNotConfigured):
-			response.Error(w, 503, "portal_not_configured", "test customer portal is not configured")
+			response.Error(w, 503, "portal_not_configured", "customer portal is not configured")
 		default:
 			fields := []any{"request_id", chimiddleware.GetReqID(r.Context())}
 			var failure *application.ProviderFailure
@@ -91,5 +91,5 @@ func (h *PortalHandler) Open(w http.ResponseWriter, r *http.Request) {
 		URL       string    `json:"url"`
 		OpenUntil time.Time `json:"open_until"`
 		LiveMode  bool      `json:"livemode"`
-	}{result.ShopID, result.URL, result.OpenUntil, false})
+	}{result.ShopID, result.URL, result.OpenUntil, result.LiveMode})
 }

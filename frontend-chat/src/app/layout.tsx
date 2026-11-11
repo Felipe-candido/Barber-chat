@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { connection } from "next/server";
 import "@fontsource-variable/dm-sans";
 import "@fontsource-variable/fraunces";
 import "./globals.css";
@@ -7,8 +8,8 @@ import { AdminAccessProvider } from "@/components/admin-access-provider";
 
 export const metadata: Metadata = {
   title: {
-    default: "Barber-chat · Agenda e gestão de barbearias",
-    template: "%s · Barber-chat",
+    default: "Na Régua · Agenda e gestão de barbearias",
+    template: "%s · Na Régua",
   },
   description: "Agendamento online e gestão da rotina da sua barbearia.",
   robots: { index: false, follow: false },
@@ -20,7 +21,9 @@ export const viewport: Viewport = {
     { media: "(prefers-color-scheme: dark)", color: "#121415" },
   ],
 };
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  // Nonces must belong to this request, never to cached/prerendered HTML.
+  await connection();
   return (
     <html lang="pt-BR">
       <body>

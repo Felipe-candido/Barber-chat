@@ -25,6 +25,19 @@ const checkout = () => ({
   expires_at: new Date(Date.now() + 3_600_000).toISOString(),
   livemode: false,
 });
+
+test("real billing responses retain their environment without accepting an unknown mode", () => {
+  expect(parseSubscriptionOffer({ ...offer, livemode: true }, testShop.shop_id).livemode).toBe(
+    true,
+  );
+  expect(
+    parseSubscriptionCheckout({
+      ...checkout(),
+      livemode: true,
+      url: "https://checkout.stripe.com/c/pay/cs_live_example",
+    }).livemode,
+  ).toBe(true);
+});
 function commercial(paid = false) {
   return {
     shop_id: testShop.shop_id,
@@ -83,7 +96,7 @@ test("price and hosted URL parsers reject incompatible, expired and cross-tenant
     null,
     {},
     { ...offer, shop_id: otherShop.shop_id },
-    { ...offer, livemode: true },
+    { ...offer, livemode: "live" },
     { ...offer, currency: "USD" },
     { ...offer, interval: "year" },
     { ...offer, interval_count: 2 },
@@ -96,7 +109,7 @@ test("price and hosted URL parsers reject incompatible, expired and cross-tenant
   expect(parseSubscriptionCheckout(checkout()).url).toContain("https://checkout.stripe.com/c/");
   for (const invalid of [
     null,
-    { ...checkout(), livemode: true },
+    { ...checkout(), livemode: "live" },
     { ...checkout(), expires_at: new Date().toISOString() },
     { ...checkout(), attempt_id: "00000000-0000-0000-0000-000000000000" },
     ...[
@@ -298,7 +311,9 @@ test("Checkout review fits mobile, desktop and enlarged text with keyboard acces
     await page.screenshot({ path: `test-results/subscription-${width}.png`, fullPage: true });
   }
   await page.setViewportSize({ width: 390, height: 900 });
-  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page.evaluate(() =>
+    document.documentElement.style.setProperty("font-size", "200%", "important"),
+  );
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.keyboard.press("Escape");
   await expect(dialog(page)).toHaveCount(0);

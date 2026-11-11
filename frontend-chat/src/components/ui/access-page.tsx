@@ -28,7 +28,7 @@ export function AccessPage({
         </div>
         {children}
       </section>
-      <footer className={styles.footer}>Barber-chat · Agendamento e gestão de barbearias</footer>
+      <footer className={styles.footer}>Na Régua · Agendamento e gestão de barbearias</footer>
     </main>
   );
 }

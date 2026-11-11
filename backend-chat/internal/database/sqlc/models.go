@@ -100,6 +100,11 @@ type BillingCheckoutAttempt struct {
 	CheckoutUrl     pgtype.Text        `json:"checkout_url"`
 }
 
+type BillingEnvironment struct {
+	ID   bool   `json:"id"`
+	Mode string `json:"mode"`
+}
+
 type BillingPaidInvoice struct {
 	StripeInvoiceID      string             `json:"stripe_invoice_id"`
 	ShopID               uuid.UUID          `json:"shop_id"`

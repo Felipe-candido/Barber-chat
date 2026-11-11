@@ -87,7 +87,7 @@ func (h *Handler) Register(router chi.Router, publicGates ...func(http.Handler) 
 func (h *Handler) guard(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Referrer-Policy", "no-referrer")
-		if !h.limiter.allow(r.RemoteAddr, r.Method == http.MethodPost) {
+		if !h.limiter.allow(access.ClientAddress(r), r.Method == http.MethodPost) {
 			w.Header().Set("Retry-After", "60")
 			response.Error(w, 429, "rate_limited", "too many booking requests")
 			return

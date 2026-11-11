@@ -25,6 +25,7 @@ export default defineConfig({
       NEXT_PUBLIC_API_BASE_URL: "http://127.0.0.1:8080",
       NEXT_PUBLIC_SUPABASE_URL: "https://test-project.supabase.co",
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_test_key",
+      NEXT_PUBLIC_SALES_WHATSAPP: "5511999999999",
     },
     // Allow production compilation on slower local machines; test assertions keep their limits.
     timeout: 600000,

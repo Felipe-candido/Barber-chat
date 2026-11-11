@@ -19,6 +19,7 @@ var (
 // VerifiedWebhook contains only a signed, validated envelope and resource ID.
 // Raw bodies/customer contact/payment details are not persisted by this flow.
 type VerifiedWebhook struct {
+	LiveMode                               bool
 	ID, Type, APIVersion, Kind, ResourceID string
 	CreatedAt                              time.Time
 }

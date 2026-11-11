@@ -15,7 +15,7 @@ import (
 const findBillingPortalAccount = `-- name: FindBillingPortalAccount :one
 SELECT a.shop_id, a.stripe_customer_id, a.stripe_mode, a.created_at
 FROM public.billing_accounts a
-WHERE a.shop_id = $1 AND a.stripe_mode = 'test' AND a.stripe_customer_id IS NOT NULL
+WHERE a.shop_id = $1 AND a.stripe_mode = $2 AND a.stripe_customer_id IS NOT NULL
   AND EXISTS (
     SELECT 1 FROM public.billing_subscriptions s
     JOIN public.billing_checkout_attempts c ON c.shop_id = s.shop_id AND c.id = s.checkout_attempt_id
@@ -24,6 +24,11 @@ WHERE a.shop_id = $1 AND a.stripe_mode = 'test' AND a.stripe_customer_id IS NOT 
       AND c.stripe_price_id = s.stripe_price_id
   )
 `
+
+type FindBillingPortalAccountParams struct {
+	ShopID     uuid.UUID `json:"shop_id"`
+	StripeMode string    `json:"stripe_mode"`
+}
 
 type FindBillingPortalAccountRow struct {
 	ShopID           uuid.UUID          `json:"shop_id"`
@@ -34,8 +39,8 @@ type FindBillingPortalAccountRow struct {
 
 // Past-due and canceled contracts still need card recovery and invoice history.
 // An abandoned Checkout/Customer alone does not expose a portal.
-func (q *Queries) FindBillingPortalAccount(ctx context.Context, shopID uuid.UUID) (FindBillingPortalAccountRow, error) {
-	row := q.db.QueryRow(ctx, findBillingPortalAccount, shopID)
+func (q *Queries) FindBillingPortalAccount(ctx context.Context, arg FindBillingPortalAccountParams) (FindBillingPortalAccountRow, error) {
+	row := q.db.QueryRow(ctx, findBillingPortalAccount, arg.ShopID, arg.StripeMode)
 	var i FindBillingPortalAccountRow
 	err := row.Scan(
 		&i.ShopID,

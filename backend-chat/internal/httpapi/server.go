@@ -10,6 +10,7 @@ import (
 	"time"
 
 	accessmiddleware "github.com/Felipe-candido/Barber-chat/internal/httpapi/middleware"
+	"github.com/Felipe-candido/Barber-chat/internal/httpapi/response"
 	billinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/billing/infra/http"
 	bookinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/booking/infra/http"
 	cataloghttp "github.com/Felipe-candido/Barber-chat/internal/modules/catalog/infra/http"
@@ -26,6 +27,8 @@ import (
 )
 
 type HandlerConfig struct {
+	AppEnvironment          string
+	TrustedProxyCIDRs       string
 	Contacts                *customershttp.ContactHandler
 	WhatsApp                *notificationshttp.ConnectionHandler
 	Notifications           *notificationshttp.MessageHandler
@@ -69,9 +72,18 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 		cfg.DBTimeout = 3 * time.Second
 	}
 	router := chi.NewRouter()
+	network, networkErr := accessmiddleware.NewClientNetworkPolicy(cfg.TrustedProxyCIDRs)
+	if networkErr != nil {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			response.Error(w, 503, "configuration_error", "invalid network configuration")
+		})
+	}
+	limits := accessmiddleware.NewAbuseLimits()
 	router.Use(accessmiddleware.RequestLog(cfg.Logger))
 	router.Use(middleware.Recoverer)
 	router.Use(accessmiddleware.CORS(cfg.FrontendOrigin))
+	router.Use(network.Middleware)
+	router.Use(accessmiddleware.SecurityHeaders(cfg.AppEnvironment == "production"))
 	router.Use(accessmiddleware.RequestTimeout(cfg.RequestTimeout))
 	if cfg.Contacts != nil {
 		base := "/api/v1/admin/shops/{slug}/contacts"
@@ -109,7 +121,7 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	router.With(authenticate).Get("/api/v1/admin/shops", identityhttp.ListShops(cfg.ListMyShops, cfg.DBTimeout, cfg.Logger))
 	if cfg.Registration != nil {
 		router.Options("/api/v1/onboarding/shops", accessmiddleware.Preflight(http.MethodPost))
-		router.With(accessmiddleware.RegistrationAuthentication(cfg.VerifyRegistration, cfg.Logger)).Post("/api/v1/onboarding/shops", cfg.Registration.Create)
+		router.With(limits.Guard("onboarding", 30, 0), accessmiddleware.RegistrationAuthentication(cfg.VerifyRegistration, cfg.Logger)).Post("/api/v1/onboarding/shops", cfg.Registration.Create)
 	}
 	publicGates := []func(http.Handler) http.Handler{}
 	if cfg.PublicShopGate != nil {
@@ -127,9 +139,9 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 		router.Options(status, accessmiddleware.Preflight(http.MethodGet))
 		router.With(authenticate, shopAccess).Get(status, cfg.Notifications.BookingStatus)
 		router.Options(status+"/confirmation", accessmiddleware.Preflight(http.MethodPost))
-		router.With(authenticate, shopAccess).Post(status+"/confirmation", cfg.Notifications.SendConfirmation)
+		router.With(authenticate, shopAccess, limits.Guard("messages", 120, 60)).Post(status+"/confirmation", cfg.Notifications.SendConfirmation)
 		router.Options(status+"/reminder", accessmiddleware.Preflight(http.MethodPost))
-		router.With(authenticate, shopAccess).Post(status+"/reminder", cfg.Notifications.SendReminder)
+		router.With(authenticate, shopAccess, limits.Guard("messages", 120, 60)).Post(status+"/reminder", cfg.Notifications.SendReminder)
 		public := "/api/v1/public/shops/{slug}/notification-options"
 		router.Options(public, accessmiddleware.Preflight(http.MethodGet))
 		router.With(publicGates...).Get(public, cfg.Notifications.PublicOptions)
@@ -139,9 +151,9 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 		router.Options(base+"/connection", accessmiddleware.Preflight(http.MethodGet))
 		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Get(base+"/connection", cfg.WhatsApp.Status)
 		router.Options(base+"/connect", accessmiddleware.Preflight(http.MethodPost))
-		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base+"/connect", cfg.WhatsApp.Connect)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly, limits.Guard("connection", 60, 30)).Post(base+"/connect", cfg.WhatsApp.Connect)
 		router.Options(base+"/disconnect", accessmiddleware.Preflight(http.MethodPost))
-		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base+"/disconnect", cfg.WhatsApp.Disconnect)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly, limits.Guard("connection", 60, 30)).Post(base+"/disconnect", cfg.WhatsApp.Disconnect)
 	}
 	if cfg.Reporting != nil {
 		base := "/api/v1/admin/shops/{slug}/reports/activity"
@@ -190,14 +202,14 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 	if cfg.Checkout != nil {
 		base := "/api/v1/admin/shops/{slug}/billing/checkout"
 		router.Options(base, accessmiddleware.Preflight(http.MethodPost))
-		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base, cfg.Checkout.Start)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly, limits.Guard("billing", 120, 60)).Post(base, cfg.Checkout.Start)
 		router.Options("/api/v1/admin/shops/{slug}/billing/offer", accessmiddleware.Preflight(http.MethodGet))
-		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Get("/api/v1/admin/shops/{slug}/billing/offer", cfg.Checkout.Offer)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly, limits.Guard("billing-offer", 240, 120)).Get("/api/v1/admin/shops/{slug}/billing/offer", cfg.Checkout.Offer)
 	}
 	if cfg.Portal != nil {
 		base := "/api/v1/admin/shops/{slug}/billing/portal"
 		router.Options(base, accessmiddleware.Preflight(http.MethodPost))
-		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base, cfg.Portal.Open)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly, limits.Guard("billing", 120, 60)).Post(base, cfg.Portal.Open)
 	}
 	if cfg.ShopPublication != nil {
 		base := "/api/v1/admin/shops/{slug}"
@@ -249,13 +261,13 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 		base := "/api/v1/admin/shops/{slug}/accounts"
 		router.Options(base, accessmiddleware.Preflight(http.MethodGet, http.MethodPost))
 		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Get(base, cfg.Accounts.List)
-		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base, cfg.Accounts.Invite)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly, limits.Guard("accounts", 120, 60)).Post(base, cfg.Accounts.Invite)
 		router.Options(base+"/{accountID}/link", accessmiddleware.Preflight(http.MethodPost))
 		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base+"/{accountID}/link", cfg.Accounts.Link)
 		router.Options(base+"/{accountID}/status", accessmiddleware.Preflight(http.MethodPost))
 		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base+"/{accountID}/status", cfg.Accounts.SetActive)
 		router.Options(base+"/{accountID}/replace", accessmiddleware.Preflight(http.MethodPost))
-		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Post(base+"/{accountID}/replace", cfg.Accounts.Replace)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly, limits.Guard("accounts", 120, 60)).Post(base+"/{accountID}/replace", cfg.Accounts.Replace)
 	}
 	if cfg.Professionals != nil {
 		router.Options("/api/v1/admin/shops/{slug}/professionals", accessmiddleware.Preflight(http.MethodGet, http.MethodPost))

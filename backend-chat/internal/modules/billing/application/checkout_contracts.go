@@ -47,6 +47,7 @@ type CheckoutPrice struct {
 // OfferID is a version checksum, NOT authorization or a browser-selected price.
 // HTTP exposes only the safe fields below, never the provider price identity.
 type CheckoutOffer struct {
+	LiveMode                  bool
 	ShopID                    uuid.UUID
 	PlanKey, PriceID, OfferID string
 	AmountCents               int64
@@ -61,7 +62,10 @@ type CheckoutOfferState struct {
 
 // Only server configuration selects the price and return origin. The price is
 // checked against Stripe before creating a Session: monthly BRL, no trial.
-type CheckoutPlan struct{ Key, PriceID, FrontendOrigin string }
+type CheckoutPlan struct {
+	Key, PriceID, FrontendOrigin string
+	Mode                         domain.BillingMode
+}
 
 type CheckoutShop struct {
 	ShopID      uuid.UUID
@@ -99,6 +103,7 @@ type CheckoutSession struct {
 }
 
 type CheckoutOutput struct {
+	LiveMode  bool
 	AttemptID uuid.UUID
 	Intent    domain.CheckoutIntent
 	URL       string

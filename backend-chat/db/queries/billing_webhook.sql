@@ -1,11 +1,11 @@
 -- name: InsertBillingReceipt :exec
 INSERT INTO public.billing_webhook_events
     (stripe_event_id,event_type,livemode,payload,state,processed_at,receipt_protocol,resource_kind,resource_id,event_created_at,api_version)
-VALUES ($1,$2,FALSE,$3::jsonb,$4,$5,1,$6,$7,$8,$9)
+VALUES ($1,$2,sqlc.arg(livemode),$3::jsonb,$4,$5,1,$6,$7,$8,$9)
 ON CONFLICT (stripe_event_id) DO NOTHING;
 
 -- name: LockBillingReceipt :one
-SELECT stripe_event_id,event_type,state,receipt_protocol,
+SELECT stripe_event_id,event_type,state,receipt_protocol,livemode,
     COALESCE(resource_kind,'')::text AS resource_kind,COALESCE(resource_id,'')::text AS resource_id,
     event_created_at,COALESCE(api_version,'')::text AS api_version
 FROM public.billing_webhook_events WHERE stripe_event_id=$1 FOR UPDATE;

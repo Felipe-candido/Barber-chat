@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/Felipe-candido/Barber-chat/internal/modules/billing/domain"
 	"github.com/google/uuid"
 )
 
@@ -26,13 +27,15 @@ type PortalSession struct {
 }
 
 type PortalOutput struct {
-	ShopID uuid.UUID
-	URL    string
+	LiveMode bool
+	ShopID   uuid.UUID
+	URL      string
 	// An application opening window, not Stripe's session expiry.
 	OpenUntil time.Time
 }
 
 type OpenPortal struct {
+	mode                            domain.BillingMode
 	transactions                    CheckoutTransactor
 	provider                        PortalProvider
 	clock                           Clock
@@ -40,14 +43,18 @@ type OpenPortal struct {
 }
 
 func NewOpenPortal(tx CheckoutTransactor, provider PortalProvider, clock Clock, configurationID, frontendOrigin string) *OpenPortal {
-	return &OpenPortal{tx, provider, clock, configurationID, frontendOrigin}
+	return NewOpenPortalForMode(tx, provider, clock, configurationID, frontendOrigin, domain.BillingTest)
+}
+
+func NewOpenPortalForMode(tx CheckoutTransactor, provider PortalProvider, clock Clock, configurationID, frontendOrigin string, mode domain.BillingMode) *OpenPortal {
+	return &OpenPortal{mode: mode.Effective(), transactions: tx, provider: provider, clock: clock, configurationID: configurationID, frontendOrigin: frontendOrigin}
 }
 
 func (uc *OpenPortal) Execute(ctx context.Context, scope BillingScope) (PortalOutput, error) {
 	if scope.ActorID == uuid.Nil || scope.ShopID == uuid.Nil {
 		return PortalOutput{}, ErrBillingAccessDenied
 	}
-	if uc.provider == nil || uc.configurationID == "" || uc.frontendOrigin == "" {
+	if uc.provider == nil || !uc.mode.Valid() || uc.configurationID == "" || uc.frontendOrigin == "" {
 		return PortalOutput{}, ErrPortalNotConfigured
 	}
 	var target PortalRequest
@@ -60,7 +67,7 @@ func (uc *OpenPortal) Execute(ctx context.Context, scope BillingScope) (PortalOu
 		if err != nil {
 			return err
 		}
-		if !found || account.ShopID != shop.ShopID || account.Mode != "test" || account.CustomerID == "" {
+		if !found || account.ShopID != shop.ShopID || account.Mode != string(uc.mode) || account.CustomerID == "" {
 			return ErrPortalNotAvailable
 		}
 		target = PortalRequest{ShopID: shop.ShopID, CustomerID: account.CustomerID, ConfigurationID: uc.configurationID,
@@ -90,7 +97,7 @@ func (uc *OpenPortal) Execute(ctx context.Context, scope BillingScope) (PortalOu
 		if err != nil {
 			return err
 		}
-		if !found || account.ShopID != target.ShopID || account.Mode != "test" || account.CustomerID != target.CustomerID ||
+		if !found || account.ShopID != target.ShopID || account.Mode != string(uc.mode) || account.CustomerID != target.CustomerID ||
 			target.ReturnURL != uc.frontendOrigin+"/admin/"+url.PathEscape(shop.Slug)+"/configuracoes?portal=returned#publication" {
 			return ErrPortalNotAvailable
 		}
@@ -99,5 +106,5 @@ func (uc *OpenPortal) Execute(ctx context.Context, scope BillingScope) (PortalOu
 	if err != nil {
 		return PortalOutput{}, err
 	}
-	return PortalOutput{ShopID: scope.ShopID, URL: session.URL, OpenUntil: openUntil}, nil
+	return PortalOutput{ShopID: scope.ShopID, URL: session.URL, OpenUntil: openUntil, LiveMode: uc.mode.Live()}, nil
 }
