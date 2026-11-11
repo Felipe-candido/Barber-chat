@@ -14,6 +14,7 @@ import (
 	db "github.com/Felipe-candido/Barber-chat/internal/database/sqlc"
 	"github.com/Felipe-candido/Barber-chat/internal/httpapi"
 	billingapp "github.com/Felipe-candido/Barber-chat/internal/modules/billing/application"
+	billingdomain "github.com/Felipe-candido/Barber-chat/internal/modules/billing/domain"
 	billinghttp "github.com/Felipe-candido/Barber-chat/internal/modules/billing/infra/http"
 	billingpostgres "github.com/Felipe-candido/Barber-chat/internal/modules/billing/infra/postgres"
 	billingstripe "github.com/Felipe-candido/Barber-chat/internal/modules/billing/infra/stripe"
@@ -76,6 +77,9 @@ func run(
 	cfg config.Config,
 	logger *slog.Logger,
 ) error {
+	if cfg.AppEnvironment == "production" && cfg.TrustedProxyCIDRs == "" {
+		return fmt.Errorf("production requires TRUSTED_PROXY_CIDRS for the HTTPS reverse proxy")
+	}
 	// Construct one shared verifier. Invalid Auth configuration prevents startup.
 	verifier, err := supabase.NewVerifier(cfg.SupabaseURL, nil)
 	if err != nil {
@@ -150,9 +154,12 @@ func run(
 	var portalProvider billingapp.PortalProvider
 	var stripeClient *billingstripe.Client
 	if cfg.StripeSecretKey != "" {
-		stripeClient, err = billingstripe.NewClient(cfg.StripeSecretKey, nil)
+		if err := billingpostgres.EnsureBillingEnvironment(ctx, pool, billingdomain.BillingMode(cfg.StripeMode)); err != nil {
+			return err
+		}
+		stripeClient, err = billingstripe.NewClientForMode(cfg.StripeSecretKey, billingdomain.BillingMode(cfg.StripeMode), nil)
 		if err != nil {
-			return fmt.Errorf("configure Stripe test checkout: %w", err)
+			return fmt.Errorf("configure Stripe checkout: %w", err)
 		}
 		// The browser flow must have its confirmation channel configured too.
 		// Checkout alone cannot grant access after a payment.
@@ -164,18 +171,18 @@ func run(
 	var webhookVerifier billingapp.WebhookVerifier
 	var receiveWebhook *billingapp.ReceiveWebhook
 	if cfg.StripeWebhookSecret != "" {
-		webhookVerifier, err = billingstripe.NewWebhookVerifier(cfg.StripeWebhookSecret, billingapp.ClockFunc(time.Now))
+		webhookVerifier, err = billingstripe.NewWebhookVerifierForMode(cfg.StripeWebhookSecret, billingapp.ClockFunc(time.Now), billingdomain.BillingMode(cfg.StripeMode))
 		if err != nil {
-			return fmt.Errorf("configure Stripe test webhook: %w", err)
+			return fmt.Errorf("configure Stripe webhook: %w", err)
 		}
-		receiveWebhook = billingapp.NewReceiveWebhook(billingpostgres.NewWebhookStore(pool), stripeClient)
+		receiveWebhook = billingapp.NewReceiveWebhook(billingpostgres.NewWebhookStoreForMode(pool, billingdomain.BillingMode(cfg.StripeMode)), stripeClient)
 	}
 	webhookHandler := billinghttp.NewWebhookHandler(webhookVerifier, receiveWebhook, cfg.OperationTimeout, logger)
 	checkoutTx := billingpostgres.NewCheckoutTransactor(pool, func(q *db.Queries) billingapp.CheckoutTx {
-		return billingapp.CheckoutTx{Access: identitypostgres.NewBillingOwnerGuard(q), Shops: shopspostgres.NewResolver(q), Store: billingpostgres.NewCheckoutStore(q)}
+		return billingapp.CheckoutTx{Access: identitypostgres.NewBillingOwnerGuard(q), Shops: shopspostgres.NewResolver(q), Store: billingpostgres.NewCheckoutStoreForMode(q, billingdomain.BillingMode(cfg.StripeMode))}
 	})
 	checkoutHandler := billinghttp.NewCheckoutHandler(billingapp.NewStartCheckout(checkoutTx, checkoutProvider, billingapp.ClockFunc(time.Now),
-		billingapp.CheckoutPlan{Key: "standard_monthly", PriceID: cfg.StripeMonthlyPriceID, FrontendOrigin: cfg.FrontendOrigin}), cfg.OperationTimeout, logger)
+		billingapp.CheckoutPlan{Key: "standard_monthly", PriceID: cfg.StripeMonthlyPriceID, FrontendOrigin: cfg.FrontendOrigin, Mode: billingdomain.BillingMode(cfg.StripeMode)}), cfg.OperationTimeout, logger)
 	var accountProvider identityapp.StaffAccountProvider
 	if cfg.SupabaseServiceRoleKey != "" {
 		accountProvider, err = supabase.NewAdminClient(cfg.SupabaseURL, cfg.SupabaseServiceRoleKey, cfg.FrontendOrigin, nil)
@@ -269,9 +276,11 @@ func run(
 	notificationHandler := notificationshttp.NewMessageHandler(settings, messages, shopspostgres.NewMessageShops(queries), cfg.NotificationDeliveryEnabled, cfg.OperationTimeout)
 	bookingHandler.WithBookingConfirmation(notificationsinfra.NewBookingConfirmation(messages))
 	handler := httpapi.NewHandler(httpapi.HandlerConfig{
-		Notifications: notificationHandler,
-		Contacts:      contactHandler,
-		WhatsApp:      connectionHandler, EvolutionWebhookEnabled: connectionProvider != nil,
+		AppEnvironment:    cfg.AppEnvironment,
+		TrustedProxyCIDRs: cfg.TrustedProxyCIDRs,
+		Notifications:     notificationHandler,
+		Contacts:          contactHandler,
+		WhatsApp:          connectionHandler, EvolutionWebhookEnabled: connectionProvider != nil,
 		CheckDB:              pool.Ping,
 		Catalog:              catalogHandler,
 		Professionals:        professionalHandler,
@@ -290,7 +299,7 @@ func run(
 		Sales:                salesHandler,
 		Reporting:            reportingHandler,
 		Checkout:             checkoutHandler,
-		Portal:               billinghttp.NewPortalHandler(billingapp.NewOpenPortal(checkoutTx, portalProvider, billingapp.ClockFunc(time.Now), cfg.StripePortalConfigurationID, cfg.FrontendOrigin), cfg.OperationTimeout, logger),
+		Portal:               billinghttp.NewPortalHandler(billingapp.NewOpenPortalForMode(checkoutTx, portalProvider, billingapp.ClockFunc(time.Now), cfg.StripePortalConfigurationID, cfg.FrontendOrigin, billingdomain.BillingMode(cfg.StripeMode)), cfg.OperationTimeout, logger),
 		StripeWebhook:        webhookHandler,
 		VerifyRegistration:   verifyRegistration,
 		PublicShopGate:       publicShopGate,

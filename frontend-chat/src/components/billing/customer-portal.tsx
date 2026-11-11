@@ -35,7 +35,13 @@ export function CustomerPortalControl({
         title="Gerenciar assinatura na Stripe"
       >
         <div className={styles.feedback}>
-          <Badge tone="warning">Modo de teste — não use cartão real</Badge>
+          {flow.session && (
+            <Badge tone={flow.session.livemode ? "info" : "warning"}>
+              {flow.session.livemode
+                ? "Gerenciamento de assinatura real"
+                : "Modo de teste — não use cartão real"}
+            </Badge>
+          )}
           <p>
             Consulte faturas, atualize o cartão ou solicite o cancelamento ao fim do período. O
             acesso já pago permanece até o prazo confirmado.

@@ -86,9 +86,15 @@ export function useSubscriptionCheckout(
         intent,
       );
       if (generation.current !== attempt) return;
+      if (result.livemode !== offer.livemode)
+        throw new ApiError(
+          "invalid_response",
+          "O ambiente da cobrança mudou. Consulte novamente as condições antes de continuar.",
+        );
       setCheckout(result);
       setUncertain(false);
       setMode("ready");
+      return result;
     } catch (failure) {
       if (generation.current !== attempt) return;
       const definite =

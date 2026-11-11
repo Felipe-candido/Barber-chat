@@ -1,4 +1,4 @@
-// reconcile-stripe-event replays an existing TEST event through the normal
+// reconcile-stripe-event replays an event from the configured environment through the normal
 // financial reconciliation, authenticating its origin by Stripe API retrieval.
 package main
 
@@ -12,6 +12,7 @@ import (
 	"github.com/Felipe-candido/Barber-chat/internal/config"
 	db "github.com/Felipe-candido/Barber-chat/internal/database/sqlc"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/billing/application"
+	"github.com/Felipe-candido/Barber-chat/internal/modules/billing/domain"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/billing/infra/postgres"
 	"github.com/Felipe-candido/Barber-chat/internal/modules/billing/infra/stripe"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -33,22 +34,25 @@ func run() error {
 	if err != nil {
 		return errors.New("configuration could not be validated; check the backend .env")
 	}
-	client, err := stripe.NewClient(cfg.StripeSecretKey, nil)
+	client, err := stripe.NewClientForMode(cfg.StripeSecretKey, domain.BillingMode(cfg.StripeMode), nil)
 	if err != nil {
-		return errors.New("a server-side Stripe TEST key is required")
+		return errors.New("a server-side Stripe key matching STRIPE_MODE is required")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
 	defer cancel()
 	event, err := client.ReadWebhookEvent(ctx, os.Args[1])
 	if err != nil {
-		return errors.New("event retrieval or TEST envelope validation failed; no reconciliation performed")
+		return errors.New("event retrieval or configured-mode envelope validation failed; no reconciliation performed")
 	}
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return errors.New("database connection could not be initialized")
 	}
 	defer pool.Close()
-	if err := application.NewReceiveWebhook(postgres.NewWebhookStore(pool), client).Execute(ctx, event); err != nil {
+	if err := postgres.EnsureBillingEnvironment(ctx, pool, domain.BillingMode(cfg.StripeMode)); err != nil {
+		return err
+	}
+	if err := application.NewReceiveWebhook(postgres.NewWebhookStoreForMode(pool, domain.BillingMode(cfg.StripeMode)), client).Execute(ctx, event); err != nil {
 		return errors.New("reconciliation not confirmed; the same event can be replayed after resolving dependencies")
 	}
 	var state string
@@ -57,7 +61,7 @@ func run() error {
 		return errors.New("event handled but receipt state could not be read; replaying the same event is safe")
 	}
 	if state == "ignored" {
-		fmt.Println("Stripe TEST event ignored: no eligible local billing association.")
+		fmt.Println("Stripe event ignored: no eligible local billing association.")
 		return nil
 	}
 	if state != "processed" || !shopID.Valid {
@@ -67,6 +71,6 @@ func run() error {
 	if err != nil {
 		return errors.New("event processed but current access could not be read; no new charge was made")
 	}
-	fmt.Printf("Stripe TEST event reconciled. operation_allowed=%t. No charge, publication or booking was created.\n", result.Entitlement.Allowed)
+	fmt.Printf("Stripe event reconciled. operation_allowed=%t. No charge, publication or booking was created.\n", result.Entitlement.Allowed)
 	return nil
 }

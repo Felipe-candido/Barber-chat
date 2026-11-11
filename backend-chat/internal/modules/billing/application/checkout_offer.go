@@ -14,7 +14,7 @@ import (
 // This binds confirmation to server-selected conditions without storing a quote
 // or accepting price/amount from the browser. POST always recomputes it.
 func (o CheckoutOffer) ConfirmationID() string {
-	data, _ := json.Marshal([]any{o.ShopID, o.PlanKey, o.PriceID, o.AmountCents, "BRL", "month", 1, false})
+	data, _ := json.Marshal([]any{o.ShopID, o.PlanKey, o.PriceID, o.AmountCents, "BRL", "month", 1, o.LiveMode})
 	digest := sha256.Sum256(data)
 	return hex.EncodeToString(digest[:])
 }
@@ -23,7 +23,7 @@ func (uc *StartCheckout) Offer(ctx context.Context, scope BillingScope) (Checkou
 	if scope.ActorID == uuid.Nil || scope.ShopID == uuid.Nil {
 		return CheckoutOffer{}, ErrBillingAccessDenied
 	}
-	if uc.provider == nil || uc.plan.Key == "" || uc.plan.PriceID == "" || uc.plan.FrontendOrigin == "" {
+	if uc.provider == nil || !uc.plan.Mode.Effective().Valid() || uc.plan.Key == "" || uc.plan.PriceID == "" || uc.plan.FrontendOrigin == "" {
 		return CheckoutOffer{}, ErrBillingNotConfigured
 	}
 	selected, err := uc.offerSelection(ctx, scope)
@@ -64,10 +64,10 @@ func (uc *StartCheckout) offerSelection(ctx context.Context, scope BillingScope)
 		if state.HasSubscription {
 			return ErrSubscriptionExists
 		}
-		if state.Account != nil && (state.Account.ShopID != shop.ShopID || state.Account.Mode != "test") {
+		if state.Account != nil && (state.Account.ShopID != shop.ShopID || state.Account.Mode != string(uc.plan.Mode.Effective())) {
 			return ErrCheckoutReview
 		}
-		result = CheckoutOffer{ShopID: shop.ShopID, PlanKey: uc.plan.Key, PriceID: uc.plan.PriceID}
+		result = CheckoutOffer{ShopID: shop.ShopID, PlanKey: uc.plan.Key, PriceID: uc.plan.PriceID, LiveMode: uc.plan.Mode.Live()}
 		if a := state.Attempt; a != nil {
 			if a.ShopID != shop.ShopID || a.Protocol != 1 || a.PriceID == "" || a.PlanKey == "" {
 				return ErrCheckoutReview

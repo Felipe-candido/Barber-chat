@@ -9,7 +9,7 @@ export type SubscriptionOffer = {
   currency: "BRL";
   interval: "month";
   interval_count: 1;
-  livemode: false;
+  livemode: boolean;
   recovering: boolean;
 };
 export type SubscriptionCheckout = {
@@ -17,7 +17,7 @@ export type SubscriptionCheckout = {
   intent: "publish" | "manual_booking";
   url: string;
   expires_at: string;
-  livemode: false;
+  livemode: boolean;
 };
 const hex = /^[a-f0-9]{64}$/;
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
@@ -45,7 +45,7 @@ export function parseSubscriptionOffer(value: unknown, shopID: string): Subscrip
     o.currency !== "BRL" ||
     o.interval !== "month" ||
     o.interval_count !== 1 ||
-    o.livemode !== false ||
+    typeof o.livemode !== "boolean" ||
     typeof o.recovering !== "boolean"
   )
     invalid();
@@ -57,7 +57,7 @@ export function parseSubscriptionOffer(value: unknown, shopID: string): Subscrip
     currency: "BRL",
     interval: "month",
     interval_count: 1,
-    livemode: false,
+    livemode: o.livemode,
     recovering: o.recovering,
   };
 }
@@ -68,7 +68,7 @@ export function parseSubscriptionCheckout(value: unknown): SubscriptionCheckout 
     !uuid.test(o.attempt_id) ||
     o.attempt_id === "00000000-0000-0000-0000-000000000000" ||
     !["publish", "manual_booking"].includes(String(o.intent)) ||
-    o.livemode !== false ||
+    typeof o.livemode !== "boolean" ||
     typeof o.url !== "string" ||
     o.url.length > 8192 ||
     typeof o.expires_at !== "string" ||
@@ -95,7 +95,7 @@ export function parseSubscriptionCheckout(value: unknown): SubscriptionCheckout 
     intent: o.intent as SubscriptionCheckout["intent"],
     url: url.href,
     expires_at: o.expires_at,
-    livemode: false,
+    livemode: o.livemode,
   };
 }
 export async function getSubscriptionOffer(

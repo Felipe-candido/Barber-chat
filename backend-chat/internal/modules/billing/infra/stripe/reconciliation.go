@@ -113,7 +113,7 @@ func (c *Client) readSubscription(ctx context.Context, id string) (subscriptionJ
 	if err := c.request(ctx, "GET", "/subscriptions/"+id, "", nil, &sub); err != nil {
 		return sub, err
 	}
-	if sub.ID != id || sub.Object != "subscription" || !validID(sub.Customer, "cus_") || sub.LiveMode == nil || *sub.LiveMode || sub.Status == "" {
+	if sub.ID != id || sub.Object != "subscription" || !validID(sub.Customer, "cus_") || sub.LiveMode == nil || *sub.LiveMode != c.mode.Live() || sub.Status == "" {
 		return sub, ErrProviderResponse
 	}
 	return sub, nil
@@ -127,7 +127,7 @@ func (c *Client) readInvoice(ctx context.Context, id string, loadPayments bool) 
 	if err := c.request(ctx, "GET", "/invoices/"+id, "", nil, &invoice); err != nil {
 		return invoice, err
 	}
-	if invoice.ID != id || invoice.Object != "invoice" || !validID(invoice.Customer, "cus_") || invoice.LiveMode == nil || *invoice.LiveMode {
+	if invoice.ID != id || invoice.Object != "invoice" || !validID(invoice.Customer, "cus_") || invoice.LiveMode == nil || *invoice.LiveMode != c.mode.Live() {
 		return invoice, ErrProviderResponse
 	}
 	if invoice.Status == "paid" && loadPayments {
@@ -140,6 +140,9 @@ func (c *Client) readInvoice(ctx context.Context, id string, loadPayments bool) 
 }
 
 func (c *Client) ResolveBillingReference(ctx context.Context, event application.VerifiedWebhook) (application.BillingReference, error) {
+	if event.LiveMode != c.mode.Live() {
+		return application.BillingReference{}, application.ErrInvalidWebhook
+	}
 	if event.Kind == "checkout" {
 		session, err := c.FindCheckoutSession(ctx, event.ResourceID)
 		if err != nil {
@@ -194,7 +197,7 @@ func (c *Client) subscriptionSession(ctx context.Context, target application.Rec
 	if list.Object != "list" || list.HasMore || len(list.Data) != 1 {
 		return application.CheckoutSession{}, ErrProviderResponse
 	}
-	return parseSession(list.Data[0])
+	return parseSession(list.Data[0], c.mode)
 }
 
 func (c *Client) ReadSubscriptionSnapshot(ctx context.Context, target application.ReconciliationTarget) (application.SubscriptionSnapshot, error) {
@@ -252,7 +255,7 @@ func (c *Client) ReadSubscriptionSnapshot(ctx context.Context, target applicatio
 		if invoice.Customer != sub.Customer || invoice.Parent.SubscriptionDetails.Subscription != sub.ID {
 			return application.SubscriptionSnapshot{}, ErrProviderResponse
 		}
-		result.Invoices = append(result.Invoices, confirmedInvoice(invoice, target.Attempt.PriceID))
+		result.Invoices = append(result.Invoices, confirmedInvoice(invoice, target.Attempt.PriceID, c.mode))
 	}
 	return result, nil
 }
@@ -276,7 +279,7 @@ func localStatus(sub subscriptionJSON) domain.SubscriptionStatus {
 	}
 }
 
-func confirmedInvoice(invoice invoiceJSON, priceID string) application.ConfirmedInvoice {
+func confirmedInvoice(invoice invoiceJSON, priceID string, mode domain.BillingMode) application.ConfirmedInvoice {
 	result := application.ConfirmedInvoice{ID: invoice.ID, PriceID: priceID}
 	if invoice.Status != "paid" || invoice.Currency != "brl" || invoice.CollectionMethod != "charge_automatically" ||
 		(invoice.BillingReason != "subscription_create" && invoice.BillingReason != "subscription_cycle") || invoice.AmountPaid <= 0 ||
@@ -294,7 +297,7 @@ func confirmedInvoice(invoice invoiceJSON, priceID string) application.Confirmed
 	var paid int64
 	for _, payment := range invoice.Payments.Data {
 		if payment.Status == "paid" && payment.AmountPaid > 0 && payment.AmountPaid <= invoice.AmountPaid-paid && payment.Currency == "brl" && payment.Invoice == invoice.ID &&
-			payment.LiveMode != nil && !*payment.LiveMode && payment.Payment.Type == "payment_intent" && validID(payment.Payment.PaymentIntent, "pi_") {
+			payment.LiveMode != nil && *payment.LiveMode == mode.Live() && payment.Payment.Type == "payment_intent" && validID(payment.Payment.PaymentIntent, "pi_") {
 			paid += payment.AmountPaid
 		}
 	}

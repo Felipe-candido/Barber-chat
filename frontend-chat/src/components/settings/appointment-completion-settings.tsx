@@ -7,7 +7,7 @@ import {
   type CompletionMode,
   type CompletionSettings,
 } from "@/lib/api/appointment-completion";
-import { errorMessage } from "@/lib/api/client";
+import { ApiError, errorMessage } from "@/lib/api/client";
 import { useUnsavedSettings } from "@/hooks/use-unsaved-settings";
 import { Alert, Button, SelectField } from "../ui";
 import styles from "./shop-settings.module.css";
@@ -49,7 +49,11 @@ export function AppointmentCompletionSettings({
       }
     } catch (cause) {
       if (!c.signal.aborted) {
-        setError(errorMessage(cause));
+        setError(
+          cause instanceof ApiError && (cause.code === "network_error" || cause.status === 404)
+            ? "Não foi possível carregar o modo de fechamento. Consulte novamente em instantes. Se o problema continuar, entre em contato com o suporte."
+            : errorMessage(cause),
+        );
         setSettings(null);
       }
     } finally {
@@ -109,6 +113,7 @@ export function AppointmentCompletionSettings({
           void save();
         }}
       >
+        {busy && !settings && <p role="status">Carregando o modo de fechamento…</p>}
         {error && <Alert tone="error">{error}</Alert>}
         {notice && (
           <div role="status">

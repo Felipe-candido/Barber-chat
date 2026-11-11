@@ -1,0 +1,20 @@
+{
+	email {$TLS_EMAIL}
+	admin off
+}
+
+{$API_DOMAIN} {
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+	# Only Evolution on the private Docker network may use this callback.
+	@privateCallback path /api/v1/webhooks/evolution /api/v1/webhooks/evolution/*
+	respond @privateCallback 404
+	# Health probes remain available inside Docker, not on the public domain.
+	@probes path /health /ready
+	respond @probes 404
+	reverse_proxy api:8080
+}

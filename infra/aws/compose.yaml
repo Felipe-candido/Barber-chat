@@ -1,0 +1,96 @@
+name: barberchat-production
+
+x-logging: &logging
+  driver: local
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    image: ${BACKEND_IMAGE:-barberchat/backend:aws-local}
+    build:
+      context: ../../backend-chat
+      target: app
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    stop_grace_period: 40s
+    environment:
+      APP_ENV: production
+      HTTP_ADDR: 0.0.0.0:8080
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?Set the exact HTTPS Netlify origin}
+      DEV_FRONTEND_ORIGIN: ""
+      TRUSTED_PROXY_CIDRS: ${CADDY_IPV4_ADDRESS:-172.30.80.2}/32
+      DATABASE_URL: ${DATABASE_URL:?Set the Supabase PostgreSQL connection}
+      SUPABASE_URL: ${SUPABASE_URL:?Set the Supabase project URL}
+      SUPABASE_PUBLISHABLE_KEY: ${SUPABASE_PUBLISHABLE_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      STRIPE_MODE: ${STRIPE_MODE:-test}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_MONTHLY_PRICE_ID: ${STRIPE_MONTHLY_PRICE_ID:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_PORTAL_CONFIGURATION_ID: ${STRIPE_PORTAL_CONFIGURATION_ID:-}
+      DB_TIMEOUT: ${DB_TIMEOUT:-5s}
+      OPERATION_TIMEOUT: ${OPERATION_TIMEOUT:-30s}
+      HTTP_TIMEOUT: ${HTTP_TIMEOUT:-40s}
+      SHUTDOWN_TIMEOUT: 30s
+      LOG_LEVEL: INFO
+    healthcheck:
+      test: [CMD, /app/healthcheck]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging: *logging
+    networks:
+      edge:
+        ipv4_address: ${API_IPV4_ADDRESS:-172.30.80.3}
+
+  caddy:
+    image: caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
+    restart: unless-stopped
+    security_opt: [no-new-privileges:true]
+    ports:
+      - "${PUBLIC_BIND_IP:-0.0.0.0}:${HTTP_PORT:-80}:80"
+      - "${PUBLIC_BIND_IP:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?Set the API domain pointing to the EC2 instance}
+      TLS_EMAIL: ${TLS_EMAIL:?Set the certificate contact email}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api: {condition: service_healthy}
+    logging: *logging
+    networks:
+      edge:
+        ipv4_address: ${CADDY_IPV4_ADDRESS:-172.30.80.2}
+
+  migrate:
+    profiles: [tools]
+    image: ${MIGRATION_IMAGE:-barberchat/migrations:aws-local}
+    build:
+      context: ../../backend-chat
+      target: migrate
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      GOOSE_DRIVER: postgres
+      GOOSE_DBSTRING: ${DATABASE_URL:?Set the Supabase PostgreSQL connection}
+    networks: [edge]
+    logging: *logging
+
+networks:
+  edge:
+    ipam:
+      config:
+        - subnet: ${PROXY_SUBNET:-172.30.80.0/29}
+
+volumes:
+  caddy_data:
+  caddy_config:

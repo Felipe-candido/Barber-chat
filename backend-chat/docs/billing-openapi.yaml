@@ -1,4 +1,4 @@
-# Contract fragment referenced by openapi.yaml. Billing is TEST only.
+# Contract fragment referenced by openapi.yaml. Billing mode is selected explicitly on the server.
 paths:
   portal:
     parameters:
@@ -8,7 +8,7 @@ paths:
         schema: {type: string}
     post:
       operationId: openCustomerPortal
-      summary: Owner-only TEST portal session for the unit's existing reconciled Customer
+      summary: Owner-only configured-mode portal session for the unit's existing reconciled Customer
       description: No payment coverage or publication is required for invoice history/card recovery. Server selects Customer, configuration and return URL; no subscription/publication changes are performed by this request. Return query is not financial evidence. Session URL is a bearer credential, must not be logged or stored, and is returned with no-store.
       security: [{bearerAuth: []}]
       requestBody:
@@ -18,7 +18,7 @@ paths:
             schema: {type: object, additionalProperties: false, maxProperties: 0}
       responses:
         '200':
-          description: Validated TEST portal URL; open_until is the application's four-minute opening window, not Stripe's session expiry
+          description: Validated configured-mode portal URL; open_until is the application's four-minute opening window, not Stripe's session expiry
           content:
             application/json:
               schema:
@@ -29,7 +29,7 @@ paths:
                   shop_id: {type: string, format: uuid}
                   url: {type: string, format: uri, maxLength: 8192}
                   open_until: {type: string, format: date-time}
-                  livemode: {type: boolean, const: false}
+                  livemode: {type: boolean, description: True only for explicitly configured live billing}
         '400': {description: Only one empty JSON object is accepted, maximum 1 KiB}
         '401': {description: Authentication required}
         '403': {description: Owner access required, including final check after provider I/O}
@@ -44,7 +44,7 @@ paths:
         schema: {type: string, minLength: 1, maxLength: 100}
     get:
       operationId: getTestSubscriptionOffer
-      summary: Owner reviews the server-selected monthly TEST subscription conditions
+      summary: Owner reviews the server-selected monthly subscription conditions
       description: >-
         Self-service shops only. Reads the fixed active BRL monthly Price from Stripe.
         If a recoverable pending attempt exists, uses its frozen Price and plan instead
@@ -70,7 +70,7 @@ paths:
                   currency: {type: string, const: BRL}
                   interval: {type: string, const: month}
                   interval_count: {type: integer, const: 1}
-                  livemode: {type: boolean, const: false}
+                  livemode: {type: boolean, description: True only for explicitly configured live billing}
                   recovering: {type: boolean}
         '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
         '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}
@@ -84,11 +84,11 @@ paths:
   webhook:
     post:
       operationId: receiveStripeTestWebhook
-      summary: Verify and reconcile a Stripe TEST snapshot event
+      summary: Verify and reconcile a Stripe snapshot event
       description: >-
         No Supabase Bearer. Requires Stripe-Signature over the raw body, fresh
         delivery timestamp within five minutes, configured webhook signing key,
-        livemode=false and snapshot envelope version 2026-09-30.endive or
+        livemode matching STRIPE_MODE and snapshot envelope version 2026-09-30.endive or
         2026-10-28.endive. Provider resource reads stay pinned to 2026-10-28.endive;
         snapshot financial fields are not trusted. Supports Checkout
         completed/expired; subscription created/updated/deleted/paused/resumed;
@@ -135,7 +135,7 @@ paths:
         schema: {type: string, minLength: 1, maxLength: 100}
     post:
       operationId: startTestSubscriptionCheckout
-      summary: Owner opens or recovers the shop's Stripe TEST Checkout
+      summary: Owner opens or recovers the shop's Stripe Checkout
       description: >-
         Self-service shops only. Server selects a fixed monthly BRL price and
         freezes the provider request before network I/O. Repeated requests reuse
@@ -174,7 +174,7 @@ paths:
                   intent: {type: string, enum: [publish, manual_booking]}
                   url: {type: string, format: uri, description: HTTPS checkout.stripe.com URL}
                   expires_at: {type: string, format: date-time}
-                  livemode: {type: boolean, const: false}
+                  livemode: {type: boolean, description: True only for explicitly configured live billing}
         '400': {description: Invalid JSON, null body, extra JSON or unknown fields}
         '401': {$ref: './openapi.yaml#/components/responses/Unauthorized'}
         '403': {$ref: './openapi.yaml#/components/responses/Forbidden'}

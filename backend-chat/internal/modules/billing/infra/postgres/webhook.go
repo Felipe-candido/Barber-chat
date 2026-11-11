@@ -15,11 +15,19 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type WebhookStore struct{ pool *pgxpool.Pool }
+type WebhookStore struct {
+	pool *pgxpool.Pool
+	mode domain.BillingMode
+}
 
 var _ application.WebhookStore = (*WebhookStore)(nil)
 
-func NewWebhookStore(pool *pgxpool.Pool) *WebhookStore { return &WebhookStore{pool: pool} }
+func NewWebhookStore(pool *pgxpool.Pool) *WebhookStore {
+	return NewWebhookStoreForMode(pool, domain.BillingTest)
+}
+func NewWebhookStoreForMode(pool *pgxpool.Pool, mode domain.BillingMode) *WebhookStore {
+	return &WebhookStore{pool: pool, mode: mode.Effective()}
+}
 
 // Every callback is local SQL only; provider requests live in application.
 func (s *WebhookStore) within(ctx context.Context, fn func(*db.Queries) error) error {
@@ -39,6 +47,9 @@ func (s *WebhookStore) within(ctx context.Context, fn func(*db.Queries) error) e
 }
 
 func (s *WebhookStore) AcceptWebhook(ctx context.Context, event application.VerifiedWebhook) (bool, error) {
+	if event.LiveMode != s.mode.Live() {
+		return false, application.ErrInvalidWebhook
+	}
 	terminal := false
 	err := s.within(ctx, func(q *db.Queries) error {
 		// Retain references, not the raw Stripe body containing billing PII.
@@ -52,7 +63,7 @@ func (s *WebhookStore) AcceptWebhook(ctx context.Context, event application.Veri
 			state = "ignored"
 			processed = timestamp(time.Now())
 		}
-		err := q.InsertBillingReceipt(ctx, db.InsertBillingReceiptParams{StripeEventID: event.ID, EventType: event.Type, Column3: payload, State: state,
+		err := q.InsertBillingReceipt(ctx, db.InsertBillingReceiptParams{Livemode: event.LiveMode, StripeEventID: event.ID, EventType: event.Type, Column3: payload, State: state,
 			ProcessedAt: processed, ResourceKind: pgtype.Text{String: event.Kind, Valid: true}, ResourceID: pgtype.Text{String: event.ResourceID, Valid: true}, EventCreatedAt: timestamp(event.CreatedAt), ApiVersion: checkoutText(event.APIVersion)})
 		if err != nil {
 			return err
@@ -71,7 +82,7 @@ func (s *WebhookStore) AcceptWebhook(ctx context.Context, event application.Veri
 }
 
 func sameReceipt(row db.LockBillingReceiptRow, event application.VerifiedWebhook) bool {
-	return row.ReceiptProtocol == 1 && row.EventType == event.Type && row.ResourceKind == event.Kind && row.ResourceID == event.ResourceID && row.ApiVersion == event.APIVersion && row.EventCreatedAt.Valid && row.EventCreatedAt.Time.Equal(event.CreatedAt)
+	return row.Livemode == event.LiveMode && row.ReceiptProtocol == 1 && row.EventType == event.Type && row.ResourceKind == event.Kind && row.ResourceID == event.ResourceID && row.ApiVersion == event.APIVersion && row.EventCreatedAt.Valid && row.EventCreatedAt.Time.Equal(event.CreatedAt)
 }
 
 func (s *WebhookStore) ClaimReconciliation(ctx context.Context, event application.VerifiedWebhook, ref application.BillingReference) (*application.ReconciliationTarget, error) {
@@ -94,7 +105,7 @@ func (s *WebhookStore) ClaimReconciliation(ctx context.Context, event applicatio
 		if receipt.State == "processed" || receipt.State == "ignored" {
 			return nil
 		}
-		if account.StripeMode != "test" || !account.StripeCustomerID.Valid || account.StripeCustomerID.String != ref.CustomerID ||
+		if account.StripeMode != string(s.mode) || !account.StripeCustomerID.Valid || account.StripeCustomerID.String != ref.CustomerID ||
 			(ref.ShopID != uuid.Nil && ref.ShopID != account.ShopID) {
 			return application.ErrReconciliationConflict
 		}
@@ -161,7 +172,7 @@ func (s *WebhookStore) ApplyReconciliation(ctx context.Context, target applicati
 		if receipt.State == "processed" || receipt.State == "ignored" {
 			return nil
 		}
-		if account.StripeMode != "test" || account.StripeCustomerID.String != target.Account.CustomerID || account.ReconciliationRevision != target.Revision {
+		if account.StripeMode != string(s.mode) || account.StripeCustomerID.String != target.Account.CustomerID || account.ReconciliationRevision != target.Revision {
 			return application.ErrReconciliationConflict
 		}
 		state := "completed"

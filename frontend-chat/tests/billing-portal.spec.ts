@@ -10,6 +10,12 @@ const session = () => ({
   open_until: new Date(Date.now() + 240_000).toISOString(),
   livemode: false,
 });
+
+test("real portal session is accepted only on the validated Stripe host", () => {
+  expect(parseBillingPortal({ ...session(), livemode: true }, testShop.shop_id).livemode).toBe(
+    true,
+  );
+});
 function commercial(status = "active", canceled = false) {
   const paid = status === "active";
   return {
@@ -73,7 +79,7 @@ test("portal parser accepts only this tenant's fresh TEST Stripe session", () =>
     null,
     {},
     { ...session(), shop_id: otherShop.shop_id },
-    { ...session(), livemode: true },
+    { ...session(), livemode: "live" },
     { ...session(), open_until: new Date().toISOString() },
     { ...session(), open_until: new Date(Date.now() + 3_600_000).toISOString() },
     ...[
@@ -223,7 +229,9 @@ test("portal dialog fits narrow screens and larger fonts", async ({ page }) => {
   await setup(page);
   await page.route(base + "/billing/portal", (route) => route.fulfill({ json: session() }));
   await page.goto(path);
-  await page.addStyleTag({ content: "html { font-size:200% !important; }" });
+  await page.evaluate(() =>
+    document.documentElement.style.setProperty("font-size", "200%", "important"),
+  );
   await manage(page).click();
   await expect(dialog(page).getByRole("link")).toBeVisible();
   expect(await dialog(page).evaluate((el) => el.scrollWidth <= el.clientWidth + 1)).toBe(true);

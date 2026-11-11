@@ -1,5 +1,5 @@
 -- name: EnsureCheckoutAccount :exec
-INSERT INTO public.billing_accounts (shop_id, stripe_mode) VALUES ($1, 'test')
+INSERT INTO public.billing_accounts (shop_id, stripe_mode) VALUES ($1, $2)
 ON CONFLICT (shop_id) DO NOTHING;
 
 -- name: LockCheckoutAccount :one
@@ -24,7 +24,7 @@ VALUES ($1, $2, $3, $4, 'preparing', $5, 1, $6, $7);
 
 -- name: LinkBillingCheckoutCustomer :execrows
 UPDATE public.billing_accounts SET stripe_customer_id = sqlc.arg(customer_id), updated_at = now()
-WHERE shop_id = sqlc.arg(shop_id) AND stripe_mode = 'test'
+WHERE shop_id = sqlc.arg(shop_id) AND stripe_mode = sqlc.arg(stripe_mode)
     AND (stripe_customer_id IS NULL OR stripe_customer_id = sqlc.arg(customer_id));
 
 -- name: RecordBillingCheckoutSession :execrows
@@ -35,4 +35,4 @@ WHERE a.id = sqlc.arg(attempt_id) AND a.shop_id = sqlc.arg(shop_id) AND a.protoc
     AND (a.stripe_session_id IS NULL OR a.stripe_session_id = sqlc.arg(session_id))
     AND (a.state IN ('preparing', 'open') OR (a.state = 'review' AND sqlc.arg(next_state) = 'review'))
     AND EXISTS (SELECT 1 FROM public.billing_accounts b WHERE b.shop_id = a.shop_id
-        AND b.stripe_mode = 'test' AND b.stripe_customer_id = sqlc.arg(customer_id));
+        AND b.stripe_mode = sqlc.arg(stripe_mode) AND b.stripe_customer_id = sqlc.arg(customer_id));

@@ -16,6 +16,9 @@ import (
 )
 
 type Config struct {
+	AppEnvironment                 string
+	TrustedProxyCIDRs              string
+	StripeMode                     string
 	HTTPAddr                       string
 	DatabaseURL                    string
 	RabbitMQURL                    string
@@ -70,6 +73,9 @@ func load(getenv func(string) string) (Config, error) {
 		return fallback
 	}
 	c := Config{
+		AppEnvironment:              value("APP_ENV", "development"),
+		TrustedProxyCIDRs:           strings.TrimSpace(getenv("TRUSTED_PROXY_CIDRS")),
+		StripeMode:                  value("STRIPE_MODE", "test"),
 		HTTPAddr:                    value("HTTP_ADDR", "127.0.0.1:8080"),
 		DatabaseURL:                 getenv("DATABASE_URL"),
 		RabbitMQURL:                 getenv("RABBITMQ_URL"),
@@ -113,19 +119,22 @@ func load(getenv func(string) string) (Config, error) {
 			}
 		}
 	}
+	if err := validateDeployment(c); err != nil {
+		return Config{}, err
+	}
 	if c.StripeSecretKey != "" || c.StripeMonthlyPriceID != "" || c.StripePortalConfigurationID != "" {
-		if !regexp.MustCompile(`^sk_test_[A-Za-z0-9_]+$`).MatchString(c.StripeSecretKey) || len(c.StripeSecretKey) > 512 {
-			return Config{}, errors.New("STRIPE_SECRET_KEY must be a server-side sk_test_ key; live Checkout is disabled")
+		if !regexp.MustCompile(`^sk_`+c.StripeMode+`_[A-Za-z0-9_]+$`).MatchString(c.StripeSecretKey) || len(c.StripeSecretKey) > 512 {
+			return Config{}, errors.New("STRIPE_SECRET_KEY must match STRIPE_MODE")
 		}
 		if !regexp.MustCompile(`^price_[A-Za-z0-9]+$`).MatchString(c.StripeMonthlyPriceID) || len(c.StripeMonthlyPriceID) > 255 {
-			return Config{}, errors.New("STRIPE_MONTHLY_PRICE_ID must identify a Stripe test price")
+			return Config{}, errors.New("STRIPE_MONTHLY_PRICE_ID must identify a Stripe price")
 		}
 		if c.FrontendOrigin == "" {
 			return Config{}, errors.New("FRONTEND_ORIGIN is required for Stripe Checkout")
 		}
 	}
 	if c.StripePortalConfigurationID != "" && (!regexp.MustCompile(`^bpc_[A-Za-z0-9]+$`).MatchString(c.StripePortalConfigurationID) || len(c.StripePortalConfigurationID) > 255) {
-		return Config{}, errors.New("STRIPE_PORTAL_CONFIGURATION_ID must identify a Stripe test portal configuration")
+		return Config{}, errors.New("STRIPE_PORTAL_CONFIGURATION_ID must identify a Stripe portal configuration")
 	}
 	if c.StripeWebhookSecret != "" {
 		if !regexp.MustCompile(`^whsec_[A-Za-z0-9_]+$`).MatchString(c.StripeWebhookSecret) || len(c.StripeWebhookSecret) > 512 {

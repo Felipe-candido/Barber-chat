@@ -142,7 +142,7 @@ func (q *Queries) FinishBillingReceipt(ctx context.Context, arg FinishBillingRec
 const insertBillingReceipt = `-- name: InsertBillingReceipt :exec
 INSERT INTO public.billing_webhook_events
     (stripe_event_id,event_type,livemode,payload,state,processed_at,receipt_protocol,resource_kind,resource_id,event_created_at,api_version)
-VALUES ($1,$2,FALSE,$3::jsonb,$4,$5,1,$6,$7,$8,$9)
+VALUES ($1,$2,$10,$3::jsonb,$4,$5,1,$6,$7,$8,$9)
 ON CONFLICT (stripe_event_id) DO NOTHING
 `
 
@@ -156,6 +156,7 @@ type InsertBillingReceiptParams struct {
 	ResourceID     pgtype.Text        `json:"resource_id"`
 	EventCreatedAt pgtype.Timestamptz `json:"event_created_at"`
 	ApiVersion     pgtype.Text        `json:"api_version"`
+	Livemode       bool               `json:"livemode"`
 }
 
 func (q *Queries) InsertBillingReceipt(ctx context.Context, arg InsertBillingReceiptParams) error {
@@ -169,6 +170,7 @@ func (q *Queries) InsertBillingReceipt(ctx context.Context, arg InsertBillingRec
 		arg.ResourceID,
 		arg.EventCreatedAt,
 		arg.ApiVersion,
+		arg.Livemode,
 	)
 	return err
 }
@@ -243,7 +245,7 @@ func (q *Queries) LinkReconciledCheckout(ctx context.Context, arg LinkReconciled
 }
 
 const lockBillingReceipt = `-- name: LockBillingReceipt :one
-SELECT stripe_event_id,event_type,state,receipt_protocol,
+SELECT stripe_event_id,event_type,state,receipt_protocol,livemode,
     COALESCE(resource_kind,'')::text AS resource_kind,COALESCE(resource_id,'')::text AS resource_id,
     event_created_at,COALESCE(api_version,'')::text AS api_version
 FROM public.billing_webhook_events WHERE stripe_event_id=$1 FOR UPDATE
@@ -254,6 +256,7 @@ type LockBillingReceiptRow struct {
 	EventType       string             `json:"event_type"`
 	State           string             `json:"state"`
 	ReceiptProtocol int16              `json:"receipt_protocol"`
+	Livemode        bool               `json:"livemode"`
 	ResourceKind    string             `json:"resource_kind"`
 	ResourceID      string             `json:"resource_id"`
 	EventCreatedAt  pgtype.Timestamptz `json:"event_created_at"`
@@ -268,6 +271,7 @@ func (q *Queries) LockBillingReceipt(ctx context.Context, stripeEventID string) 
 		&i.EventType,
 		&i.State,
 		&i.ReceiptProtocol,
+		&i.Livemode,
 		&i.ResourceKind,
 		&i.ResourceID,
 		&i.EventCreatedAt,

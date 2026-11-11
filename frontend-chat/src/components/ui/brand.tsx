@@ -13,7 +13,7 @@ export function ProductBrand({
       <span className={styles.brandMark} aria-hidden="true">
         <Scissors size={20} />
       </span>
-      {compact ? <span className={styles.srOnly}>Barber-chat</span> : <strong>Barber-chat</strong>}
+      {compact ? <span className={styles.srOnly}>Na Régua</span> : <strong>Na Régua</strong>}
     </span>
   );
 }

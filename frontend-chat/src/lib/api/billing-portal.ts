@@ -5,7 +5,7 @@ export type BillingPortal = {
   shop_id: string;
   url: string;
   open_until: string;
-  livemode: false;
+  livemode: boolean;
 };
 
 export function parseBillingPortal(value: unknown, shopID: string): BillingPortal {
@@ -19,7 +19,7 @@ export function parseBillingPortal(value: unknown, shopID: string): BillingPorta
   const p = value as Record<string, unknown>;
   if (
     p.shop_id !== shopID ||
-    p.livemode !== false ||
+    typeof p.livemode !== "boolean" ||
     typeof p.url !== "string" ||
     p.url.length > 8192 ||
     typeof p.open_until !== "string" ||
@@ -43,7 +43,7 @@ export function parseBillingPortal(value: unknown, shopID: string): BillingPorta
     (url.pathname !== "/p/session" && !url.pathname.startsWith("/p/session/"))
   )
     invalid();
-  return { shop_id: shopID, url: url.href, open_until: p.open_until, livemode: false };
+  return { shop_id: shopID, url: url.href, open_until: p.open_until, livemode: p.livemode };
 }
 
 export async function openBillingPortal(

@@ -91,7 +91,7 @@ func (h *CheckoutHandler) Start(w http.ResponseWriter, r *http.Request) {
 		URL       string                `json:"url"`
 		ExpiresAt time.Time             `json:"expires_at"`
 		LiveMode  bool                  `json:"livemode"`
-	}{result.AttemptID, result.Intent, result.URL, result.ExpiresAt, false})
+	}{result.AttemptID, result.Intent, result.URL, result.ExpiresAt, result.LiveMode})
 }
 
 func (h *CheckoutHandler) Offer(w http.ResponseWriter, r *http.Request) {
@@ -118,7 +118,7 @@ func (h *CheckoutHandler) Offer(w http.ResponseWriter, r *http.Request) {
 		IntervalCount int       `json:"interval_count"`
 		LiveMode      bool      `json:"livemode"`
 		Recovering    bool      `json:"recovering"`
-	}{offer.ShopID, offer.OfferID, offer.PlanKey, offer.AmountCents, "BRL", "month", 1, false, offer.Recovering})
+	}{offer.ShopID, offer.OfferID, offer.PlanKey, offer.AmountCents, "BRL", "month", 1, offer.LiveMode, offer.Recovering})
 }
 
 func (h *CheckoutHandler) writeError(w http.ResponseWriter, r *http.Request, err error) {

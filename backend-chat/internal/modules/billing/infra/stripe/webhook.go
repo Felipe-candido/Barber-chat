@@ -12,18 +12,24 @@ import (
 	"time"
 
 	"github.com/Felipe-candido/Barber-chat/internal/modules/billing/application"
+	"github.com/Felipe-candido/Barber-chat/internal/modules/billing/domain"
 )
 
 type WebhookVerifier struct {
+	mode   domain.BillingMode
 	secret string
 	clock  application.Clock
 }
 
 func NewWebhookVerifier(secret string, clock application.Clock) (*WebhookVerifier, error) {
-	if !strings.HasPrefix(secret, "whsec_") || len(secret) <= 6 || len(secret) > 512 || strings.ContainsAny(secret, " \r\n\t") || clock == nil {
+	return NewWebhookVerifierForMode(secret, clock, domain.BillingTest)
+}
+
+func NewWebhookVerifierForMode(secret string, clock application.Clock, mode domain.BillingMode) (*WebhookVerifier, error) {
+	if !mode.Valid() || !strings.HasPrefix(secret, "whsec_") || len(secret) <= 6 || len(secret) > 512 || strings.ContainsAny(secret, " \r\n\t") || clock == nil {
 		return nil, application.ErrWebhookNotConfigured
 	}
-	return &WebhookVerifier{secret: secret, clock: clock}, nil
+	return &WebhookVerifier{secret: secret, clock: clock, mode: mode}, nil
 }
 
 // Authentication uses the untouched body, not a re-marshaled JSON value.
@@ -79,13 +85,17 @@ func (v *WebhookVerifier) VerifyWebhook(body []byte, header string) (application
 	if !matched {
 		return invalid()
 	}
-	return parseWebhookEnvelope(body)
+	return parseWebhookEnvelopeForMode(body, v.mode)
 }
 
 // Envelope versions are independent from the API version used for resource
 // reads. Both allowlisted envelopes provide the same fields consumed below;
 // financial data is always re-read with APIVersion, never trusted from snapshots.
 func parseWebhookEnvelope(body []byte) (application.VerifiedWebhook, error) {
+	return parseWebhookEnvelopeForMode(body, domain.BillingTest)
+}
+
+func parseWebhookEnvelopeForMode(body []byte, mode domain.BillingMode) (application.VerifiedWebhook, error) {
 	invalid := func() (application.VerifiedWebhook, error) {
 		return application.VerifiedWebhook{}, application.ErrInvalidWebhook
 	}
@@ -102,7 +112,7 @@ func parseWebhookEnvelope(body []byte) (application.VerifiedWebhook, error) {
 		} `json:"data"`
 	}
 	if json.Unmarshal(body, &envelope) != nil || !validID(envelope.ID, "evt_") || envelope.Object != "event" || len(envelope.Type) == 0 || len(envelope.Type) > 150 ||
-		envelope.Created <= 0 || envelope.Created > 253402300799 || envelope.LiveMode == nil || *envelope.LiveMode || envelope.Account != "" {
+		envelope.Created <= 0 || envelope.Created > 253402300799 || envelope.LiveMode == nil || *envelope.LiveMode != mode.Live() || envelope.Account != "" {
 		return invalid()
 	}
 	if envelope.APIVersion != APIVersion && envelope.APIVersion != "2026-09-30.endive" {
@@ -119,12 +129,12 @@ func parseWebhookEnvelope(body []byte) (application.VerifiedWebhook, error) {
 		}
 		resourceID = resource.ID
 	}
-	return application.VerifiedWebhook{ID: envelope.ID, Type: envelope.Type, APIVersion: envelope.APIVersion, Kind: kind, ResourceID: resourceID, CreatedAt: time.Unix(envelope.Created, 0).UTC()}, nil
+	return application.VerifiedWebhook{ID: envelope.ID, Type: envelope.Type, APIVersion: envelope.APIVersion, Kind: kind, ResourceID: resourceID, CreatedAt: time.Unix(envelope.Created, 0).UTC(), LiveMode: *envelope.LiveMode}, nil
 }
 
 // ReadWebhookEvent is for an authenticated operator replay, not HTTP ingestion.
 // It retrieves the event directly over authenticated HTTPS; it never accepts a
-// caller-supplied payload or fabricates a Stripe-Signature. TEST only.
+// caller-supplied payload or fabricates a Stripe-Signature. The configured mode is enforced.
 func (c *Client) ReadWebhookEvent(ctx context.Context, id string) (application.VerifiedWebhook, error) {
 	if !validID(id, "evt_") {
 		return application.VerifiedWebhook{}, application.ErrInvalidWebhook
@@ -133,7 +143,7 @@ func (c *Client) ReadWebhookEvent(ctx context.Context, id string) (application.V
 	if err := c.request(ctx, "GET", "/events/"+id, "", nil, &body); err != nil {
 		return application.VerifiedWebhook{}, err
 	}
-	event, err := parseWebhookEnvelope(body)
+	event, err := parseWebhookEnvelopeForMode(body, c.mode)
 	if err != nil {
 		return application.VerifiedWebhook{}, err
 	}
