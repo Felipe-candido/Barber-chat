@@ -14,8 +14,8 @@ func TestCompletionSettingsRouteAndPreflight(t *testing.T) {
 	const path = "/api/v1/admin/shops/example/appointment-completion"
 	const origin = "https://app.example.com"
 	h := httpapi.NewHandler(httpapi.HandlerConfig{
-		FrontendOrigin: origin,
-		Logger: testLogger(),
+		FrontendOrigin:     origin,
+		Logger:             testLogger(),
 		CompletionSettings: bookinghttp.NewCompletionSettingsHandler(nil, 0, testLogger()),
 	})
 	for _, method := range []string{http.MethodGet, http.MethodPut} {
@@ -30,6 +30,8 @@ func TestCompletionSettingsRouteAndPreflight(t *testing.T) {
 		}
 		w = httptest.NewRecorder()
 		h.ServeHTTP(w, httptest.NewRequest(method, path, nil))
-		if w.Code != 401 { t.Fatalf("%s must be registered and authenticated, got %d", method, w.Code) }
+		if w.Code != 401 {
+			t.Fatalf("%s must be registered and authenticated, got %d", method, w.Code)
+		}
 	}
 }

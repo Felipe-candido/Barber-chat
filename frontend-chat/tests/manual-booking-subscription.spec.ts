@@ -48,7 +48,10 @@ function commercial(paid: boolean, status = paid ? "active" : "none") {
 const dialog = (page: Page) => page.getByRole("dialog", { name: "Novo agendamento", exact: true });
 async function setup(page: Page, role: "owner" | "barber" = "owner") {
   await page.context().route("https://checkout.stripe.com/**", (route) =>
-    route.fulfill({ contentType: "text/html", body: "<title>Pagamento da assinatura</title>Pagamento Stripe simulado" }),
+    route.fulfill({
+      contentType: "text/html",
+      body: "<title>Pagamento da assinatura</title>Pagamento Stripe simulado",
+    }),
   );
   const session = await installSupabaseSession(page);
   await mockAdminAccess(page);
@@ -193,7 +196,9 @@ test("owner pays from the same booking draft and explicitly reviews before creat
   await expect(paymentPage).toHaveURL("https://checkout.stripe.com/c/pay/cs_test_existing");
   expect(await paymentPage.evaluate(() => window.opener === null)).toBe(true);
   await expect(dialog(page).getByRole("link", { name: "Continuar na Stripe" })).toHaveCount(0);
-  await expect(dialog(page).getByRole("button", { name: "Prosseguir para pagamento" })).toHaveCount(0);
+  await expect(dialog(page).getByRole("button", { name: "Prosseguir para pagamento" })).toHaveCount(
+    0,
+  );
   expect(state.checkoutWrites).toEqual([{ intent: "manual_booking", offer_id: offer.offer_id }]);
   state.paid = true;
   await dialog(page).getByRole("button", { name: "Conferir assinatura", exact: true }).click();
@@ -358,19 +363,94 @@ test("lost Checkout response preserves the booking and retry stays explicit", as
   await expect(dialog(page)).toContainText("Ana Silva");
 });
 
+test("blocked payment tab preserves the draft and never starts Checkout", async ({ page }) => {
+  const { state } = await setup(page);
+  await fillBooking(page);
+  await submit(page);
+  await dialog(page).getByRole("button", { name: "Ver plano e assinar" }).click();
+  await expect(dialog(page)).toContainText("R$ 39,90");
+  await page.evaluate(() => {
+    window.open = () => null;
+  });
+  await dialog(page).getByRole("button", { name: "Prosseguir para pagamento" }).click();
+  await expect(dialog(page)).toContainText("Seu navegador bloqueou a aba de pagamento");
+  expect(state.checkoutWrites).toHaveLength(0);
+  expect(state.bookings).toHaveLength(1);
+  await expect(dialog(page)).toContainText("Ana Silva");
+});
+
+test("closing the loading tab reopens the same validated Checkout without another POST", async ({
+  page,
+}) => {
+  const { state } = await setup(page);
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(base + "/billing/checkout", async (route) => {
+    await pending;
+    await route.fallback();
+  });
+  await fillBooking(page);
+  await submit(page);
+  await dialog(page).getByRole("button", { name: "Ver plano e assinar" }).click();
+  const first = page.waitForEvent("popup");
+  await dialog(page).getByRole("button", { name: "Prosseguir para pagamento" }).click();
+  await (await first).close();
+  release();
+  await expect(dialog(page)).toContainText("A aba de pagamento foi fechada");
+  expect(state.checkoutWrites).toHaveLength(1);
+  const reopened = page.waitForEvent("popup");
+  await dialog(page).getByRole("button", { name: "Prosseguir para pagamento" }).click();
+  await expect(await reopened).toHaveURL("https://checkout.stripe.com/c/pay/cs_test_existing");
+  expect(state.checkoutWrites).toHaveLength(1);
+  expect(state.bookings).toHaveLength(1);
+});
+
+test("incompatible payment URL closes the reserved tab without navigating away", async ({
+  page,
+}) => {
+  const { state } = await setup(page);
+  await page.route(base + "/billing/checkout", (route) =>
+    route.fulfill({
+      json: {
+        attempt_id: "77777777-7777-4777-8777-777777777777",
+        intent: "manual_booking",
+        url: "https://untrusted.example.com/payment",
+        expires_at: new Date(Date.now() + 3600000).toISOString(),
+        livemode: false,
+      },
+    }),
+  );
+  await fillBooking(page);
+  await submit(page);
+  await dialog(page).getByRole("button", { name: "Ver plano e assinar" }).click();
+  const popup = page.waitForEvent("popup");
+  await dialog(page).getByRole("button", { name: "Prosseguir para pagamento" }).click();
+  const reserved = await popup;
+  await expect.poll(() => reserved.isClosed()).toBe(true);
+  await expect(dialog(page)).toContainText("endereço de pagamento incompatíveis");
+  await expect(dialog(page)).toContainText("Ana Silva");
+  expect(state.bookings).toHaveLength(1);
+});
+
 test("manual subscription recovery fits a narrow viewport and enlarged text", async ({ page }) => {
   await setup(page);
   await page.setViewportSize({ width: 390, height: 900 });
   await fillBooking(page);
   await submit(page);
   await dialog(page).getByRole("button", { name: "Ver plano e assinar" }).click();
-  await expect(dialog(page).getByRole("button", { name: "Prosseguir para pagamento" })).toBeVisible();
+  await expect(
+    dialog(page).getByRole("button", { name: "Prosseguir para pagamento" }),
+  ).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({
     path: "test-results/manual-booking-subscription-390.png",
     fullPage: true,
   });
-  await page.evaluate(() => document.documentElement.style.setProperty("font-size", "200%", "important"));
+  await page.evaluate(() =>
+    document.documentElement.style.setProperty("font-size", "200%", "important"),
+  );
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   const layout = await dialog(page).evaluate((element) => ({
     width: element.clientWidth,
@@ -387,4 +467,7 @@ test("manual subscription recovery fits a narrow viewport and enlarged text", as
       .slice(0, 8),
   }));
   expect(layout.scroll, JSON.stringify(layout)).toBeLessThanOrEqual(layout.width + 1);
+  const payment = page.waitForEvent("popup");
+  await dialog(page).getByRole("button", { name: "Prosseguir para pagamento" }).click();
+  await expect(await payment).toHaveURL("https://checkout.stripe.com/c/pay/cs_test_existing");
 });
