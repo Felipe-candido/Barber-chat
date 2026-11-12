@@ -11,6 +11,7 @@ import { ApiError } from "@/lib/api/client";
 import { confirmationLinkError, readConfirmationCallback } from "@/lib/supabase/confirmation";
 import { useAdminAccess } from "./admin-access-provider";
 import styles from "./login-page.module.css";
+import { InstallAppButton } from "./pwa/install-app-button";
 
 export function LoginPage() {
   const router = useRouter();
@@ -188,7 +189,10 @@ export function LoginPage() {
           </p>
         </section>
       </main>
-      <footer className={styles.footer}>Na Régua · Agendamento e gestão de barbearias</footer>
+      <footer className={styles.footer}>
+        <InstallAppButton />
+        <p>Na Régua · Agendamento e gestão de barbearias</p>
+      </footer>
       {help && (
         <Modal
           open

@@ -89,7 +89,20 @@ test("mobile navigation contains keyboard focus, closes with Escape and restores
   }
   await drawer.getByRole("button", { name: "Fechar menu" }).focus();
   await page.keyboard.press("Shift+Tab");
-  await expect(drawer.getByRole("link", { name: "Gerenciar link de agendamento" })).toBeFocused();
+  const install = drawer.getByRole("button", { name: "Baixar app" });
+  await expect(install).toBeFocused();
+  await install.click();
+  const instructions = page.getByRole("dialog", { name: "Instalar Na Régua" });
+  await expect(instructions).toBeVisible();
+  await instructions.getByRole("button", { name: "Entendi" }).focus();
+  await page.keyboard.press("Tab");
+  expect(await instructions.evaluate((element) => element.contains(document.activeElement))).toBe(
+    true,
+  );
+  await page.keyboard.press("Escape");
+  await expect(instructions).not.toBeVisible();
+  await expect(drawer).toBeVisible();
+  await expect(install).toBeFocused();
   await page.screenshot({ path: "test-results/admin-navigation-320.png", fullPage: true });
   await page.keyboard.press("Escape");
   await expect(drawer).not.toBeVisible();

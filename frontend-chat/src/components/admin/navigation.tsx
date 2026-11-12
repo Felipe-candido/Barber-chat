@@ -14,6 +14,7 @@ import {
 import type { AccessibleShop, ShopAccess, StaffIdentity } from "@/lib/api/identity";
 import { adminShopPath } from "@/lib/api/config";
 import { Brand } from "../ui";
+import { InstallAppButton } from "../pwa/install-app-button";
 import styles from "../admin-shell.module.css";
 
 export function adminDestinations(slug: string, role: ShopAccess["role"]) {
@@ -103,6 +104,7 @@ export function AdminNavigation({
           <p>O proprietário gerencia a publicação e o link para seus clientes.</p>
         )}
       </section>
+      <InstallAppButton />
       <div className={styles.profile}>
         <span className={styles.avatar} aria-hidden="true">
           {initials}
