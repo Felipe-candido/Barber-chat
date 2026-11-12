@@ -62,6 +62,8 @@ export function Modal({
       className={"modal " + (wide ? "modal-wide" : "")}
       onCancel={(event) => {
         event.preventDefault();
+        // A nested dialog must not also close its parent navigation drawer.
+        event.stopPropagation();
         onClose();
       }}
       onClick={(e) => {

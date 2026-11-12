@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import { PRICE_LABEL, PRODUCT_NAME, TRIAL_DAYS, whatsAppHref } from "./landing-config";
 import styles from "./landing.module.css";
+import { InstallAppButton } from "../pwa/install-app-button";
 
 const SIGNUP = "/cadastro";
 
@@ -390,6 +391,7 @@ export function LandingPage({ channel }: { channel: string }) {
           <span className={styles.logo}>{PRODUCT_NAME}</span>
           <span>Agendamento e gestão de barbearias</span>
           <Link href="/login">Entrar</Link>
+          <InstallAppButton />
         </div>
       </footer>
     </div>

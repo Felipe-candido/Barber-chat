@@ -30,6 +30,7 @@ export function securityHeaders(
   }
   const directives = [
     "default-src 'self'",
+    "worker-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${development ? " 'unsafe-eval'" : ""}`,
     `style-src 'self' 'nonce-${nonce}'`,
     // Existing chart/dialog layout uses React style properties. This exception

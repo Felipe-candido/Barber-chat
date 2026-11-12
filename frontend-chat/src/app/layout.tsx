@@ -5,6 +5,7 @@ import "@fontsource-variable/fraunces";
 import "./globals.css";
 import { FeedbackProvider } from "@/components/feedback-provider";
 import { AdminAccessProvider } from "@/components/admin-access-provider";
+import { PwaProvider } from "@/components/pwa/pwa-provider";
 
 export const metadata: Metadata = {
   title: {
@@ -12,6 +13,9 @@ export const metadata: Metadata = {
     template: "%s · Na Régua",
   },
   description: "Agendamento online e gestão da rotina da sua barbearia.",
+  applicationName: "Na Régua",
+  appleWebApp: { capable: true, title: "Na Régua", statusBarStyle: "default" },
+  icons: { apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }] },
   robots: { index: false, follow: false },
 };
 export const viewport: Viewport = {
@@ -27,9 +31,11 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   return (
     <html lang="pt-BR">
       <body>
-        <FeedbackProvider>
-          <AdminAccessProvider>{children}</AdminAccessProvider>
-        </FeedbackProvider>
+        <PwaProvider>
+          <FeedbackProvider>
+            <AdminAccessProvider>{children}</AdminAccessProvider>
+          </FeedbackProvider>
+        </PwaProvider>
       </body>
     </html>
   );
