@@ -87,7 +87,8 @@ export function parseSubscriptionCheckout(value: unknown): SubscriptionCheckout 
     url.host !== "checkout.stripe.com" ||
     url.username ||
     url.password ||
-    !url.pathname.startsWith("/c/")
+    // Stripe hosts Checkout under /c/ and, since late 2026, also under /g/.
+    !(url.pathname.startsWith("/c/") || url.pathname.startsWith("/g/"))
   )
     invalid();
   return {

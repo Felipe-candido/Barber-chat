@@ -107,6 +107,8 @@ test("price and hosted URL parsers reject incompatible, expired and cross-tenant
   ])
     expect(() => parseSubscriptionOffer(invalid, testShop.shop_id)).toThrow();
   expect(parseSubscriptionCheckout(checkout()).url).toContain("https://checkout.stripe.com/c/");
+  const current = "https://checkout.stripe.com/g/pay/cs_test_example#test";
+  expect(parseSubscriptionCheckout({ ...checkout(), url: current }).url).toBe(current);
   for (const invalid of [
     null,
     { ...checkout(), livemode: "live" },
@@ -118,6 +120,7 @@ test("price and hosted URL parsers reject incompatible, expired and cross-tenant
       "https://checkout.stripe.com.evil.test/c/pay/fake",
       "https://user:secret@checkout.stripe.com/c/pay/fake",
       "https://checkout.stripe.com:444/c/pay/fake",
+      "https://checkout.stripe.com/x/pay/fake",
     ].map((url) => ({ ...checkout(), url })),
   ])
     expect(() => parseSubscriptionCheckout(invalid)).toThrow();
