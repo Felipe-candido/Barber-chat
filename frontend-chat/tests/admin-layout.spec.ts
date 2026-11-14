@@ -92,7 +92,7 @@ test("mobile navigation contains keyboard focus, closes with Escape and restores
   const install = drawer.getByRole("button", { name: "Baixar app" });
   await expect(install).toBeFocused();
   await install.click();
-  const instructions = page.getByRole("dialog", { name: "Instalar Na Régua" });
+  const instructions = page.getByRole("dialog", { name: "Instalar Na Regua" });
   await expect(instructions).toBeVisible();
   await instructions.getByRole("button", { name: "Entendi" }).focus();
   await page.keyboard.press("Tab");

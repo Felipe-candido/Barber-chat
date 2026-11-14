@@ -20,7 +20,7 @@ func WriteAccessError(w http.ResponseWriter, r *http.Request, logger *slog.Logge
 	}
 	switch {
 	case errors.Is(err, identityapp.ErrInvalidAccessToken), errors.Is(err, identityapp.ErrInvalidStaffIdentity):
-		w.Header().Set("WWW-Authenticate", `Bearer realm="barber-chat", error="invalid_token"`)
+		w.Header().Set("WWW-Authenticate", `Bearer realm="Na Regua", error="invalid_token"`)
 		response.Error(w, http.StatusUnauthorized, "invalid_access_token", "the access token is invalid or expired")
 	case errors.Is(err, identityapp.ErrUserNotProvisioned), errors.Is(err, identityapp.ErrUserInactive), errors.Is(err, identityapp.ErrShopAccessDenied):
 		response.Error(w, http.StatusForbidden, "access_denied", "access is not allowed")

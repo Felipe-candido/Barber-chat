@@ -68,7 +68,7 @@ func (h *AgendaHandler) List(w http.ResponseWriter, r *http.Request) {
 	identity, authenticated := requestctx.StaffIdentityFromContext(r.Context())
 	scope, authorized := requestctx.ShopScopeFromContext(r.Context())
 	if !authenticated || identity.UserID == uuid.Nil {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="barber-chat"`)
+		w.Header().Set("WWW-Authenticate", `Bearer realm="Na Regua"`)
 		response.Error(w, 401, "authentication_required", "authentication is required")
 		return
 	}

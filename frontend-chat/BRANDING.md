@@ -1,4 +1,4 @@
-# Identidade visual Barber-chat
+# Identidade visual Na Regua
 
 Visual genérico de "barbearia clássica", sem logo de nenhuma barbearia específica. Os tokens ficam em `src/styles/tokens.css`; as telas usam apenas os aliases semânticos (`--color-*`, `--space-*`, `--radius-*`).
 
@@ -22,4 +22,4 @@ O latão aparece com moderação: o traço curto acima dos títulos de página, 
 
 ## Marca
 
-A marca do produto é o ícone de tesoura em um quadrado grafite com o nome "Barber-chat". As barbearias aparecem pelo nome cadastrado, sem logo. Os arquivos em `public/brand/` são do protótipo anterior e não são usados nas telas.
+A marca do produto é o ícone de tesoura em um quadrado grafite com o nome "Na Regua". As barbearias aparecem pelo nome cadastrado, sem logo. Os arquivos em `public/brand/` são do protótipo anterior e não são usados nas telas.

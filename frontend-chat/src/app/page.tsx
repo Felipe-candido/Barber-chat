@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "pt_BR",
     siteName: PRODUCT_NAME,
-    title: `${PRODUCT_NAME} · Sua barbearia na régua`,
+    title: `${PRODUCT_NAME} · Sua barbearia na regua`,
     description,
     ...(siteURL
       ? { images: [{ url: "/landing/d-agenda-semana.webp", width: 1600, height: 1000 }] }

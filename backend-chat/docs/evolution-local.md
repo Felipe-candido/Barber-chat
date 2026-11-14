@@ -18,7 +18,7 @@ Não altera o .env do backend. Os dois arquivos .env permanecem ignorados no Git
 
 Compose tem projeto/rede/volumes próprios: Evolution, PostgreSQL e Redis.
 Somente a porta 127.0.0.1:8081 é publicada. O PostgreSQL da Evolution não é o do
-Barber-chat e nunca deve receber suas migrations Goose. O Redis atende o provider;
+Na Regua e nunca deve receber suas migrations Goose. O Redis atende o provider;
 os jobs do produto continuam no banco do backend. Não usar down -v para reiniciar.
 
 O build fixa o commit oficial e273b904d53f5726970fd6a244ed9caa61dfeb9a,
@@ -50,7 +50,7 @@ Consultar GET /license/status retorna status da instalação. Inactive não é
 desconexão do telefone. Durante a preparação inicial, a instalação retornou
 LICENSE_REQUIRED; após a ativação feita pelo usuário, retornou status active.
 
-As instâncias do Barber-chat serão criadas pelo backend, com nome opaco ligado
+As instâncias do Na Regua serão criadas pelo backend, com nome opaco ligado
 à unidade. A API gera o QR depois de um comando explícito do proprietário.
 Pareamento só ocorre quando o usuário escaneia o QR no WhatsApp. Criar uma
 instância arbitrária no gerenciador não a vincula automaticamente à barbearia.

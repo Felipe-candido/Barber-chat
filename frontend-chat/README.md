@@ -1,4 +1,4 @@
-# Barber-chat — frontend
+# Na Regua — frontend
 
 Next.js, React, TypeScript e Tailwind. Login Supabase, identidade local no Go, seleção de unidades, catálogo, cadastro de barbeiros e agendamento público estão integrados. Usuários, barbearias e vínculos continuam cadastrados manualmente. O chat permite reservar, receber comprovante/código, consultar e cancelar sem conta de cliente; WhatsApp permanece adiado.
 

@@ -9,8 +9,8 @@ test("product identity and login controls stay usable at mobile, tablet and desk
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 960 });
     await page.goto("/login");
-    await expect(page).toHaveTitle("Acesso administrativo · Na Régua");
-    await expect(page.getByRole("link", { name: "Na Régua — acesso" })).toBeVisible();
+    await expect(page).toHaveTitle("Acesso administrativo · Na Regua");
+    await expect(page.getByRole("link", { name: "Na Regua — acesso" })).toBeVisible();
     await expect(page.getByLabel("E-mail", { exact: true })).toBeVisible();
     const password = page.getByLabel("Senha", { exact: true });
     await password.fill("example-password-only-for-ui-test");

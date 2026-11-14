@@ -1,4 +1,4 @@
-# Barber-chat
+# Na Regua
 
 O repositório reúne duas aplicações independentes:
 

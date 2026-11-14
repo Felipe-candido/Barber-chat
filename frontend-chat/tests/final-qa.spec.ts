@@ -231,5 +231,5 @@ test("the browser icon belongs to the product, not the original shop", async ({ 
   const response = await page.request.get(hrefs.find((href) => href?.includes("icon.svg"))!);
   expect(response.ok()).toBe(true);
   expect(response.headers()["content-type"]).toContain("image/svg+xml");
-  expect(await response.text()).toContain("Na Régua");
+  expect(await response.text()).toContain("Na Regua");
 });

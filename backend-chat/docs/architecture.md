@@ -1,4 +1,4 @@
-# Arquitetura do Barber-chat
+# Arquitetura do Na Regua
 
 Pesquisa e decisão: 17/09/2026 (UTC; sessão iniciada em 16/09 em São Paulo). Este documento separa a fundação executável do desenho dos próximos incrementos. Os links são fontes oficiais consultadas; as escolhas e os trade-offs são avaliações para este produto.
 

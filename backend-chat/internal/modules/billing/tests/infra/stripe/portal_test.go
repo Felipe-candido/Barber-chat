@@ -132,10 +132,13 @@ func TestPortalURLValidation(t *testing.T) {
 
 func TestPortalPolicyProvisioning(t *testing.T) {
 	client, _ := stripe.NewClient("sk_test_example", &http.Client{Transport: roundTripFunc(func(r *http.Request) (*http.Response, error) {
-		if r.Method != "POST" || r.URL.Path != "/v1/billing_portal/configurations" || r.Header.Get("Idempotency-Key") != "barber:test:portal-policy:v1:reasons-v2" {
+		if r.Method != "POST" || r.URL.Path != "/v1/billing_portal/configurations" || r.Header.Get("Idempotency-Key") != "barber:test:portal-policy:v1:reasons-v2:na-regua-v1" {
 			t.Fatal("unexpected provisioning")
 		}
 		_ = r.ParseForm()
+		if r.PostForm.Get("name") != "Na Regua - gerenciamento de assinatura test v1" {
+			t.Fatal("unexpected product name")
+		}
 		if r.PostForm.Get("features[subscription_cancel][mode]") != "at_period_end" || r.PostForm.Get("features[subscription_update][enabled]") != "false" || r.PostForm.Get("login_page[enabled]") != "false" {
 			t.Fatal("unsafe policy")
 		}

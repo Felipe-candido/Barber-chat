@@ -108,7 +108,7 @@ func reportInput(w http.ResponseWriter, r *http.Request, history bool) (applicat
 	auth, authenticated := requestctx.StaffIdentityFromContext(r.Context())
 	scope, authorized := requestctx.ShopScopeFromContext(r.Context())
 	if !authenticated || auth.UserID == uuid.Nil {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="barber-chat"`)
+		w.Header().Set("WWW-Authenticate", `Bearer realm="Na Regua"`)
 		response.Error(w, 401, "authentication_required", "authentication is required")
 		return application.ActivityReportInput{}, nil, false
 	}

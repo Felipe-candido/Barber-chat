@@ -27,7 +27,7 @@ export function InstallAppButton({ className = "" }: { className?: string }) {
       <Modal
         open={instructions}
         onClose={() => setInstructions(false)}
-        title="Instalar Na Régua"
+        title="Instalar Na Regua"
         subtitle="Acesse pelo ícone na tela inicial, sem procurar o link novamente."
       >
         <div className={styles.instructions}>
@@ -46,7 +46,7 @@ export function InstallAppButton({ className = "" }: { className?: string }) {
             <>
               <p>
                 No Chrome ou Edge, abra o menu do navegador e procure <strong>Instalar app</strong>{" "}
-                ou <strong>Instalar Na Régua</strong>. No computador, a opção também pode aparecer
+                ou <strong>Instalar Na Regua</strong>. No computador, a opção também pode aparecer
                 na barra de endereço.
               </p>
               <p>

@@ -37,7 +37,7 @@ export function LoginPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <Link href="/login" aria-label="Na Régua — acesso">
+        <Link href="/login" aria-label="Na Regua — acesso">
           <Brand />
         </Link>
         <Link href="/chat" className={styles.publicLink}>
@@ -191,7 +191,7 @@ export function LoginPage() {
       </main>
       <footer className={styles.footer}>
         <InstallAppButton />
-        <p>Na Régua · Agendamento e gestão de barbearias</p>
+        <p>Na Regua · Agendamento e gestão de barbearias</p>
       </footer>
       {help && (
         <Modal

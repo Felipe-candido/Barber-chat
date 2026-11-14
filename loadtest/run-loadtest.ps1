@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Runs the Barber-chat load test (k6) against the LOCAL stack.
+  Runs the Na Regua load test (k6) against the LOCAL stack.
 
 .EXAMPLE
   # 100 customers browsing the public booking page

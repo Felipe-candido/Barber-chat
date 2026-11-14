@@ -165,7 +165,7 @@ export function BookingChat({ slug }: { slug: string }) {
           </p>
         </aside>
       </main>
-      <footer className={styles.footer}>Agendamento por Na Régua</footer>
+      <footer className={styles.footer}>Agendamento por Na Regua</footer>
     </div>
   );
 }

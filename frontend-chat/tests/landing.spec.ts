@@ -8,8 +8,8 @@ test("home page is the public landing and sends barbers to sign up", async ({ pa
   const response = await page.goto("/");
   expect(response?.status()).toBe(200);
   await expect(page).toHaveURL("/");
-  await expect(page).toHaveTitle("Na Régua · Agenda online para barbearias");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sua barbearia na régua.");
+  await expect(page).toHaveTitle("Na Regua · Agenda online para barbearias");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sua barbearia na regua.");
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "index, follow");
 
   const signups = page.getByRole("link", { name: /Criar conta/ });
@@ -47,7 +47,7 @@ test("WhatsApp link names a known channel and ignores unknown query text", async
   const link = page.getByRole("link", { name: "Chamar no WhatsApp" }).last();
   const href = (await link.getAttribute("href")) ?? "";
   expect(href.startsWith("https://wa.me/5511999999999?text=")).toBe(true);
-  expect(decodeURIComponent(href.split("text=")[1])).toContain("Vi o Na Régua no TikTok");
+  expect(decodeURIComponent(href.split("text=")[1])).toContain("Vi o Na Regua no TikTok");
   await expect(link).toHaveAttribute("rel", "noopener noreferrer");
 
   await page.goto("/?utm_source=%3Cscript%3E");
@@ -55,7 +55,7 @@ test("WhatsApp link names a known channel and ignores unknown query text", async
     (await page.getByRole("link", { name: "Chamar no WhatsApp" }).last().getAttribute("href")) ??
     "";
   expect(decodeURIComponent(plain.split("text=")[1])).toBe(
-    "Oi! Quero saber mais sobre o Na Régua para a minha barbearia.",
+    "Oi! Quero saber mais sobre o Na Regua para a minha barbearia.",
   );
 });
 

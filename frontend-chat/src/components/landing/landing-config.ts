@@ -1,6 +1,6 @@
 // Public marketing settings. Everything here is presentation only: prices and
 // plan rules are always confirmed by the API and Stripe before checkout.
-export const PRODUCT_NAME = "Na Régua";
+export const PRODUCT_NAME = "Na Regua";
 
 // Monthly price as charged by the Stripe price in STRIPE_MONTHLY_PRICE_ID.
 // Keep both in step: the checkout always shows the real amount before payment.
