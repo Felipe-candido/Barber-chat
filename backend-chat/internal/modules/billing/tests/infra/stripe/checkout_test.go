@@ -101,6 +101,7 @@ func TestStripeRejectsUnsafeOrMalformedSessions(t *testing.T) {
 		{"wrong URL", "url", "https://checkout.stripe.com.evil.test/c/pay/fake"},
 		{"insecure URL", "url", "http://checkout.stripe.com/c/pay/fake"},
 		{"credentials", "url", "https://user:secret@checkout.stripe.com/c/pay/fake"},
+		{"unknown checkout path", "url", "https://checkout.stripe.com/x/pay/fake"},
 		{"wrong reference", "client_reference_id", uuid.New().String()}, {"payment not subscription", "mode", "payment"},
 		{"wrong object", "object", "customer"}, {"missing customer", "customer", ""}, {"invalid status", "status", "paid"},
 	} {
@@ -269,5 +270,18 @@ func TestAmbiguousOrUnrelatedSessionFailuresNeverUseAnotherKey(t *testing.T) {
 				t.Fatal("unsafe alternative request", err, calls)
 			}
 		})
+	}
+}
+
+func TestStripeAcceptsCurrentHostedCheckoutPaths(t *testing.T) {
+	attempt := application.CheckoutAttempt{ID: uuid.New(), ShopID: uuid.New()}
+	for _, link := range []string{"https://checkout.stripe.com/c/pay/cs_test_example", "https://checkout.stripe.com/g/pay/cs_test_example"} {
+		value := sessionJSON(attempt)
+		value["url"] = link
+		c, _ := stripe.NewClient("sk_test_example", &http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { return jsonResponse(value), nil })})
+		session, err := c.FindCheckoutSession(context.Background(), "cs_test_example")
+		if err != nil || session.URL != link {
+			t.Fatal(link, err)
+		}
 	}
 }

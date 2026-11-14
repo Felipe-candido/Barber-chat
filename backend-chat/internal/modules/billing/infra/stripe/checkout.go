@@ -275,13 +275,19 @@ func parseSession(raw sessionJSON, mode domain.BillingMode) (application.Checkou
 	}
 	if raw.Status == "open" || raw.URL != "" {
 		u, err := url.Parse(raw.URL)
-		if err != nil || u.Scheme != "https" || u.Host != "checkout.stripe.com" || u.User != nil || !strings.HasPrefix(u.Path, "/c/") {
+		if err != nil || u.Scheme != "https" || u.Host != "checkout.stripe.com" || u.User != nil || !hostedCheckoutPath(u.Path) {
 			return application.CheckoutSession{}, ErrProviderResponse
 		}
 	}
 	return application.CheckoutSession{ID: raw.ID, CustomerID: raw.Customer, AttemptID: attempt, ShopID: shop,
 		URL: raw.URL, Status: raw.Status, SubscriptionID: raw.Subscription, ExpiresAt: time.Unix(raw.ExpiresAt, 0).UTC(),
 		Currency: raw.Currency, AmountSubtotal: raw.AmountSubtotal, AmountTotal: raw.AmountTotal}, nil
+}
+
+// Stripe serves hosted Checkout under /c/ and, since late 2026, also under /g/.
+// Only these two path families on checkout.stripe.com over HTTPS are accepted.
+func hostedCheckoutPath(path string) bool {
+	return strings.HasPrefix(path, "/c/") || strings.HasPrefix(path, "/g/")
 }
 
 func validID(id, prefix string) bool {
