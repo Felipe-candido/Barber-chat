@@ -112,7 +112,7 @@ func authorizedShopID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) 
 	identity, authenticated := requestctx.StaffIdentityFromContext(r.Context())
 	scope, authorized := requestctx.ShopScopeFromContext(r.Context())
 	if !authenticated || identity.UserID == uuid.Nil {
-		w.Header().Set("WWW-Authenticate", `Bearer realm="barber-chat"`)
+		w.Header().Set("WWW-Authenticate", `Bearer realm="Na Regua"`)
 		writeError(w, http.StatusUnauthorized, "authentication_required", "authentication is required")
 		return uuid.Nil, false
 	}

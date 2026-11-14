@@ -7,7 +7,7 @@ export function OnboardingShell({ step, children }: { step: 1 | 2 | 3; children:
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <Link href="/login" aria-label="Na Régua — início">
+        <Link href="/login" aria-label="Na Regua — início">
           <Brand />
         </Link>
         <Link href="/login">Já tenho conta</Link>
@@ -33,7 +33,7 @@ export function OnboardingShell({ step, children }: { step: 1 | 2 | 3; children:
           começar a receber agendamentos.
         </p>
       </main>
-      <footer className={styles.footer}>Na Régua · Sua rotina, mais simples</footer>
+      <footer className={styles.footer}>Na Regua · Sua rotina, mais simples</footer>
     </div>
   );
 }

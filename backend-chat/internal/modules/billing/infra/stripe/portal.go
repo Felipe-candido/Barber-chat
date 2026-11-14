@@ -61,8 +61,8 @@ func (c *Client) ProvisionTestPortalConfiguration(ctx context.Context) (string, 
 }
 func (c *Client) ProvisionPortalConfiguration(ctx context.Context) (string, error) {
 	var configuration portalConfiguration
-	err := c.request(ctx, "POST", "/billing_portal/configurations", "barber:"+string(c.mode)+":portal-policy:v1:reasons-v2", url.Values{
-		"name":                                                           {"BarberChat - gerenciamento de assinatura " + string(c.mode) + " v1"},
+	err := c.request(ctx, "POST", "/billing_portal/configurations", "barber:"+string(c.mode)+":portal-policy:v1:reasons-v2:na-regua-v1", url.Values{
+		"name":                                                           {"Na Regua - gerenciamento de assinatura " + string(c.mode) + " v1"},
 		"metadata[barber_portal_protocol]":                               {"1"},
 		"login_page[enabled]":                                            {"false"},
 		"features[customer_update][enabled]":                             {"false"},

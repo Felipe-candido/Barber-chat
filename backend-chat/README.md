@@ -1,4 +1,4 @@
-# Barber-chat
+# Na Regua
 
 **Autenticação administrativa:** Bearer Supabase ES256, usuário local ativo, `/api/v1/admin/me` e criação de serviços autorizada por unidade estão implementados. Contas e vínculos são provisionados manualmente, sem papéis. Veja [configuração e provisionamento](docs/authentication-proposal.md) e [a decisão de arquitetura](docs/adr/0009-supabase-identity-without-roles.md).
 

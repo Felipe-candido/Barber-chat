@@ -1,4 +1,4 @@
-// Barber-chat load test (k6). Run through run-loadtest.ps1, or directly:
+// Na Regua load test (k6). Run through run-loadtest.ps1, or directly:
 //   k6 run -e API=http://127.0.0.1:8080 -e SLUG=minha-barbearia loadtest/barber-load.js
 //
 // Scenarios (each one turns on only when its inputs exist):
@@ -230,7 +230,7 @@ export function handleSummary(summary) {
   const p95 = (name) => Math.round(value(name, "p(95)"));
   const lines = [
     "",
-    "Barber-chat load test summary",
+    "Na Regua load test summary",
     "==============================",
     `Requests: ${value("http_reqs")} (${value("http_reqs", "rate").toFixed(1)}/s)`,
     `p95 overall: ${p95("http_req_duration")} ms | availability p95: ${p95("availability_ms")} ms | booking p95: ${p95("booking_ms")} ms`,

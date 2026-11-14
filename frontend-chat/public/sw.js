@@ -1,7 +1,7 @@
 // Cache only public, data-free assets. Private pages and API responses stay online-only.
 const CACHE_PREFIX = "na-regua-offline-";
 // Increment when changing offline assets so installed apps replace their old cache.
-const CACHE_NAME = `${CACHE_PREFIX}v1`;
+const CACHE_NAME = `${CACHE_PREFIX}v2`;
 const OFFLINE_URL = "/offline.html";
 const PUBLIC_ASSETS = [
   OFFLINE_URL,

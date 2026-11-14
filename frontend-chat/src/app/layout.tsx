@@ -9,12 +9,12 @@ import { PwaProvider } from "@/components/pwa/pwa-provider";
 
 export const metadata: Metadata = {
   title: {
-    default: "Na Régua · Agenda e gestão de barbearias",
-    template: "%s · Na Régua",
+    default: "Na Regua · Agenda e gestão de barbearias",
+    template: "%s · Na Regua",
   },
   description: "Agendamento online e gestão da rotina da sua barbearia.",
-  applicationName: "Na Régua",
-  appleWebApp: { capable: true, title: "Na Régua", statusBarStyle: "default" },
+  applicationName: "Na Regua",
+  appleWebApp: { capable: true, title: "Na Regua", statusBarStyle: "default" },
   icons: { apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }] },
   robots: { index: false, follow: false },
 };

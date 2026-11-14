@@ -18,7 +18,7 @@ func ShopAccess(authorize *identityapp.AuthorizeShopAction, logger *slog.Logger)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			identity, ok := requestctx.StaffIdentityFromContext(r.Context())
 			if !ok || identity.UserID == uuid.Nil {
-				w.Header().Set("WWW-Authenticate", `Bearer realm="barber-chat"`)
+				w.Header().Set("WWW-Authenticate", `Bearer realm="Na Regua"`)
 				response.Error(w, http.StatusUnauthorized, "authentication_required", "authentication is required")
 				return
 			}

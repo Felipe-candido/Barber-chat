@@ -97,7 +97,7 @@ e HTTP_TIMEOUT=60s, respeitando também os limites do proxy da hospedagem.
 ## 3. Teste prático com telefone
 
 1. Entre como proprietário. Abra Configurações > WhatsApp e conecte pelo QR
-   exibido no próprio Barber-chat; escaneie em Aparelhos conectados no WhatsApp.
+   exibido no próprio Na Regua; escaneie em Aparelhos conectados no WhatsApp.
    Uma instância criada manualmente no gerenciador não se vincula à unidade.
 2. Confirme estado conectado com verificação recente. Habilite notificações e
    escolha lembrete manual; salve. O modo automático fica indisponível sem worker.

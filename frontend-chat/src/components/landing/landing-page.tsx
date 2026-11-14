@@ -84,7 +84,7 @@ export function LandingPage({ channel }: { channel: string }) {
             <div className={styles.heroText}>
               <p className={styles.eyebrowLight}>Agenda online para barbearias</p>
               <h1 className={styles.heroTitle}>
-                Sua barbearia <em>na régua.</em>
+                Sua barbearia <em>na regua.</em>
               </h1>
               <p className={styles.heroLead}>
                 O cliente agenda pelo link, recebe a confirmação e o lembrete no WhatsApp, e você vê
@@ -365,7 +365,7 @@ export function LandingPage({ channel }: { channel: string }) {
         <section className={styles.dark}>
           <div className={`${styles.wrap} ${styles.finalRow}`}>
             <h2 className={styles.sectionTitle}>
-              Bota a sua barbearia <em>na régua.</em>
+              Bota a sua barbearia <em>na regua.</em>
             </h2>
             <div className={styles.actions}>
               <Link href={SIGNUP} className={`${styles.btn} ${styles.btnBrass}`}>

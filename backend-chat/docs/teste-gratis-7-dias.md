@@ -45,7 +45,7 @@ Pedido do dono do produto (10/11/2026). Escrito para o Codex implementar no back
 
 ## Configuração (fora do código)
 
-- No Stripe (modo teste), criar o produto "Na Régua" com price mensal de
+- No Stripe (modo teste), criar o produto "Na Regua" com price mensal de
   R$ 49,90 BRL **sem** trial no price; usar o ID em `STRIPE_MONTHLY_PRICE_ID`.
 - Frontend: quando o teste estiver no ar, definir `NEXT_PUBLIC_TRIAL_DAYS=7`
   na Netlify. Até lá a landing promete só "configure grátis" e mostra R$ 49,90.

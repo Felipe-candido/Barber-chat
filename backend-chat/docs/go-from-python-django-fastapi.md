@@ -1,6 +1,6 @@
 # Go para quem vem de Python, Django e FastAPI
 
-Este guia explica o código executável atual do Barber-chat, usando Django e FastAPI como referência. Ele descreve o estado presente do repositório: health checks, configuração, PostgreSQL, RabbitMQ e ciclo de vida do worker. Ainda não há agendamento, ORM, modelos de negócio, CRUD, autenticação ou envio de mensagens.
+Este guia explica o código executável atual do Na Regua, usando Django e FastAPI como referência. Ele descreve o estado presente do repositório: health checks, configuração, PostgreSQL, RabbitMQ e ciclo de vida do worker. Ainda não há agendamento, ORM, modelos de negócio, CRUD, autenticação ou envio de mensagens.
 
 Os links para os arquivos usam números de linha. Quando o código mudar, os números podem mudar; a ideia é abrir o arquivo e acompanhar os blocos citados.
 

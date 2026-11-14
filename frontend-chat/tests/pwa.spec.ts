@@ -7,7 +7,7 @@ test("manifest, Apple metadata and opaque PNG icons are available", async ({ req
   const manifest = await response.json();
   expect(manifest).toMatchObject({
     id: "/",
-    short_name: "Na Régua",
+    short_name: "Na Regua",
     start_url: "/admin",
     scope: "/",
     display: "standalone",
@@ -170,7 +170,7 @@ test("dismissed prompt is consumed and the next click provides manual instructio
   await button.click();
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await button.click();
-  await expect(page.getByRole("dialog", { name: "Instalar Na Régua" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Instalar Na Regua" })).toBeVisible();
   await page.getByRole("button", { name: "Entendi" }).click();
   await expect(button).toBeFocused();
 });
@@ -202,7 +202,7 @@ test("landing page offers installation on a narrow viewport", async ({ page }) =
   const button = page.getByRole("button", { name: "Baixar app" });
   await button.scrollIntoViewIfNeeded();
   await button.click();
-  await expect(page.getByRole("dialog", { name: "Instalar Na Régua" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Instalar Na Regua" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );

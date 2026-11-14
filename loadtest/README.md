@@ -1,6 +1,6 @@
 # Teste de carga (k6)
 
-Simula clientes e equipe usando o Barber-chat ao mesmo tempo, **contra o ambiente local**.
+Simula clientes e equipe usando o Na Regua ao mesmo tempo, **contra o ambiente local**.
 
 ## Preparar (uma vez)
 

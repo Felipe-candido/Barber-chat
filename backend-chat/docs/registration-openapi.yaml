@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Barber-chat self-service registration
+  title: Na Regua self-service registration
   version: 0.2.0
 paths:
   registration:

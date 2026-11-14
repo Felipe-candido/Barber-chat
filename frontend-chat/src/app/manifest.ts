@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Na Régua — Agenda e gestão",
-    short_name: "Na Régua",
+    name: "Na Regua — Agenda e gestão",
+    short_name: "Na Regua",
     description: "Agendamento online e gestão da rotina da sua barbearia.",
     lang: "pt-BR",
     start_url: "/admin",

@@ -20,7 +20,7 @@ func Authentication(authenticate *identityapp.Authenticate, logger *slog.Logger)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			token, ok := bearerToken(r)
 			if !ok {
-				w.Header().Set("WWW-Authenticate", `Bearer realm="barber-chat"`)
+				w.Header().Set("WWW-Authenticate", `Bearer realm="Na Regua"`)
 				response.Error(w, http.StatusUnauthorized, "authentication_required", "a Bearer access token is required")
 				return
 			}

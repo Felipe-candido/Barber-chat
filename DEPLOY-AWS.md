@@ -1,6 +1,6 @@
-# Deploy do Barber-chat na AWS (EC2 + S3)
+# Deploy do Na Regua na AWS (EC2 + S3)
 
-Guia para colocar o Barber-chat no ar em **uma única instância EC2** com Docker Compose e, depois, adicionar um **bucket S3 com CloudFront** para imagens. É o caminho mais simples e barato para um MVP; no fim há as próximas evoluções quando o volume crescer.
+Guia para colocar o Na Regua no ar em **uma única instância EC2** com Docker Compose e, depois, adicionar um **bucket S3 com CloudFront** para imagens. É o caminho mais simples e barato para um MVP; no fim há as próximas evoluções quando o volume crescer.
 
 > Valores entre `<>` são seus: troque `<seu-dominio>` por algo como `barberchat.com.br`.
 
