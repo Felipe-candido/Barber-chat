@@ -31,12 +31,12 @@ func RenderBookingMessage(version int, kind string, s BookingSnapshot) (BookingM
 	if version != BookingMessageTemplateVersion || !s.Valid() {
 		return BookingMessage{}, ErrInvalidBookingMessage
 	}
-	var title string
+	var title, greeting string
 	switch kind {
 	case "booking_confirmation":
-		title = "Agendamento confirmado"
+		title, greeting = "Agendamento confirmado", "Seu horário está confirmado."
 	case "booking_reminder":
-		title = "Lembrete do seu agendamento"
+		title, greeting = "Lembrete do seu agendamento", "Passando para lembrar do seu horário."
 	default:
 		return BookingMessage{}, ErrInvalidBookingMessage
 	}
@@ -60,8 +60,11 @@ func RenderBookingMessage(version int, kind string, s BookingSnapshot) (BookingM
 	if currency == "BRL" {
 		currency = "R$"
 	}
-	text := fmt.Sprintf("%s\n\nOlá, %s!\n\nBarbearia: %s\nEndereço: %s\nServiço: %s\nProfissional: %s\nData: %s\nHorário: %s (UTC%s)\nFuso da barbearia: %s\nValor: %s %d,%02d\n\nCódigo do agendamento: %s\n\nGuarde este código para consultar ou cancelar na página de agendamento da barbearia. Não compartilhe o código com outras pessoas.",
-		title, values[0], values[1], values[2], values[3], values[4], local.Format("02/01/2006"), local.Format("15:04"), local.Format("-07:00"), s.ShopTimezone, currency, s.PriceCents/100, s.PriceCents%100, s.AppointmentCode)
+	// Customers read the shop's own civil date and time; offsets and IANA zone
+	// names are omitted on purpose. The asterisks are WhatsApp bold on the title only.
+	weekdays := [...]string{"domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"}
+	text := fmt.Sprintf("*%s*\n\nOlá, %s! %s\n\nBarbearia: %s\nServiço: %s\nProfissional: %s\nData: %s (%s)\nHorário: %s\nValor: %s %d,%02d\nEndereço: %s\n\nCódigo do agendamento: %s\n\nGuarde este código para consultar ou cancelar na página de agendamento da barbearia. Não compartilhe o código com outras pessoas.",
+		title, values[0], greeting, values[1], values[3], values[4], local.Format("02/01/2006"), weekdays[local.Weekday()], local.Format("15:04"), currency, s.PriceCents/100, s.PriceCents%100, values[2], s.AppointmentCode)
 	if len(text) > MaxBookingMessageBytes {
 		return BookingMessage{}, ErrInvalidBookingMessage
 	}

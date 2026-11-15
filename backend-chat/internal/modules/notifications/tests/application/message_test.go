@@ -23,18 +23,18 @@ func TestBookingMessageUsesLocalSnapshotAndIntegerMoney(t *testing.T) {
 		if err != nil || m.Version != 1 {
 			t.Fatal("template could not render", err)
 		}
-		for _, value := range []string{s.CustomerName, s.ShopName, s.ShopAddress, s.ServiceName, s.ProfessionalName, s.AppointmentCode, "Data: 01/11/2026", "Horário: 23:30 (UTC-03:00)", "Fuso da barbearia: America/Sao_Paulo", "Valor: R$ 39,90"} {
+		for _, value := range []string{s.CustomerName, s.ShopName, s.ShopAddress, s.ServiceName, s.ProfessionalName, s.AppointmentCode, "Data: 01/11/2026 (domingo)", "Horário: 23:30\n", "Valor: R$ 39,90"} {
 			if !strings.Contains(m.Text, value) {
 				t.Fatal("message lost a snapshot field")
 			}
 		}
-		if strings.Contains(m.Text, s.RecipientPhone) || strings.Contains(m.Text, "amanhã") {
+		if strings.Contains(m.Text, s.RecipientPhone) || strings.Contains(m.Text, "amanhã") || strings.Contains(m.Text, "UTC") || strings.Contains(m.Text, s.ShopTimezone) {
 			t.Fatal("unnecessary contact data or incorrect relative date")
 		}
-		if kind == "booking_confirmation" && !strings.HasPrefix(m.Text, "Agendamento confirmado") {
+		if kind == "booking_confirmation" && !strings.HasPrefix(m.Text, "*Agendamento confirmado*\n\nOlá, ") {
 			t.Fatal("wrong confirmation")
 		}
-		if kind == "booking_reminder" && !strings.HasPrefix(m.Text, "Lembrete do seu agendamento") {
+		if kind == "booking_reminder" && !strings.HasPrefix(m.Text, "*Lembrete do seu agendamento*\n\nOlá, ") {
 			t.Fatal("wrong reminder")
 		}
 	}
@@ -50,7 +50,7 @@ func TestBookingMessageUsesLocalSnapshotAndIntegerMoney(t *testing.T) {
 func TestBookingMessageDaylightSavingAndDisplayBoundaries(t *testing.T) {
 	s := preparation().Snapshot
 	s.ShopTimezone = "America/New_York"
-	for hour, want := range map[int]string{6: "01:30 (UTC-05:00)", 7: "03:30 (UTC-04:00)"} {
+	for hour, want := range map[int]string{6: "Horário: 01:30\n", 7: "Horário: 03:30\n"} {
 		s.StartsAt = time.Date(2026, 3, 8, hour, 30, 0, 0, time.UTC)
 		s.EndsAt = s.StartsAt.Add(time.Hour)
 		m, err := app.RenderBookingMessage(1, "booking_reminder", s)
