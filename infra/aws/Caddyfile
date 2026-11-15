@@ -10,6 +10,8 @@
 		Referrer-Policy no-referrer
 		-Server
 	}
+	# JSON lists (agenda, reports) compress well; the API itself sends them uncompressed.
+	encode zstd gzip
 	# Only Evolution on the private Docker network may use this callback.
 	@privateCallback path /api/v1/webhooks/evolution /api/v1/webhooks/evolution/*
 	respond @privateCallback 404

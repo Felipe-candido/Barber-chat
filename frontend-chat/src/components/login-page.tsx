@@ -37,7 +37,7 @@ export function LoginPage() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <Link href="/login" aria-label="Na Regua — acesso">
+        <Link href="/" aria-label="Na Regua — página inicial">
           <Brand />
         </Link>
         <Link href="/chat" className={styles.publicLink}>

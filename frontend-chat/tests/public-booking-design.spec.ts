@@ -86,6 +86,8 @@ async function fixture(page: Page) {
         },
       });
     }
+    if (path.endsWith("/notification-options"))
+      return route.fulfill({ json: { whatsapp_enabled: false } });
     throw new Error("Unexpected public route " + path);
   });
   return { state, attempts };
