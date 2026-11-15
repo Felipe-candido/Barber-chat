@@ -29,18 +29,22 @@ a {
   margin-top: 1rem;
   padding: 0.85rem 1.25rem;
   border-radius: 0.6rem;
-  color: #fff;
-  background: #1d4ed8;
+  color: #f4f4f2;
+  background: #1c1f22;
   font-weight: 600;
   text-decoration: none;
 }
 a:focus-visible {
-  outline: 3px solid #2563eb;
+  outline: 3px solid #b08a4a;
   outline-offset: 4px;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     background: #121415;
     color: #f4f4f2;
+  }
+  a {
+    color: #121415;
+    background: #d9c39a;
   }
 }

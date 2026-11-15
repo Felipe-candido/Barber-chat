@@ -7,7 +7,7 @@ export function OnboardingShell({ step, children }: { step: 1 | 2 | 3; children:
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <Link href="/login" aria-label="Na Regua — início">
+        <Link href="/" aria-label="Na Regua — página inicial">
           <Brand />
         </Link>
         <Link href="/login">Já tenho conta</Link>

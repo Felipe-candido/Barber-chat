@@ -268,20 +268,26 @@ func parseSession(raw sessionJSON, mode domain.BillingMode) (application.Checkou
 	if aerr != nil || serr != nil || attempt == uuid.Nil || shop == uuid.Nil || raw.Metadata["attempt_id"] != attempt.String() ||
 		!validID(raw.ID, sessionPrefix(mode)) || !validID(raw.Customer, "cus_") || raw.Object != "checkout.session" ||
 		raw.LiveMode == nil || *raw.LiveMode != mode.Live() || raw.Mode != "subscription" || raw.ExpiresAt <= 0 || raw.ExpiresAt > 253402300799 {
-		return application.CheckoutSession{}, ErrProviderResponse
+		return application.CheckoutSession{}, rejectedSession("session_identity_rejected")
 	}
 	if raw.Status != "open" && raw.Status != "complete" && raw.Status != "expired" {
-		return application.CheckoutSession{}, ErrProviderResponse
+		return application.CheckoutSession{}, rejectedSession("session_status_rejected")
 	}
 	if raw.Status == "open" || raw.URL != "" {
 		u, err := url.Parse(raw.URL)
 		if err != nil || u.Scheme != "https" || u.Host != "checkout.stripe.com" || u.User != nil || !hostedCheckoutPath(u.Path) {
-			return application.CheckoutSession{}, ErrProviderResponse
+			return application.CheckoutSession{}, rejectedSession("session_url_rejected")
 		}
 	}
 	return application.CheckoutSession{ID: raw.ID, CustomerID: raw.Customer, AttemptID: attempt, ShopID: shop,
 		URL: raw.URL, Status: raw.Status, SubscriptionID: raw.Subscription, ExpiresAt: time.Unix(raw.ExpiresAt, 0).UTC(),
 		Currency: raw.Currency, AmountSubtotal: raw.AmountSubtotal, AmountTotal: raw.AmountTotal}, nil
+}
+
+// A fixed code tells operators which local check refused a successful provider
+// response. It carries no provider data, identifiers or URLs.
+func rejectedSession(code string) error {
+	return &application.ProviderFailure{Code: code}
 }
 
 // Stripe serves hosted Checkout under /c/ and, since late 2026, also under /g/.

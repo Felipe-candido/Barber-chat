@@ -8,7 +8,13 @@ const description =
 const siteURL = (process.env.NEXT_PUBLIC_SITE_URL ?? "").trim();
 
 export const metadata: Metadata = {
-  ...(siteURL ? { metadataBase: new URL(siteURL) } : {}),
+  ...(siteURL
+    ? {
+        metadataBase: new URL(siteURL),
+        alternates: { canonical: "/" },
+        twitter: { card: "summary_large_image" as const },
+      }
+    : {}),
   title: { absolute: `${PRODUCT_NAME} · Agenda online para barbearias` },
   description,
   // The rest of the app stays out of search results; the public home page is the exception.

@@ -15,7 +15,11 @@ export const metadata: Metadata = {
   description: "Agendamento online e gestão da rotina da sua barbearia.",
   applicationName: "Na Regua",
   appleWebApp: { capable: true, title: "Na Regua", statusBarStyle: "default" },
-  icons: { apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }] },
+  // Declaring `icons` replaces the file-based default, so the tab icon is listed explicitly.
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   robots: { index: false, follow: false },
 };
 export const viewport: Viewport = {

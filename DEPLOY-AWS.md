@@ -1,5 +1,7 @@
 # Deploy do Na Regua na AWS (EC2 + S3)
 
+> **Atualizado:** o deploy em uso (API, WhatsApp e worker na EC2, site na Netlify) está em [`infra/aws/README.md`](infra/aws/README.md). Este guia continua válido para o bucket S3 e como referência geral.
+
 Guia para colocar o Na Regua no ar em **uma única instância EC2** com Docker Compose e, depois, adicionar um **bucket S3 com CloudFront** para imagens. É o caminho mais simples e barato para um MVP; no fim há as próximas evoluções quando o volume crescer.
 
 > Valores entre `<>` são seus: troque `<seu-dominio>` por algo como `barberchat.com.br`.

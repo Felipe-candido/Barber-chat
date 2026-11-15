@@ -149,6 +149,9 @@ func (h *CheckoutHandler) writeError(w http.ResponseWriter, r *http.Request, err
 		if errors.As(err, &failure) {
 			fields = append(fields, "provider_status", failure.HTTPStatus, "provider_code", failure.Code,
 				"provider_parameter", failure.Parameter, "provider_request_id", failure.RequestID)
+		} else {
+			// Not a provider answer: database, authorization read or cancelled request.
+			fields = append(fields, "reason", "internal")
 		}
 		h.logger.WarnContext(r.Context(), "checkout could not be confirmed", fields...)
 		response.Error(w, 503, "checkout_unavailable", "retry this endpoint to recover the original attempt; do not create a subscription elsewhere")

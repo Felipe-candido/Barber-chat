@@ -166,6 +166,8 @@ func run(
 		if cfg.StripeWebhookSecret != "" {
 			checkoutProvider = stripeClient
 			portalProvider = stripeClient
+		} else {
+			logger.Warn("STRIPE_WEBHOOK_SECRET is empty: checkout and portal stay disabled and /api/v1/webhooks/stripe answers 404")
 		}
 	}
 	var webhookVerifier billingapp.WebhookVerifier
