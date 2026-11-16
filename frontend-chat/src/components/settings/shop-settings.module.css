@@ -269,3 +269,95 @@
     flex: 1 1 auto;
   }
 }
+
+/* Section tabs: one group of settings on screen at a time. */
+.tabs {
+  display: flex;
+  gap: var(--space-1);
+  width: min(100%, 48rem);
+  overflow-x: auto;
+  border-bottom: 1px solid var(--color-border);
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+.tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+  min-height: 2.75rem;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: none;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--text-small);
+  font-weight: var(--weight-medium);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--color-text);
+}
+.tab[aria-selected="true"] {
+  color: var(--color-text);
+  border-bottom-color: var(--color-accent, var(--palette-brass-500));
+  font-weight: var(--weight-semibold);
+}
+.tab:focus-visible {
+  outline: 2px solid var(--color-accent, var(--palette-brass-500));
+  outline-offset: -2px;
+  border-radius: var(--radius-control);
+}
+.tabDot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--color-accent, var(--palette-brass-500));
+}
+.panel {
+  display: grid;
+  gap: var(--space-6);
+  min-width: 0;
+}
+.panel[hidden] {
+  display: none;
+}
+.panelTools {
+  display: flex;
+  justify-content: flex-end;
+}
+.plan {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-surface-subtle);
+  min-width: 0;
+}
+.planState {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+.planState .commercialSubheading {
+  margin: 0;
+}
+.commercialMinor {
+  font-size: var(--text-small);
+  font-weight: var(--weight-semibold);
+  margin-bottom: var(--space-2);
+}
+@media (max-width: 480px) {
+  .tab {
+    padding-inline: var(--space-3);
+  }
+}

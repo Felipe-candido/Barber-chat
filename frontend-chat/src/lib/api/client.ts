@@ -81,7 +81,7 @@ const messages: Record<string, string> = {
   product_unavailable:
     "Não foi possível confirmar a operação de estoque. Confira o histórico e recupere a tentativa original.",
   billing_not_configured:
-    "A assinatura de teste ainda não está habilitada. Confira STRIPE_SECRET_KEY, STRIPE_MONTHLY_PRICE_ID e STRIPE_WEBHOOK_SECRET no backend.",
+    "A assinatura ainda não está disponível nesta plataforma. Fale com o suporte.",
   billing_not_required:
     "Esta barbearia mantém o acesso anterior. Não abra uma assinatura para ela sem orientação do responsável pela plataforma.",
   subscription_exists:
@@ -96,8 +96,7 @@ const messages: Record<string, string> = {
     "A Stripe confirmou que o Checkout expirou. Consulte as condições; uma nova tentativa exige sua confirmação.",
   checkout_unavailable:
     "Não foi possível confirmar o Checkout. Consulte as condições novamente para recuperar a mesma tentativa.",
-  portal_not_configured:
-    "O portal de teste ainda não foi configurado pelo responsável pela plataforma.",
+  portal_not_configured: "O portal de assinatura ainda não está disponível. Fale com o suporte.",
   portal_not_available:
     "A assinatura ainda não está disponível para gerenciamento. Atualize a situação; se o pagamento já foi feito, aguarde a confirmação.",
   portal_unavailable:

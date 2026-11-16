@@ -76,11 +76,12 @@ export function ShopCommercialCard({
         <div>
           <h2 id="commercial-title">Assinatura e agendamento online</h2>
           <p className={styles.note}>
-            Configure sem pagar. Publicar o link é uma decisão separada da assinatura.
+            Configurar é grátis. A assinatura libera novos agendamentos; publicar o link é uma
+            decisão separada.
           </p>
         </div>
         <Button
-          variant="secondary"
+          variant="quiet"
           disabled={mode === "saving" || mode === "loading" || mode === "blocked"}
           onClick={() => {
             setCopyNotice("");
@@ -122,146 +123,162 @@ export function ShopCommercialCard({
       )}
       {ready && (
         <>
-          <div className={styles.commercialStatuses}>
-            <Badge tone={status.subscription.operation_allowed ? "success" : "warning"}>
-              {subscriptionLabels[status.subscription.reason]}
-            </Badge>
-            <Badge tone={canShare ? "success" : "neutral"}>
-              {canShare
-                ? "Link ativo"
-                : status.publication_requested
-                  ? "Link indisponível"
-                  : "Não publicada"}
-            </Badge>
-          </div>
-          {!status.publication_managed ? (
-            <p className={styles.note}>
-              Esta barbearia mantém o acesso anterior da plataforma. Nenhuma assinatura foi iniciada
-              ou cobrada. Mudanças na publicação são gerenciadas pelo responsável pela plataforma.
-            </p>
-          ) : (
-            <>
-              {status.subscription.status !== "none" && (
-                <CustomerPortalControl
-                  flow={portal}
-                  disabled={mode !== "ready"}
-                  onCheck={() => void commercial.refresh()}
-                />
-              )}
-              {deadline && (
-                <p className={styles.note}>
-                  Acesso confirmado até {deadline}, no fuso {timezone}. Novos agendamentos dependem
-                  da cobertura vigente.
-                </p>
-              )}
-              {status.subscription.cancel_at_period_end && (
-                <Alert tone="warning">
-                  Há um cancelamento programado. A cobertura já confirmada permanece válida até o
-                  prazo informado.
-                </Alert>
-              )}
-              {status.publication_requested && !status.public_booking_enabled && (
-                <Alert tone="warning">
-                  A intenção de publicação foi mantida, mas o link está indisponível sem cobertura.
-                  Uma renovação confirmada pode reativá-lo. Retire do ar se não quiser essa
-                  reativação.
-                </Alert>
-              )}
-              {status.blockers.length > 0 && (
-                <div>
-                  <h3 className={styles.commercialSubheading}>Pendências para publicar</h3>
-                  <ul className={styles.commercialList}>
-                    {status.blockers.map((reason) => (
-                      <li key={reason}>
-                        {readinessLabels[reason] ??
-                          "Confirme ou regularize a assinatura da barbearia."}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {!status.subscription.operation_allowed && (
-                <p className={styles.note}>
-                  Você pode continuar configurando a barbearia e consultando os agendamentos
-                  existentes. A assinatura habilita novas reservas; publicar o link exige uma
-                  confirmação separada.
-                </p>
-              )}
-              {["none", "canceled"].includes(status.subscription.status) && (
-                <SubscriptionCheckoutControl
-                  checkout={checkout}
-                  configurationPending={configurationPending}
-                  disabled={mode !== "ready"}
-                  onCheck={() => void commercial.refresh()}
-                />
-              )}
-              {configurationPending && (
-                <p className={styles.note}>
-                  Salve e confira as alterações do formulário antes de publicar. A retirada do ar
-                  continua disponível.
-                </p>
-              )}
-              <div className={styles.actions}>
-                {!status.publication_requested && (
-                  <Button disabled={!canPublish} onClick={() => setConfirmation(true)}>
-                    Publicar barbearia
-                  </Button>
-                )}
-                {status.publication_requested && (
-                  <Button variant="danger" onClick={() => setConfirmation(false)}>
-                    Retirar do ar
-                  </Button>
-                )}
-              </div>
-            </>
-          )}
-          {canShare && (
-            <div className={styles.commercialLink}>
-              <h3 className={styles.commercialSubheading}>Link para seus clientes</h3>
-              <p className={styles.note}>
-                Compartilhe nas redes sociais ou envie diretamente aos clientes.
-              </p>
-              <code>{publicBookingPath(status.slug)}</code>
-              <div className={styles.actions}>
-                <Link
-                  href={publicBookingPath(status.slug)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={buttonClasses("secondary")}
-                >
-                  Abrir agendamento <ArrowUpRight size={16} aria-hidden="true" />
-                </Link>
-                <Button
-                  variant="secondary"
-                  onClick={async () => {
-                    setCopyNotice("");
-                    if (!hasCurrentCoverage(status)) {
-                      void commercial.refresh();
-                      return;
-                    }
-                    try {
-                      await navigator.clipboard.writeText(
-                        window.location.origin + publicBookingPath(status.slug),
-                      );
-                      setCopyNotice("Link de agendamento copiado.");
-                    } catch {
-                      setCopyNotice(
-                        "Não foi possível copiar. Abra o agendamento e copie o endereço na barra do navegador.",
-                      );
-                    }
-                  }}
-                >
-                  <Copy size={16} aria-hidden="true" />
-                  Copiar link de agendamento
-                </Button>
-              </div>
-              {copyNotice && (
-                <p className={styles.note} role="status">
-                  {copyNotice}
-                </p>
-              )}
+          <div className={styles.plan} data-allowed={status.subscription.operation_allowed}>
+            <div className={styles.planState}>
+              <h3 className={styles.commercialSubheading}>Assinatura</h3>
+              <Badge tone={status.subscription.operation_allowed ? "success" : "warning"}>
+                {subscriptionLabels[status.subscription.reason]}
+              </Badge>
             </div>
-          )}
+            {!status.publication_managed ? (
+              <p className={styles.note}>
+                Esta barbearia mantém o acesso anterior da plataforma. Nenhuma assinatura foi
+                iniciada ou cobrada. Mudanças na publicação são gerenciadas pelo responsável pela
+                plataforma.
+              </p>
+            ) : (
+              <>
+                {deadline && (
+                  <p className={styles.note}>
+                    Acesso confirmado até {deadline}, no fuso {timezone}. Novos agendamentos
+                    dependem da cobertura vigente.
+                  </p>
+                )}
+                {!status.subscription.operation_allowed && (
+                  <p className={styles.note}>
+                    Você pode continuar configurando a barbearia e consultando os agendamentos
+                    existentes. A assinatura habilita novas reservas; publicar o link exige uma
+                    confirmação separada.
+                  </p>
+                )}
+                {status.subscription.cancel_at_period_end && (
+                  <Alert tone="warning">
+                    Há um cancelamento programado. A cobertura já confirmada permanece válida até o
+                    prazo informado.
+                  </Alert>
+                )}
+                {status.subscription.status !== "none" && (
+                  <CustomerPortalControl
+                    flow={portal}
+                    disabled={mode !== "ready"}
+                    onCheck={() => void commercial.refresh()}
+                  />
+                )}
+                {["none", "canceled"].includes(status.subscription.status) && (
+                  <SubscriptionCheckoutControl
+                    checkout={checkout}
+                    configurationPending={configurationPending}
+                    disabled={mode !== "ready"}
+                    onCheck={() => void commercial.refresh()}
+                  />
+                )}
+              </>
+            )}
+          </div>
+          <div className={styles.commercialLink}>
+            <div className={styles.planState}>
+              <h3 className={styles.commercialSubheading}>Agendamento online</h3>
+              <Badge tone={canShare ? "success" : "neutral"}>
+                {canShare
+                  ? "Link ativo"
+                  : status.publication_requested
+                    ? "Link indisponível"
+                    : "Não publicada"}
+              </Badge>
+            </div>
+            {status.publication_managed && (
+              <>
+                {status.publication_requested && !status.public_booking_enabled && (
+                  <Alert tone="warning">
+                    A intenção de publicação foi mantida, mas o link está indisponível sem
+                    cobertura. Uma renovação confirmada pode reativá-lo. Retire do ar se não quiser
+                    essa reativação.
+                  </Alert>
+                )}
+                {status.blockers.length > 0 && (
+                  <div>
+                    <h4 className={styles.commercialMinor}>Pendências para publicar</h4>
+                    <ul className={styles.commercialList}>
+                      {status.blockers.map((reason) => (
+                        <li key={reason}>
+                          {readinessLabels[reason] ??
+                            "Confirme ou regularize a assinatura da barbearia."}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {configurationPending && (
+                  <p className={styles.note}>
+                    Salve e confira as alterações do formulário antes de publicar. A retirada do ar
+                    continua disponível.
+                  </p>
+                )}
+                <div className={styles.actions}>
+                  {!status.publication_requested && (
+                    <Button
+                      variant="secondary"
+                      disabled={!canPublish}
+                      onClick={() => setConfirmation(true)}
+                    >
+                      Publicar barbearia
+                    </Button>
+                  )}
+                  {status.publication_requested && (
+                    <Button variant="danger" onClick={() => setConfirmation(false)}>
+                      Retirar do ar
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
+            {canShare && (
+              <>
+                <p className={styles.note}>
+                  Link para seus clientes. Compartilhe nas redes sociais ou envie diretamente.
+                </p>
+                <code>{publicBookingPath(status.slug)}</code>
+                <div className={styles.actions}>
+                  <Link
+                    href={publicBookingPath(status.slug)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={buttonClasses("secondary")}
+                  >
+                    Abrir agendamento <ArrowUpRight size={16} aria-hidden="true" />
+                  </Link>
+                  <Button
+                    variant="secondary"
+                    onClick={async () => {
+                      setCopyNotice("");
+                      if (!hasCurrentCoverage(status)) {
+                        void commercial.refresh();
+                        return;
+                      }
+                      try {
+                        await navigator.clipboard.writeText(
+                          window.location.origin + publicBookingPath(status.slug),
+                        );
+                        setCopyNotice("Link de agendamento copiado.");
+                      } catch {
+                        setCopyNotice(
+                          "Não foi possível copiar. Abra o agendamento e copie o endereço na barra do navegador.",
+                        );
+                      }
+                    }}
+                  >
+                    <Copy size={16} aria-hidden="true" />
+                    Copiar link de agendamento
+                  </Button>
+                </div>
+                {copyNotice && (
+                  <p className={styles.note} role="status">
+                    {copyNotice}
+                  </p>
+                )}
+              </>
+            )}
+          </div>
         </>
       )}
       {confirmation !== null && (

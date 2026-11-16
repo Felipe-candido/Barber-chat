@@ -18,6 +18,12 @@ const offer = {
   livemode: false,
   recovering: false,
 };
+const stripePage = (page: Page) =>
+  page
+    .context()
+    .route("https://checkout.stripe.com/**", (route) =>
+      route.fulfill({ contentType: "text/html", body: "<title>Stripe</title>" }),
+    );
 const checkout = () => ({
   attempt_id: "55555555-5555-4555-8555-555555555555",
   intent: "publish",
@@ -60,9 +66,9 @@ function commercial(paid = false) {
 }
 const dialog = (page: Page) => page.getByRole("dialog", { name: "Assinatura mensal da barbearia" });
 const start = (page: Page) =>
-  page.getByRole("button", { name: "Ver plano e assinar", exact: true });
+  page.getByRole("button", { name: "Prosseguir para a assinatura", exact: true });
 const prepare = (page: Page) =>
-  dialog(page).getByRole("button", { name: "Preparar Checkout", exact: true });
+  dialog(page).getByRole("button", { name: "Abrir pagamento na Stripe", exact: true });
 async function setup(page: Page) {
   const session = await installSupabaseSession(page);
   await mockAdminAccess(page, [testShop, otherShop]);
@@ -159,13 +165,16 @@ test("owner reviews server price before a single authenticated POST, then checks
   await expect(dialog(page)).toContainText("por mês, por barbearia");
   await expect(dialog(page)).toContainText("não use cartão real");
   expect(writes).toEqual([]);
+  await stripePage(page);
+  const payment = page.waitForEvent("popup");
   await prepare(page).evaluate((button) => {
     (button as HTMLButtonElement).click();
     (button as HTMLButtonElement).click();
   });
-  const link = dialog(page).getByRole("link", { name: "Continuar na Stripe" });
-  await expect(link).toHaveAttribute("href", checkout().url);
-  await expect(link).toHaveAttribute("target", "_blank");
+  await expect(await payment).toHaveURL(checkout().url);
+  expect(page.context().pages()).toHaveLength(2);
+  await expect(dialog(page)).toContainText("Conclua o pagamento na aba da Stripe");
+  await expect(prepare(page)).toHaveCount(0);
   expect(writes).toEqual([{ intent: "publish", offer_id: offer.offer_id }]);
   paid = true;
   await dialog(page).getByRole("button", { name: "Conferir assinatura", exact: true }).click();
@@ -205,8 +214,10 @@ test("changed offer requires a new GET and explicit confirmation, without automa
   await dialog(page).getByRole("button", { name: "Consultar condições novamente" }).click();
   await expect(dialog(page)).toContainText("R$ 129,00");
   expect(writes).toBe(1);
+  await stripePage(page);
+  const payment = page.waitForEvent("popup");
   await prepare(page).click();
-  await expect(dialog(page).getByRole("link", { name: "Continuar na Stripe" })).toBeVisible();
+  await expect(await payment).toHaveURL(checkout().url);
   expect(writes).toBe(2);
 });
 
@@ -227,8 +238,10 @@ test("lost response recovers frozen conditions only after explicit retry", async
   await dialog(page).getByRole("button", { name: "Consultar condições novamente" }).click();
   await expect(dialog(page)).toContainText("condições preservadas");
   expect(writes).toBe(1);
+  await stripePage(page);
+  const payment = page.waitForEvent("popup");
   await prepare(page).click();
-  await expect(dialog(page).getByRole("link", { name: "Continuar na Stripe" })).toBeVisible();
+  await expect(await payment).toHaveURL(checkout().url);
   expect(writes).toBe(2);
 });
 
@@ -249,12 +262,16 @@ test("dirty settings block Checkout; disabled billing and malicious URLs cannot 
   );
   await page.goto(path);
   await expect(start(page)).toBeEnabled();
+  await page.getByRole("tab", { name: "Barbearia" }).click();
   await page.getByLabel("Nome da barbearia", { exact: true }).fill("Rascunho mantido");
+  await page.getByRole("tab", { name: "Assinatura", exact: true }).click();
   await expect(start(page)).toBeDisabled();
   expect(reads).toBe(0);
+  await page.getByRole("tab", { name: "Barbearia" }).click();
   await page.getByLabel("Nome da barbearia", { exact: true }).fill(testShop.name);
+  await page.getByRole("tab", { name: "Assinatura", exact: true }).click();
   await start(page).click();
-  await expect(dialog(page)).toContainText("STRIPE_WEBHOOK_SECRET");
+  await expect(dialog(page)).toContainText("ainda não está disponível");
   await expect(prepare(page)).toHaveCount(0);
   configured = true;
   await dialog(page).getByRole("button", { name: "Consultar condições novamente" }).click();

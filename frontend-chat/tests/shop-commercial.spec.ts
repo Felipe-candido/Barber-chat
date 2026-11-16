@@ -126,7 +126,9 @@ test("checkout return is navigation only; unpaid owners keep configuration witho
   await expect(copy(page)).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Abrir agendamento", exact: true })).toHaveCount(0);
   await expect(page.getByLabel("Nome da barbearia", { exact: true })).toBeEnabled();
+  await page.getByRole("tab", { name: "Barbearia" }).click();
   await page.getByLabel("Nome da barbearia", { exact: true }).fill("Rascunho mantido");
+  await page.getByRole("tab", { name: "Assinatura", exact: true }).click();
   await card(page).getByRole("button", { name: "Atualizar situação" }).click();
   await expect(card(page)).toContainText("Sem assinatura confirmada");
   await expect(page.getByLabel("Nome da barbearia", { exact: true })).toHaveValue(
@@ -194,7 +196,9 @@ test("dirty configuration blocks publication, while unpaid unpublication preserv
   });
   await page.goto(path);
   await expect(publish(page)).toBeEnabled();
+  await page.getByRole("tab", { name: "Barbearia" }).click();
   await page.getByLabel("Nome da barbearia", { exact: true }).fill("Nome em edição");
+  await page.getByRole("tab", { name: "Assinatura", exact: true }).click();
   await expect(publish(page)).toBeDisabled();
   current = unpaid(true);
   await card(page).getByRole("button", { name: "Atualizar situação" }).click();
@@ -231,7 +235,9 @@ test("uncertain publication is recovered by GET without repeating PUT or losing 
   await publish(page).click();
   await page.getByRole("button", { name: "Confirmar publicação" }).click();
   await expect(card(page)).toContainText("Atualizando publicação");
+  await page.getByRole("tab", { name: "Barbearia" }).click();
   await page.getByLabel("Nome da barbearia", { exact: true }).fill("Edição durante envio");
+  await page.getByRole("tab", { name: "Assinatura", exact: true }).click();
   release();
   await expect(card(page).getByRole("button", { name: "Conferir situação na API" })).toBeVisible();
   await expect(copy(page)).toHaveCount(0);
@@ -406,8 +412,12 @@ test("saving configuration refreshes readiness without publishing automatically"
   });
   await page.goto(path);
   await expect(card(page)).toContainText("Complete e salve o endereço");
+  await page.getByRole("tab", { name: "Barbearia" }).click();
   await page.getByLabel("Nome da barbearia", { exact: true }).fill("Nome atualizado");
+  await page.getByRole("tab", { name: "Assinatura", exact: true }).click();
+  await page.getByRole("tab", { name: "Barbearia" }).click();
   await page.getByRole("button", { name: "Salvar alterações", exact: true }).click();
+  await page.getByRole("tab", { name: "Assinatura", exact: true }).click();
   await expect(publish(page)).toBeEnabled();
   await expect(page.getByLabel("Nome da barbearia", { exact: true })).toHaveValue(
     "Nome atualizado",
