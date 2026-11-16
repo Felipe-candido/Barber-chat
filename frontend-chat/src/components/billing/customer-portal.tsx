@@ -43,13 +43,10 @@ export function CustomerPortalControl({
             </Badge>
           )}
           <p>
-            Consulte faturas, atualize o cartão ou solicite o cancelamento ao fim do período. O
-            acesso já pago permanece até o prazo confirmado.
+            No portal você consulta faturas, troca o cartão ou cancela a renovação. O acesso já pago
+            continua até o prazo confirmado.
           </p>
-          <p className={styles.note}>
-            O portal abre em outra aba. As alterações no cadastro desta página ficam preservadas. A
-            situação da assinatura será atualizada após a confirmação da Stripe.
-          </p>
+          <p className={styles.note}>O portal abre em outra aba. Ao voltar, confira a situação.</p>
           {flow.pending && <p role="status">Preparando acesso seguro ao portal…</p>}
           {flow.error && <Alert tone="error">{flow.error}</Alert>}
           <div className={styles.actions}>

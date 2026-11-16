@@ -130,7 +130,7 @@ function OwnerRecovery({
           )}
           {canStart && checkout.mode === "closed" && (
             <Button disabled={checking || flow.busy} onClick={() => void checkout.load()}>
-              Ver plano e assinar
+              Prosseguir para a assinatura
             </Button>
           )}
         </>

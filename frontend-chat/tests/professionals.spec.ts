@@ -73,10 +73,7 @@ test("admin registers a barber with services and initial calendar in the selecte
       closes_at_minute: 1110,
     },
   });
-  await expect(page.getByRole("link", { name: "Testar agendamento no chat" })).toHaveAttribute(
-    "href",
-    "/b/" + testShop.slug,
-  );
+  await expect(page.getByRole("link", { name: /Testar agendamento/ })).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),

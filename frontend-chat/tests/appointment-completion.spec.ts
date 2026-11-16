@@ -3,7 +3,7 @@ import { installSupabaseSession, mockAdminAccess, testShop } from "./supabase-fi
 import type { CompletionSettings } from "../src/lib/api/appointment-completion";
 
 const endpoint = `http://127.0.0.1:8080/api/v1/admin/shops/${testShop.slug}/appointment-completion`;
-const path = `/admin/${testShop.slug}/configuracoes`;
+const path = `/admin/${testShop.slug}/configuracoes?aba=agenda`;
 const initial: CompletionSettings = {
   shop_id: testShop.shop_id,
   mode: "automatic",

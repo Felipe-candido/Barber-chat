@@ -19,7 +19,6 @@ export function LoginPage() {
   const { refresh } = useAdminAccess();
   const [visible, setVisible] = useState(false);
   const [help, setHelp] = useState<"recovery" | "invitation" | null>(null);
-  const [recoveryPreview, setRecoveryPreview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loginError, setLoginError] = useState("");
   const [canCompleteSignup, setCanCompleteSignup] = useState(false);
@@ -32,7 +31,6 @@ export function LoginPage() {
   }, []);
   function closeHelp() {
     setHelp(null);
-    setRecoveryPreview(false);
   }
   return (
     <div className={styles.page}>
@@ -197,17 +195,11 @@ export function LoginPage() {
         <Modal
           open
           onClose={closeHelp}
-          title={
-            help === "invitation"
-              ? "Como seu acesso é liberado"
-              : recoveryPreview
-                ? "Prévia de recuperação"
-                : "Recuperar seu acesso"
-          }
+          title={help === "invitation" ? "Como seu acesso é liberado" : "Recuperar seu acesso"}
           subtitle={
             help === "invitation"
               ? "Uma conta pessoal, vinculada à sua barbearia."
-              : "A recuperação por e-mail ainda não está disponível nesta tela."
+              : "A senha é redefinida por um novo convite."
           }
         >
           {help === "invitation" ? (
@@ -226,41 +218,15 @@ export function LoginPage() {
               </Alert>
               <Button onClick={closeHelp}>Voltar ao login</Button>
             </div>
-          ) : recoveryPreview ? (
+          ) : (
             <div className={styles.form}>
-              <Alert>Prévia: nenhum e-mail foi enviado e nenhum dado foi salvo.</Alert>
-              <p>Para recuperar o acesso agora, fale com o responsável pelo sistema.</p>
+              <p>
+                Se você é barbeiro, peça ao proprietário para reenviar seu convite na área de contas
+                da barbearia. O novo convite permite definir outra senha.
+              </p>
+              <p>Se você é proprietário, fale com o suporte para recuperar o acesso.</p>
               <Button onClick={closeHelp}>Voltar ao login</Button>
             </div>
-          ) : (
-            <form
-              className={styles.form}
-              onSubmit={(e) => {
-                e.preventDefault();
-                e.currentTarget.reset();
-                setRecoveryPreview(true);
-              }}
-            >
-              <Alert tone="warning">
-                Esta é apenas uma prévia. Nenhuma mensagem será enviada. Para recuperar o acesso
-                agora, fale com o responsável pelo sistema.
-              </Alert>
-              <TextField
-                label="E-mail da conta"
-                name="recovery-email"
-                type="email"
-                autoComplete="email"
-                placeholder="voce@barbearia.com"
-                required
-                maxLength={254}
-              />
-              <div className="modal-actions">
-                <Button variant="secondary" onClick={closeHelp}>
-                  Voltar
-                </Button>
-                <Button type="submit">Simular recuperação</Button>
-              </div>
-            </form>
           )}
         </Modal>
       )}

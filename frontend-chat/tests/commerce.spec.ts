@@ -86,7 +86,30 @@ async function setup(page: Page, barber = false) {
   await page.route(base + "/sales**", (route) =>
     route.fulfill({ json: { items: [], next_cursor: "", timezone: "America/Sao_Paulo" } }),
   );
+  await page.route(base + "/commercial-status", (route) =>
+    route.fulfill({ json: commercial(true) }),
+  );
   return session;
+}
+function commercial(paid: boolean) {
+  return {
+    shop_id: testShop.shop_id,
+    slug: testShop.slug,
+    publication_managed: true,
+    publication_requested: false,
+    public_booking_enabled: false,
+    can_publish: paid,
+    blockers: paid ? [] : ["subscription_required"],
+    readiness: { address: true, service: true, professional: true, schedule: true },
+    subscription: {
+      status: paid ? "active" : "none",
+      plan_key: paid ? "standard_monthly" : "",
+      operation_allowed: paid,
+      reason: paid ? "subscribed" : "subscription_required",
+      coverage_until: paid ? new Date(Date.now() + 86_400_000).toISOString() : null,
+      cancel_at_period_end: false,
+    },
+  };
 }
 async function selectAndReview(page: Page, amount = "1") {
   await page.getByRole("button", { name: "Registrar venda", exact: true }).click();
@@ -742,4 +765,73 @@ test("pending sale is isolated by shop while the same user switches units", asyn
     page.getByRole("dialog").getByRole("button", { name: "Repetir confirmação" }),
   ).toBeVisible();
   expect(posts).toBe(1);
+});
+
+test("adding a product checks the subscription and offers the Stripe payment when it is missing", async ({
+  page,
+}) => {
+  await setup(page);
+  let paid = false,
+    checkouts = 0;
+  await page.route(base + "/commercial-status", (route) =>
+    route.fulfill({ json: commercial(paid) }),
+  );
+  await page.route(base + "/billing/offer", (route) =>
+    route.fulfill({
+      json: {
+        shop_id: testShop.shop_id,
+        offer_id: "a".repeat(64),
+        plan_key: "standard_monthly",
+        amount_cents: 4990,
+        currency: "BRL",
+        interval: "month",
+        interval_count: 1,
+        livemode: false,
+        recovering: false,
+      },
+    }),
+  );
+  await page.route(base + "/billing/checkout", (route) => {
+    checkouts++;
+    return route.fulfill({
+      json: {
+        attempt_id: "55555555-5555-4555-8555-555555555555",
+        intent: "publish",
+        url: "https://checkout.stripe.com/g/pay/cs_test_example",
+        expires_at: new Date(Date.now() + 3_600_000).toISOString(),
+        livemode: false,
+      },
+    });
+  });
+  await page
+    .context()
+    .route("https://checkout.stripe.com/**", (route) =>
+      route.fulfill({ contentType: "text/html", body: "<title>Stripe</title>" }),
+    );
+  await page.goto(root + "/produtos");
+  await page.getByRole("button", { name: "Adicionar produto" }).click();
+  const dialog = page.getByRole("dialog", { name: "Assinatura necessária" });
+  await expect(dialog).toContainText("necessária para cadastrar novos produtos");
+  await expect(page.getByRole("dialog", { name: "Adicionar produto" })).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Prosseguir para a assinatura" }).click();
+  await expect(dialog).toContainText("R$ 49,90");
+  const payment = page.waitForEvent("popup");
+  await dialog.getByRole("button", { name: "Abrir pagamento na Stripe" }).click();
+  await expect(await payment).toHaveURL("https://checkout.stripe.com/g/pay/cs_test_example");
+  expect(checkouts).toBe(1);
+  await dialog.getByRole("button", { name: "Conferir assinatura", exact: true }).click();
+  await expect(dialog).toContainText("ainda não foi confirmada");
+  paid = true;
+  await dialog.getByRole("button", { name: "Conferir assinatura", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Adicionar produto" })).toBeVisible();
+  await expect(dialog).toHaveCount(0);
+});
+
+test("a failed subscription check does not open the product form", async ({ page }) => {
+  await setup(page);
+  await page.route(base + "/commercial-status", (route) => route.abort());
+  await page.goto(root + "/produtos");
+  await page.getByRole("button", { name: "Adicionar produto" }).click();
+  await expect(page.getByText(/Não foi possível conferir a assinatura/)).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });

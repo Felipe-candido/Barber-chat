@@ -122,7 +122,9 @@ test("owner opens only its Customer portal and preserves draft; checking only re
   await page.goto(path);
   await expect(manage(page)).toBeVisible();
   expect(requests).toBe(0);
+  await page.getByRole("tab", { name: "Barbearia" }).click();
   await page.getByLabel("Nome da barbearia", { exact: true }).fill("Meu rascunho");
+  await page.getByRole("tab", { name: "Assinatura", exact: true }).click();
   await manage(page).click();
   const link = dialog(page).getByRole("link", { name: "Abrir portal da Stripe" });
   await expect(link).toHaveAttribute("href", session().url);

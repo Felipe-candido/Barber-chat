@@ -8,7 +8,7 @@ import {
 } from "../src/lib/shop-settings";
 import type { SettingsUpdate, ShopSettings } from "../src/lib/api/shop-settings";
 
-const path = `/admin/${testShop.slug}/configuracoes`;
+const path = `/admin/${testShop.slug}/configuracoes?aba=barbearia`;
 const endpoint = `http://127.0.0.1:8080/api/v1/admin/shops/${testShop.slug}/settings`;
 const initial: ShopSettings = {
   ...testShop,
@@ -98,6 +98,12 @@ test("owner opens settings from navigation and saves only allowed fields using t
     .getByRole("navigation", { name: "Navegação principal" })
     .getByRole("link", { name: "Configurações", exact: true })
     .click();
+  await expect(page).toHaveURL(`/admin/${testShop.slug}/configuracoes`);
+  await expect(page.getByRole("tab", { name: "Assinatura", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.getByRole("tab", { name: "Barbearia" }).click();
   await expect(page).toHaveURL(path);
   await expect(name(page)).toHaveValue(initial.name);
   await expect(save(page)).toBeDisabled();

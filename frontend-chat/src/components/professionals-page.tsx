@@ -58,17 +58,6 @@ function OwnerProfessionalsPage() {
       <PageHeader
         title="Barbeiros"
         description={`Equipe, serviços e expediente de ${shop.name}.`}
-        actions={
-          <Link
-            href={publicBookingPath(shop.slug)}
-            className={buttonClasses("secondary")}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Testar agendamento no chat
-            <ArrowUpRight size={16} aria-hidden="true" />
-          </Link>
-        }
       />
       <p className={styles.hint}>
         O cadastro disponibiliza o barbeiro para agendamentos, mas não cria um login.{" "}

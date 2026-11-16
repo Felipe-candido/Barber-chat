@@ -9,6 +9,10 @@ import { Alert, Badge, Button, PageHeader, TextField } from "../ui";
 import { useCommerceScope } from "./shared";
 import { ProductForm } from "./product-form";
 import { StockPanel } from "./stock-panel";
+import {
+  SubscriptionRequiredDialog,
+  useSubscriptionGate,
+} from "../billing/subscription-required-dialog";
 import styles from "./commerce.module.css";
 
 export function ProductsPage() {
@@ -23,6 +27,7 @@ export function ProductsPage() {
   const page = useCommercePage(load);
   const [editing, setEditing] = useState<Product | "new" | null>(null),
     [stock, setStock] = useState<Product | null>(null);
+  const gate = useSubscriptionGate(scope);
   function close() {
     setEditing(null);
     page.refresh();
@@ -38,7 +43,10 @@ export function ProductsPage() {
         }
         actions={
           owner && (
-            <Button onClick={() => setEditing("new")}>
+            <Button
+              aria-busy={gate.checking}
+              onClick={() => void gate.run(() => setEditing("new"))}
+            >
               <Plus size={18} aria-hidden="true" />
               Adicionar produto
             </Button>
@@ -78,6 +86,12 @@ export function ProductsPage() {
         </Button>
       </form>
       {page.error && <Alert tone="error">{page.error}</Alert>}
+      {gate.checking && <p role="status">Conferindo a assinatura…</p>}
+      {gate.error && (
+        <Alert tone="error">
+          Não foi possível conferir a assinatura para adicionar o produto. {gate.error}
+        </Alert>
+      )}
       <div className={styles.list}>
         {page.items.map((p) => (
           <article key={p.id} className={styles.row}>
@@ -134,6 +148,18 @@ export function ProductsPage() {
           product={editing === "new" ? undefined : editing}
           onClose={close}
           onSaved={close}
+        />
+      )}
+      {owner && gate.required && (
+        <SubscriptionRequiredDialog
+          scope={scope}
+          status={gate.required}
+          purpose="cadastrar novos produtos"
+          onClose={gate.dismiss}
+          onCovered={() => {
+            gate.dismiss();
+            setEditing("new");
+          }}
         />
       )}
       {owner && stock && (

@@ -72,7 +72,7 @@ test("owner connects with private temporary QR and saves manual preferences", as
       },
     });
   });
-  await page.goto(`/admin/${testShop.slug}/configuracoes`);
+  await page.goto(`/admin/${testShop.slug}/configuracoes?aba=whatsapp`);
   const section = page.getByRole("region", { name: "WhatsApp da barbearia" });
   await expect(section.getByText("Desconectado", { exact: true })).toBeVisible();
   await section.getByRole("button", { name: "Conectar WhatsApp", exact: true }).click();

@@ -121,13 +121,14 @@ test("invalid credentials show a generic error and do not create a session", asy
   expect(stored).not.toContain("wrong-password");
 });
 
-test("recovery is simulated and access help explains manual provisioning", async ({ page }) => {
+test("recovery guidance has no fake form and access help explains manual provisioning", async ({
+  page,
+}) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "Esqueci minha senha" }).click();
   let dialog = page.getByRole("dialog");
-  await dialog.getByLabel("E-mail da conta").fill("demo@example.com");
-  await dialog.getByRole("button", { name: "Simular recuperação" }).click();
-  await expect(dialog.getByRole("status")).toContainText("nenhum e-mail foi enviado");
+  await expect(dialog).toContainText("reenviar seu convite");
+  await expect(dialog.getByRole("textbox")).toHaveCount(0);
   await dialog.getByRole("button", { name: "Voltar ao login" }).click();
   await page.getByRole("button", { name: "Como obter acesso" }).click();
   dialog = page.getByRole("dialog");
