@@ -36,6 +36,8 @@
 // ServiceOutput keeps pgx models and HTTP JSON conventions out of use cases.
 //
 // Domain and application never import infra. cmd/api supplies concrete adapters.
-// Future update/activation and professional workflows belong here when added;
+// ManageServices validates edits and logically deletes services through a scoped
+// repository. Edits affect active services only; deletion preserves booking history.
+// Future activation workflows belong here when added;
 // booking must coordinate its own shared transaction for reservation snapshots.
 package application

@@ -4,7 +4,7 @@ import type { ShopAccess } from "@/lib/api/identity";
 import { adminDestinations } from "./navigation";
 import styles from "../admin-shell.module.css";
 
-// Phones and tablets: the four daily sections stay one tap away; everything else lives in "Mais".
+// Phones and tablets: the four daily sections stay one tap away; everything else lives in "Menu".
 export function BottomNavigation({
   slug,
   role,
@@ -48,7 +48,7 @@ export function BottomNavigation({
         <span className={styles.tabIcon}>
           <LayoutGrid size={21} aria-hidden="true" />
         </span>
-        <span className={styles.tabLabel}>Mais</span>
+        <span className={styles.tabLabel}>Menu</span>
       </button>
     </nav>
   );

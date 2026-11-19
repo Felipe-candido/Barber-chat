@@ -62,7 +62,7 @@ for (const role of ["owner", "barber"] as const) {
       return route.fulfill({ json: { items: contacts, next_cursor: null } });
     });
     await page.goto(`/admin/${testShop.slug}/contatos`);
-    await expect(page.getByRole("heading", { name: "Contatos", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Clientes", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: first.name, exact: true })).toBeVisible();
     const dialog = await fillContact(page);
     await dialog.getByRole("button", { name: "Cadastrar contato", exact: true }).click();
@@ -187,7 +187,7 @@ test("foreign-tenant response is rejected and a revoked membership hides the for
   });
   await page.goto(`/admin/${testShop.slug}/contatos`);
   await expect(
-    page.getByRole("alert").filter({ hasText: "Não foi possível validar a resposta" }),
+    page.getByRole("alert").filter({ hasText: "Não conseguimos confirmar o cadastro" }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: first.name, exact: true })).toHaveCount(0);
   foreign = false;
@@ -208,8 +208,8 @@ test("contacts are reachable through the mobile menu and remain readable", async
     route.fulfill({ json: { items: [first], next_cursor: null } }),
   );
   await page.goto(`/admin/${testShop.slug}`);
-  await page.getByRole("button", { name: "Mais", exact: true }).click();
-  await page.getByRole("link", { name: "Contatos", exact: true }).click();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
+  await page.getByRole("link", { name: "Clientes", exact: true }).click();
   await expect(page).toHaveURL(`/admin/${testShop.slug}/contatos`);
   await expect(page.getByRole("heading", { name: first.name, exact: true })).toBeVisible();
   expect(

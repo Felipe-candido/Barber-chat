@@ -25,7 +25,7 @@ export function AdminAccessGuard({ children }: { children: React.ReactNode }) {
       <AccessPage title="Preparando seu painel">
         <p className={styles.loading} role="status">
           <LoaderCircle size={24} aria-hidden="true" />
-          Validando seu acesso…
+          Conferindo seu acesso…
         </p>
       </AccessPage>
     );
@@ -33,8 +33,8 @@ export function AdminAccessGuard({ children }: { children: React.ReactNode }) {
   return (
     <AccessPage title="Não foi possível liberar o painel" description={state.error.message} error>
       <p className={styles.text}>
-        Uma conta no Supabase, sozinha, não libera o painel. Peça ao proprietário para conferir seu
-        cadastro e o vínculo ativo com esta barbearia.
+        Peça ao proprietário para conferir se seu acesso à barbearia está ativo. Se o problema
+        continuar, fale com o suporte.
       </p>
       {logoutError && <p className={styles.text}>{logoutError}</p>}
       <div className={styles.actions}>
@@ -55,7 +55,7 @@ export function AdminAccessGuard({ children }: { children: React.ReactNode }) {
           Sair da conta
         </Button>
         <Link href="/login" className={buttonClasses("quiet")}>
-          Voltar ao login
+          Voltar para entrar
         </Link>
         <Link href="/cadastro/barbearia" className={buttonClasses("quiet")}>
           Cadastrar minha barbearia

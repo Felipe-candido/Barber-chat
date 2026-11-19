@@ -121,7 +121,7 @@ export function SubscriptionRequiredDialog({
     >
       <div className={styles.feedback}>
         {error && <Alert tone="error">{error}</Alert>}
-        {checking && <p role="status">Conferindo a assinatura na API…</p>}
+        {checking && <p role="status">Conferindo sua assinatura…</p>}
         {confirmedMissing && !checking && (
           <Alert tone="warning">
             A assinatura ainda não foi confirmada. Se você acabou de pagar, aguarde alguns segundos

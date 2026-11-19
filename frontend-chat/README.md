@@ -15,7 +15,7 @@ npm.cmd run dev
 
 Configure NEXT_PUBLIC_API_BASE_URL com a URL HTTP da API, NEXT_PUBLIC_SUPABASE_URL com a URL do projeto Supabase e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY com a chave pública/publishable. No backend, configure SUPABASE_URL para o mesmo projeto e FRONTEND_ORIGIN=http://127.0.0.1:3000. Não há slug fixo de ambiente.
 
-Abra [Login](http://127.0.0.1:3000/login). O formulário envia e-mail/senha diretamente ao Supabase, que persiste e renova a sessão no navegador. Depois, o frontend chama /api/v1/admin/me e /api/v1/admin/shops com o access token. O usuário escolhe uma unidade em /admin e entra em /admin/{slug}/servicos. Leituras e escritas administrativas usam Bearer; nunca enviam senha à API Go. O catálogo público fica em /b/{slug}; /chat apenas orienta a obter o link da barbearia.
+Abra [Login](http://127.0.0.1:3000/login). O formulário envia e-mail/senha diretamente ao Supabase, que persiste e renova a sessão no navegador. Depois, o frontend chama /api/v1/admin/me e /api/v1/admin/shops com o access token. O usuário escolhe uma unidade em /admin e entra em /admin/{slug}, na agenda. Leituras e escritas administrativas usam Bearer; nunca enviam senha à API Go. O catálogo público fica em /b/{slug}; /chat apenas orienta a obter o link da barbearia.
 
 Variáveis `NEXT_PUBLIC_*` são incorporadas ao JavaScript do navegador. A URL e a chave publishable do Supabase são públicas por design; nunca coloque `service_role`, chave `sb_secret_*`, `DATABASE_URL` ou senha de banco no frontend. Reinicie `npm.cmd run dev` depois de alterar `.env.local`.
 
@@ -23,7 +23,7 @@ O Go valida JWT ES256 do projeto configurado, usuário local e vínculo ativo em
 
 ## Integração
 
-- Lista serviços ativos e cria serviços com os campos reais do handler Go.
+- Lista, cadastra e edita serviços; exclui com confirmação e preserva o histórico dos atendimentos.
 - Exibe carregamento, lista vazia, erro, sucesso e envio pendente.
 - Faz buscas locais sobre a lista recebida.
 - Consome o slug da unidade escolhida no painel e o slug da URL no catálogo público.
@@ -31,7 +31,7 @@ O Go valida JWT ES256 do projeto configurado, usuário local e vínculo ativo em
 - Cadastra barbeiro, serviços habilitados e expediente inicial pelo painel Barbeiros.
 - Agenda pelo chat público, mostra comprovante/código e oferece consulta/cancelamento.
 - Mantém a chave da confirmação em memória para repetição segura após falha de rede.
-- Não permite editar/excluir/ativar serviços ou editar o calendário. A agenda visual administrativa ainda não consulta reservas.
+- Serviços excluídos deixam de aparecer em novas reservas. Reativação de serviços não está disponível.
 - Autentica e-mail/senha com `@supabase/supabase-js`, restaura/renova a sessão e usa Bearer somente em chamadas administrativas.
 - Oferece troca de unidade e logout deste navegador, limpando estado antigo e cancelando consultas pendentes.
 
@@ -55,3 +55,16 @@ Testes Playwright usam Edge instalado, servidor isolado na porta 3100 e resposta
 src/lib/api centraliza HTTP, contratos e erros; src/hooks/use-services.ts compartilha o ciclo de consulta. AdminAccessProvider guarda os resultados de /me e /shops em memória, AdminAccessGuard aguarda validação e ShopPanel fornece a unidade selecionada. app define as rotas; FeedbackProvider cuida dos avisos. O token permanece gerenciado pelo SDK, sem cópia no contexto React. Detalhes em API-INTEGRATION.md.
 
 A identidade Palma é uma referência visual; a API ainda não fornece marca/dados públicos da barbearia. Logo original e reconstruída em public/brand. [BRANDING.md](BRANDING.md) registra a origem.
+
+## Textos e navegação
+
+As mensagens das telas usam linguagem voltada a barbeiros e proprietários:
+explicam o que aconteceu e como continuar, sem termos de infraestrutura ou
+instruções de configuração. Códigos de erro continuam internos. Falhas de envio
+preservam o aviso de conferir os dados antes de reenviar, evitando duplicidade.
+Avisos sobre cartões em pagamentos de demonstração permanecem quando aplicáveis.
+
+O menu usa Agenda, Serviços, Produtos, Vendas, Relatórios, Clientes, Equipe,
+Acessos da equipe e Configurações. Ao escolher uma barbearia, o painel abre sua
+agenda. Serviços podem ser cadastrados, editados e excluídos pelo proprietário;
+a exclusão mantém os atendimentos já registrados.

@@ -271,7 +271,7 @@ test("failed status refresh keeps the saved receipt but blocks cancellation from
   state.lookupFails = true;
   await page.getByRole("button", { name: "Atualizar situação" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "temporariamente indisponível",
+    "Não conseguimos atender seu pedido agora",
   );
   await expect(page.getByLabel("Código do agendamento")).toHaveValue(code);
   await expect(page.getByRole("button", { name: "Cancelar agendamento", exact: true })).toHaveCount(
@@ -293,9 +293,7 @@ test("lost cancellation response is resolved by a read, never an automatic secon
   await confirm(page);
   await page.getByRole("button", { name: "Cancelar agendamento", exact: true }).click();
   await page.getByRole("button", { name: "Sim, cancelar agendamento" }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "Não foi possível acessar a API",
-  );
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Confira sua internet");
   await expect(page.getByRole("button", { name: "Sim, cancelar agendamento" })).toHaveCount(0);
   expect(state.cancelRequests).toBe(1);
   await page.getByRole("button", { name: "Atualizar situação" }).click();
@@ -401,7 +399,7 @@ test("catalog failure never becomes a fake empty result and lookup remains avail
   await page.setViewportSize({ width: 320, height: 900 });
   await page.goto("/b/teste");
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "temporariamente indisponível",
+    "Não conseguimos atender seu pedido agora",
   );
   await expect(page.getByRole("heading", { name: "Nenhum serviço disponível" })).toHaveCount(0);
   await page.screenshot({ path: "test-results/public-catalog-error-320.png", fullPage: true });

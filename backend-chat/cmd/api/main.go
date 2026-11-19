@@ -198,7 +198,7 @@ func run(
 	listServices := catalogapp.NewListServices(catalogRepository, shopResolver)
 	listAuthorizedServices := catalogapp.NewListAuthorizedServices(catalogRepository)
 
-	catalogHandler := cataloghttp.NewHandler(createService, listServices, listAuthorizedServices, cfg.DBTimeout, logger)
+	catalogHandler := cataloghttp.NewHandler(createService, listServices, listAuthorizedServices, catalogapp.NewManageServices(catalogRepository), cfg.DBTimeout, logger)
 	professionalTransactions := catalogpostgres.NewProfessionalTransactor(pool, func(q *db.Queries) catalogapp.ProfessionalTx {
 		return catalogapp.ProfessionalTx{Professionals: catalogpostgres.NewRepository(q), Schedule: bookingpostgres.NewRepository(q)}
 	})

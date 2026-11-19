@@ -20,8 +20,8 @@ export function SettingsReview({
     <section className={styles.review} aria-labelledby="settings-review-title">
       <h2 id="settings-review-title">Confira antes de continuar</h2>
       <p>
-        A versão atual da barbearia foi consultada. As mudanças feitas na API em campos que você não
-        editou serão preservadas. Nenhum salvamento foi reenviado.
+        Alguns dados mudaram desde que você começou a editar. Compare abaixo o que está salvo com
+        suas alterações e escolha como continuar.
       </p>
       {changes.length ? (
         <table className={styles.comparison}>
@@ -29,7 +29,7 @@ export function SettingsReview({
           <thead>
             <tr>
               <th scope="col">Campo</th>
-              <th scope="col">Na API</th>
+              <th scope="col">Dados salvos</th>
               <th scope="col">Seu rascunho</th>
             </tr>
           </thead>
@@ -49,12 +49,11 @@ export function SettingsReview({
       <div className={styles.actions}>
         {changes.length > 0 && <Button onClick={onKeep}>Revisar minhas alterações</Button>}
         <Button variant="secondary" onClick={onDiscard}>
-          Usar dados atuais da API
+          Usar dados salvos
         </Button>
       </div>
       <p>
-        “Revisar minhas alterações” prepara o formulário com a versão atual. Você ainda precisará
-        revisar e clicar em “Salvar alterações”.
+        Ao revisar suas alterações, você volta ao formulário para conferir tudo antes de salvar.
       </p>
     </section>
   );

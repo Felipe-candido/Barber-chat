@@ -68,7 +68,7 @@ const dialog = (page: Page) => page.getByRole("dialog", { name: "Assinatura mens
 const start = (page: Page) =>
   page.getByRole("button", { name: "Prosseguir para a assinatura", exact: true });
 const prepare = (page: Page) =>
-  dialog(page).getByRole("button", { name: "Abrir pagamento na Stripe", exact: true });
+  dialog(page).getByRole("button", { name: "Abrir pagamento", exact: true });
 async function setup(page: Page) {
   const session = await installSupabaseSession(page);
   await mockAdminAccess(page, [testShop, otherShop]);
@@ -163,7 +163,7 @@ test("owner reviews server price before a single authenticated POST, then checks
   await start(page).click();
   await expect(dialog(page)).toContainText("R$ 99,00");
   await expect(dialog(page)).toContainText("por mês, por barbearia");
-  await expect(dialog(page)).toContainText("não use cartão real");
+  await expect(dialog(page)).toContainText("Não use cartão real");
   expect(writes).toEqual([]);
   await stripePage(page);
   const payment = page.waitForEvent("popup");
@@ -173,7 +173,7 @@ test("owner reviews server price before a single authenticated POST, then checks
   });
   await expect(await payment).toHaveURL(checkout().url);
   expect(page.context().pages()).toHaveLength(2);
-  await expect(dialog(page)).toContainText("Conclua o pagamento na aba da Stripe");
+  await expect(dialog(page)).toContainText("Conclua o pagamento na outra aba");
   await expect(prepare(page)).toHaveCount(0);
   expect(writes).toEqual([{ intent: "publish", offer_id: offer.offer_id }]);
   paid = true;
@@ -234,9 +234,9 @@ test("lost response recovers frozen conditions only after explicit retry", async
   await page.goto(path);
   await start(page).click();
   await prepare(page).click();
-  await expect(dialog(page)).toContainText("A tentativa pode ter sido registrada");
+  await expect(dialog(page)).toContainText("Você pode já ter começado a assinatura");
   await dialog(page).getByRole("button", { name: "Consultar condições novamente" }).click();
-  await expect(dialog(page)).toContainText("condições preservadas");
+  await expect(dialog(page)).toContainText("Confira os dados abaixo");
   expect(writes).toBe(1);
   await stripePage(page);
   const payment = page.waitForEvent("popup");
@@ -271,12 +271,12 @@ test("dirty settings block Checkout; disabled billing and malicious URLs cannot 
   await page.getByLabel("Nome da barbearia", { exact: true }).fill(testShop.name);
   await page.getByRole("tab", { name: "Assinatura", exact: true }).click();
   await start(page).click();
-  await expect(dialog(page)).toContainText("ainda não está disponível");
+  await expect(dialog(page)).toContainText("Não foi possível abrir a assinatura agora");
   await expect(prepare(page)).toHaveCount(0);
   configured = true;
   await dialog(page).getByRole("button", { name: "Consultar condições novamente" }).click();
   await prepare(page).click();
-  await expect(dialog(page)).toContainText("endereço de pagamento incompatíveis");
+  await expect(dialog(page)).toContainText("preparar o pagamento com segurança");
   await expect(dialog(page).getByRole("link")).toHaveCount(0);
 });
 
@@ -298,7 +298,7 @@ test("existing contracts, manual shops and barbers never offer another subscript
   await page.unroute(base + "/commercial-status");
   await page.reload();
   await expect(
-    page.getByText("Esta barbearia mantém o acesso anterior", { exact: false }),
+    page.getByText("Sua barbearia já tem acesso liberado", { exact: false }),
   ).toBeVisible();
   await expect(start(page)).toHaveCount(0);
   await page.route(base + "/access", (route) =>

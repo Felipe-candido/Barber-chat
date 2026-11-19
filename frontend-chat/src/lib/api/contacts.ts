@@ -29,7 +29,7 @@ export type ContactsPage = { items: Contact[]; next_cursor: string | null };
 function invalid(): never {
   throw new ApiError(
     "invalid_response",
-    "Não foi possível validar a resposta da API. Confira o contato antes de tentar cadastrar novamente.",
+    "Não conseguimos confirmar o cadastro. Confira a lista de contatos antes de cadastrar novamente.",
   );
 }
 export function parseContact(value: unknown, shopID: string): Contact {

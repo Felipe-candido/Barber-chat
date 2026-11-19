@@ -29,17 +29,11 @@ export function CustomerPortalControl({
           Gerenciar assinatura
         </Button>
       </div>
-      <Modal
-        open={flow.mode !== "closed"}
-        onClose={flow.close}
-        title="Gerenciar assinatura na Stripe"
-      >
+      <Modal open={flow.mode !== "closed"} onClose={flow.close} title="Gerenciar assinatura">
         <div className={styles.feedback}>
           {flow.session && (
             <Badge tone={flow.session.livemode ? "info" : "warning"}>
-              {flow.session.livemode
-                ? "Gerenciamento de assinatura real"
-                : "Modo de teste — não use cartão real"}
+              {flow.session.livemode ? "Pagamento seguro" : "Não use cartão real nesta página"}
             </Badge>
           )}
           <p>
@@ -63,7 +57,7 @@ export function CustomerPortalControl({
                   }
                 }}
               >
-                Abrir portal da Stripe <ArrowUpRight size={16} aria-hidden="true" />
+                Abrir minha assinatura <ArrowUpRight size={16} aria-hidden="true" />
               </a>
             )}
             {flow.mode === "error" && (

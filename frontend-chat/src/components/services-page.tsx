@@ -6,6 +6,8 @@ import {
   Clock3,
   LoaderCircle,
   Plus,
+  Pencil,
+  Trash2,
   RefreshCw,
   Scissors,
   Search,
@@ -17,6 +19,8 @@ import { money } from "@/lib/model";
 import { useSelectedShop, useSelectedShopAccess } from "./shop-panel";
 import { Alert, Badge, Button, PageHeader, TextField, buttonClasses } from "./ui";
 import { ServiceForm } from "./services/service-form";
+import { DeleteServiceDialog } from "./services/delete-service-dialog";
+import type { Service } from "@/lib/api/services";
 import styles from "./admin/management.module.css";
 
 export function ServicesPage() {
@@ -25,6 +29,8 @@ export function ServicesPage() {
   const { services, loading, error, errorStatus, reload } = useServices(shop.slug, "admin");
   const [query, setQuery] = useState("");
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState<Service | null>(null);
+  const [deleting, setDeleting] = useState<Service | null>(null);
   const filtered = services.filter((service) =>
     service.name.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR")),
   );
@@ -120,6 +126,26 @@ export function ServicesPage() {
                       {service.duration_minutes} min
                     </span>
                   </div>
+                  {owner && (
+                    <div className={styles.actions}>
+                      <Button
+                        variant="secondary"
+                        aria-label={`Editar ${service.name}`}
+                        onClick={() => setEditing(service)}
+                      >
+                        <Pencil size={16} aria-hidden="true" />
+                        Editar
+                      </Button>
+                      <Button
+                        variant="danger"
+                        aria-label={`Excluir ${service.name}`}
+                        onClick={() => setDeleting(service)}
+                      >
+                        <Trash2 size={16} aria-hidden="true" />
+                        Excluir
+                      </Button>
+                    </div>
+                  )}
                 </article>
               ))}
             </div>
@@ -142,17 +168,35 @@ export function ServicesPage() {
             </div>
           )}
           <p className={styles.hint}>
-            Este catálogo exibe apenas serviços ativos. Edição e exclusão ainda não estão
-            disponíveis.{!owner && " Somente o proprietário pode cadastrar serviços."}
+            {owner
+              ? "Ao excluir um serviço, ele deixa de aparecer para novos agendamentos. Os atendimentos já registrados são mantidos."
+              : "Somente o proprietário pode adicionar, editar ou excluir serviços."}
           </p>
         </>
       )}
-      {owner && creating && (
+      {owner && (creating || editing) && (
         <ServiceForm
+          key={editing?.id ?? "new"}
           slug={shop.slug}
-          onClose={() => setCreating(false)}
-          onCreated={() => {
+          service={editing ?? undefined}
+          onClose={() => {
             setCreating(false);
+            setEditing(null);
+          }}
+          onSaved={() => {
+            setCreating(false);
+            setEditing(null);
+            void reload();
+          }}
+        />
+      )}
+      {owner && deleting && (
+        <DeleteServiceDialog
+          slug={shop.slug}
+          service={deleting}
+          onClose={() => setDeleting(null)}
+          onDeleted={() => {
+            setDeleting(null);
             void reload();
           }}
         />

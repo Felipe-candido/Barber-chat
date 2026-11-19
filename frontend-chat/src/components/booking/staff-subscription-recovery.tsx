@@ -100,11 +100,11 @@ function OwnerRecovery({
     <section className={styles.flow} aria-label="Assinatura para agendamento manual">
       <Alert tone="warning">
         {flow.uncertain
-          ? "O resultado da tentativa anterior continua incerto. Seus dados e a mesma chave foram preservados para recuperação após regularizar a assinatura."
-          : "A API não liberou esta reserva sem assinatura. Seus dados foram mantidos nesta janela; o horário ainda não está reservado."}{" "}
+          ? "Ainda precisamos confirmar a reserva anterior. Seus dados foram mantidos para conferir o agendamento após regularizar a assinatura."
+          : "Regularize sua assinatura para confirmar a reserva. Seus dados continuam aqui, mas o horário ainda não está reservado."}{" "}
         Mantenha esta aba aberta durante o pagamento.
       </Alert>
-      {checking && <p role="status">Conferindo a assinatura na API…</p>}
+      {checking && <p role="status">Conferindo sua assinatura…</p>}
       {error && <Alert tone="error">{error}</Alert>}
       {covered ? (
         <>
@@ -159,7 +159,7 @@ function OwnerRecovery({
         Abrir Configurações em outra aba
       </Link>
       <p className={styles.hint}>
-        Conferir a assinatura apenas consulta a API. O pagamento não cria o agendamento nem publica
+        Depois de conferir a assinatura, volte para confirmar o agendamento. O pagamento não publica
         o link da barbearia.
       </p>
     </section>

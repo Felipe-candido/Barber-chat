@@ -79,7 +79,7 @@ export function isStockInput(value: unknown): value is StockInput {
 export function invalidCommerceResponse(): never {
   throw new ApiError(
     "invalid_response",
-    "A API retornou dados incompatíveis. Confira o histórico antes de iniciar outra operação.",
+    "Não conseguimos confirmar os dados. Confira o histórico antes de tentar novamente.",
   );
 }
 export function productPath(slug: string) {

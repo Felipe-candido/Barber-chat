@@ -84,7 +84,7 @@ func TestCatalogHTTPPersistenceAndIsolation(t *testing.T) {
 	create := application.NewCreateService(repo)
 	list := application.NewListServices(repo, resolver)
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	handler := cataloghttp.NewHandler(create, list, application.NewListAuthorizedServices(repo), 3*time.Second, logger)
+	handler := cataloghttp.NewHandler(create, list, application.NewListAuthorizedServices(repo), application.NewManageServices(repo), 3*time.Second, logger)
 	userID := uuid.New()
 	if _, err := tx.Exec(ctx, "INSERT INTO public.users (id,display_name) VALUES ($1,'HTTP integration test')", userID); err != nil {
 		t.Fatal(err)

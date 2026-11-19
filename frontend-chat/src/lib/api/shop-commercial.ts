@@ -42,7 +42,7 @@ export type CommercialStatus = {
 function invalid(): never {
   throw new ApiError(
     "invalid_response",
-    "A API retornou uma situação comercial incompatível. Consulte novamente antes de publicar ou compartilhar.",
+    "Não conseguimos conferir sua assinatura e seu link. Atualize antes de compartilhar com os clientes.",
   );
 }
 function record(value: unknown): Record<string, unknown> {

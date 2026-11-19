@@ -24,7 +24,7 @@ function account(value: unknown): StaffAccount {
   ) {
     throw new ApiError(
       "invalid_response",
-      "Resposta de contas incompatível. Atualize antes de repetir um convite.",
+      "Não conseguimos confirmar os acessos da equipe. Atualize a lista antes de enviar outro convite.",
     );
   }
   return item;
@@ -42,7 +42,10 @@ export async function listStaffAccounts(
 ): Promise<StaffAccount[]> {
   const value = await requestJSON(base(slug), { authenticated: true, signal });
   if (!Array.isArray(value))
-    throw new ApiError("invalid_response", "Resposta de contas incompatível.");
+    throw new ApiError(
+      "invalid_response",
+      "Não conseguimos carregar os acessos da equipe. Atualize a lista.",
+    );
   return value.map(account);
 }
 export async function inviteStaffAccount(
@@ -76,7 +79,8 @@ export async function linkStaffAccount(
   id: string,
   user_id: string,
 ): Promise<StaffAccount> {
-  if (!isID(user_id)) throw new Error("Informe o UUID da conta em Supabase Authentication.");
+  if (!isID(user_id))
+    throw new Error("Informe o código de recuperação da conta fornecido pelo suporte.");
   return account(
     await requestJSON(accountPath(slug, id) + "/link", {
       authenticated: true,

@@ -14,9 +14,9 @@ import styles from "./shop-settings.module.css";
 import { SubscriptionCheckoutControl } from "../billing/subscription-checkout";
 
 const subscriptionLabels: Record<CommercialReason, string> = {
-  legacy_access: "Acesso anterior mantido",
+  legacy_access: "Acesso liberado",
   subscribed: "Assinatura confirmada",
-  grace_period: "Acesso em prazo de regularização",
+  grace_period: "Regularize seu pagamento",
   subscription_required: "Sem assinatura confirmada",
   payment_pending: "Aguardando confirmação",
   payment_required: "Pagamento necessário",
@@ -25,9 +25,9 @@ const subscriptionLabels: Record<CommercialReason, string> = {
 };
 const readinessLabels: Record<string, string> = {
   address_required: "Complete e salve o endereço da barbearia.",
-  service_required: "Cadastre pelo menos um serviço ativo e agendável.",
-  professional_required: "Cadastre um barbeiro ativo vinculado a um serviço.",
-  schedule_required: "Configure um expediente que comporte o serviço, a grade e a margem.",
+  service_required: "Cadastre pelo menos um serviço para receber agendamentos.",
+  professional_required: "Adicione um barbeiro e escolha os serviços que ele realiza.",
+  schedule_required: "Defina os horários de trabalho para que haja tempo de realizar os serviços.",
 };
 
 export function ShopCommercialCard({
@@ -89,25 +89,23 @@ export function ShopCommercialCard({
           }}
         >
           <RefreshCw size={16} aria-hidden="true" />
-          {mode === "uncertain" ? "Conferir situação na API" : "Atualizar situação"}
+          {mode === "uncertain" ? "Conferir situação atual" : "Atualizar situação"}
         </Button>
       </div>
       {returned && (
         <Alert>
-          O retorno do Checkout não confirma pagamento nem publica sua barbearia. A situação abaixo
-          vem da API.
+          Confira abaixo se o pagamento já foi confirmado. Depois, ative seu link para começar a
+          receber agendamentos.
         </Alert>
       )}
       {mode === "loading" && <p role="status">Consultando assinatura e publicação…</p>}
       {portalReturned && (
         <Alert>
-          Você voltou do portal. A situação abaixo vem da API após a confirmação da Stripe; o
-          retorno não altera a assinatura nem publica o link.
+          Confira abaixo se as alterações da sua assinatura já foram confirmadas. Seu link de
+          agendamento pode ser gerenciado nesta página.
         </Alert>
       )}
-      {mode === "saving" && (
-        <p role="status">Atualizando publicação e conferindo a situação na API…</p>
-      )}
+      {mode === "saving" && <p role="status">Atualizando seu link e sua assinatura…</p>}
       {notice && <Alert tone="info">{notice}</Alert>}
       {error && <Alert tone="error">{error}</Alert>}
       {mode === "uncertain" && (
@@ -118,7 +116,7 @@ export function ShopCommercialCard({
       )}
       {mode === "blocked" && (
         <Link href="/admin" className={buttonClasses("secondary")}>
-          Validar acesso à barbearia
+          Voltar às minhas barbearias
         </Link>
       )}
       {ready && (
@@ -132,9 +130,8 @@ export function ShopCommercialCard({
             </div>
             {!status.publication_managed ? (
               <p className={styles.note}>
-                Esta barbearia mantém o acesso anterior da plataforma. Nenhuma assinatura foi
-                iniciada ou cobrada. Mudanças na publicação são gerenciadas pelo responsável pela
-                plataforma.
+                Sua barbearia já tem acesso liberado. Para alterar a assinatura ou o link de
+                agendamento, fale com o suporte.
               </p>
             ) : (
               <>
@@ -287,7 +284,7 @@ export function ShopCommercialCard({
           title={confirmation ? "Publicar barbearia?" : "Retirar barbearia do ar?"}
           subtitle={
             confirmation
-              ? "A API vai revalidar a assinatura e a configuração salva antes de liberar o agendamento online. Esta ação não inicia cobrança."
+              ? "Vamos conferir se está tudo pronto para receber agendamentos. Ativar o link não inicia uma nova cobrança."
               : "Novos clientes não poderão agendar pelo link. A assinatura não será cancelada e as reservas existentes serão mantidas."
           }
           onClose={() => setConfirmation(null)}

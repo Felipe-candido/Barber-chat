@@ -33,7 +33,7 @@ function service(value: unknown): Service {
   )
     throw new ApiError(
       "invalid_response",
-      "O formato de serviço retornado pela API não é compatível com a interface.",
+      "Não conseguimos carregar este serviço. Atualize a lista e tente novamente.",
     );
   return s;
 }
@@ -42,7 +42,10 @@ export async function listServices(slug: string, signal?: AbortSignal): Promise<
     signal,
   });
   if (!Array.isArray(payload))
-    throw new ApiError("invalid_response", "A API deveria retornar uma lista de serviços.");
+    throw new ApiError(
+      "invalid_response",
+      "Não conseguimos carregar os serviços. Atualize a lista e tente novamente.",
+    );
   return payload.map(service);
 }
 
@@ -52,15 +55,14 @@ export async function listAdminServices(slug: string, signal?: AbortSignal): Pro
     signal,
   });
   if (!Array.isArray(payload))
-    throw new ApiError("invalid_response", "A API deveria retornar uma lista de serviços.");
+    throw new ApiError(
+      "invalid_response",
+      "Não conseguimos carregar os serviços. Atualize a lista e tente novamente.",
+    );
   return payload.map(service);
 }
 
-export async function createService(
-  slug: string,
-  input: CreateServiceInput,
-  signal?: AbortSignal,
-): Promise<Service> {
+function serviceBody(input: CreateServiceInput): CreateServiceInput {
   const name = input.name.trim();
   if (
     !name ||
@@ -76,25 +78,62 @@ export async function createService(
       "Informe um nome de até 100 caracteres, duração inteira positiva e preço válido.",
     );
   // Explicit mapping prevents tenant, category and active fields from leaking into the request.
+  return {
+    name,
+    description: input.description,
+    duration_minutes: input.duration_minutes,
+    price_cents: input.price_cents,
+  };
+}
+
+export async function createService(
+  slug: string,
+  input: CreateServiceInput,
+  signal?: AbortSignal,
+): Promise<Service> {
   const payload = await requestJSON("/api/v1/admin/shops/" + shopPathSegment(slug) + "/services", {
     method: "POST",
     authenticated: true,
     signal,
-    body: {
-      name,
-      description: input.description,
-      duration_minutes: input.duration_minutes,
-      price_cents: input.price_cents,
-    },
+    body: serviceBody(input),
   });
   try {
     return service(payload);
   } catch {
     throw new ApiError(
       "invalid_response",
-      "A API aceitou o envio, mas a resposta é incompatível. Atualize a lista antes de cadastrar novamente.",
+      "O serviço pode ter sido salvo. Atualize a lista para conferir antes de cadastrar novamente.",
     );
   }
+}
+
+export async function updateService(
+  slug: string,
+  id: string,
+  input: CreateServiceInput,
+  signal?: AbortSignal,
+): Promise<Service> {
+  return service(
+    await requestJSON(servicePath(slug, id), {
+      method: "PUT",
+      authenticated: true,
+      signal,
+      body: serviceBody(input),
+    }),
+  );
+}
+
+export async function deleteService(slug: string, id: string, signal?: AbortSignal): Promise<void> {
+  await requestJSON(servicePath(slug, id), {
+    method: "DELETE",
+    authenticated: true,
+    signal,
+    expectedNoContent: true,
+  });
+}
+
+function servicePath(slug: string, id: string) {
+  return "/api/v1/admin/shops/" + shopPathSegment(slug) + "/services/" + encodeURIComponent(id);
 }
 export function priceToCents(value: string): number {
   const normalized = value.trim().replace(",", ".");
@@ -108,7 +147,7 @@ export function priceToCents(value: string): number {
   if (amount > BigInt(Number.MAX_SAFE_INTEGER))
     throw new ApiError(
       "invalid_price",
-      "O preço informado ultrapassa o limite de precisão da interface.",
+      "Esse preço é muito alto. Confira o valor e tente novamente.",
     );
   return Number(amount);
 }

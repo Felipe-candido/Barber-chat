@@ -1,10 +1,16 @@
 # Na Regua
 
+**Atualização de 18/11/2026:** o proprietário pode cadastrar, editar e excluir
+serviços pelo painel. A exclusão retira o serviço de novos agendamentos e preserva
+os atendimentos e seus dados originais. Veja [o contrato](docs/api-contract.md#edição-e-exclusão-de-serviços)
+e [ADR 0050](docs/adr/0050-service-editing-and-logical-deletion.md). As notas de
+escopo inicial abaixo são históricas e não limitam esse fluxo.
+
 **Autenticação administrativa:** Bearer Supabase ES256, usuário local ativo, `/api/v1/admin/me` e criação de serviços autorizada por unidade estão implementados. Contas e vínculos são provisionados manualmente, sem papéis. Veja [configuração e provisionamento](docs/authentication-proposal.md) e [a decisão de arquitetura](docs/adr/0009-supabase-identity-without-roles.md).
 
 Fundação de um SaaS de agendamentos para barbearias e projeto de estudo de Go, Chi e mensageria. Uma aplicação modular, um módulo Go e dois executáveis: API e worker. PostgreSQL guarda os dados; RabbitMQ será o transporte das notificações.
 
-**Implementado:** configuração por ambiente/.env, HTTP com Chi, health/readiness, logs JSON, graceful shutdown, pool PostgreSQL, conexão AMQP, ciclo de vida do worker, Compose, migrations e testes. O catálogo cria serviços e profissionais com autenticação/membership; o cadastro de profissional inclui serviços e expediente inicial. Booking oferece disponibilidade, criação transacional, comprovante com código, consulta e cancelamento público. **Ainda não existe:** edição/ativação de serviços, edição do calendário pelo painel, agenda administrativa integrada, CRUD de contas, scheduler/outbox, consumer de negócio, envio de mensagens ou relatórios. O frontend está em [`../frontend-chat`](../frontend-chat/README.md). O worker verifica dependências e aguarda encerramento; não envia notificações e não é necessário para agendar.
+**Implementado:** configuração por ambiente/.env, HTTP com Chi, health/readiness, logs JSON, graceful shutdown, pool PostgreSQL, conexão AMQP, ciclo de vida do worker, Compose, migrations e testes. O catálogo cria serviços e profissionais com autenticação/membership; o cadastro de profissional inclui serviços e expediente inicial. Booking oferece disponibilidade, criação transacional, comprovante com código, consulta e cancelamento público. **Ainda não existe:** reativação de serviços excluídos, edição do calendário pelo painel, agenda administrativa integrada, CRUD de contas, scheduler/outbox, consumer de negócio, envio de mensagens ou relatórios. O frontend está em [`../frontend-chat`](../frontend-chat/README.md). O worker verifica dependências e aguarda encerramento; não envia notificações e não é necessário para agendar.
 
 **Estrutura de negócio:** sete módulos em `internal/modules`, cada um com `domain`, `application` e `infra`. Catalog possui serviços/profissionais; shops resolve a unidade; identity autentica e autoriza; customers resolve contatos; booking coordena calendário e reserva. O frontend chama /me e /admin/shops após login e usa o slug escolhido no painel. Veja os [contratos atuais](docs/api-contract.md) e a [decisão de booking](docs/adr/0012-public-booking-and-professional-setup.md).
 
@@ -183,6 +189,6 @@ Não remover volumes para resolver erros de configuração. O resultado das vali
 - [Contrato proposto para frontend](docs/api-contract.md) e [OpenAPI atual](docs/openapi.yaml).
 - [AGENTS.md](AGENTS.md): instruções persistentes para próximas tarefas.
 
-Próximo passo: testar o login com uma conta real provisionada e implementar edição/ativação de serviços. Seleção de unidades e listagem administrativa de serviços ativos já estão integradas. Depois profissionais/associações e agendamento com proteção de sobreposição, seguido de outbox/worker. Definir regras de lembrete, cancelamento e canal/provedor antes das funcionalidades correspondentes.
+Próximo passo: testar o login com uma conta real provisionada e avaliar reativação de serviços excluídos. A edição e a exclusão lógica já estão disponíveis. Seleção de unidades e listagem administrativa de serviços ativos já estão integradas. Depois profissionais/associações e agendamento com proteção de sobreposição, seguido de outbox/worker. Definir regras de lembrete, cancelamento e canal/provedor antes das funcionalidades correspondentes.
 
 Para o navegador consumir a API, configure `FRONTEND_ORIGIN` com a origem exata (por exemplo `http://127.0.0.1:3000`) e `SUPABASE_URL` com o projeto que emitiu a sessão. Não há slug fixo no backend ou frontend; a rota de serviços recebe o slug da unidade escolhida. CORS não concede acesso: token e membership são verificados em cada operação administrativa. Contas e vínculos continuam manuais. Não envie credenciais por HTTP fora de loopback; deploy exige HTTPS e configuração de infraestrutura apropriada.

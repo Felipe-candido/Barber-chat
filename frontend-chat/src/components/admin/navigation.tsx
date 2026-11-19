@@ -25,11 +25,11 @@ export function adminDestinations(slug: string, role: ShopAccess["role"]) {
     { href: root + "/produtos", label: "Produtos", icon: Package },
     { href: root + "/vendas", label: "Vendas", icon: ReceiptText },
     { href: root + "/relatorios", label: "Relatórios", icon: ChartNoAxesCombined },
-    { href: root + "/contatos", label: "Contatos", icon: ContactRound },
+    { href: root + "/contatos", label: "Clientes", icon: ContactRound },
     ...(role === "owner"
       ? [
-          { href: root + "/barbeiros", label: "Barbeiros", icon: Users },
-          { href: root + "/contas", label: "Contas de acesso", icon: UserRoundCog },
+          { href: root + "/barbeiros", label: "Equipe", icon: Users },
+          { href: root + "/contas", label: "Acessos da equipe", icon: UserRoundCog },
           { href: root + "/configuracoes", label: "Configurações", icon: Settings },
         ]
       : []),

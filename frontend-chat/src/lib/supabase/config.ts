@@ -8,17 +8,19 @@ export function supabaseBrowserConfig(): SupabaseBrowserConfig {
   const publishableKey = (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? "").trim();
 
   if (!rawURL || !publishableKey) {
-    throw new Error("Configure NEXT_PUBLIC_SUPABASE_URL e NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY.");
+    throw new Error(
+      "O acesso está indisponível no momento. Tente mais tarde ou fale com o suporte.",
+    );
   }
   if (publishableKey.startsWith("sb_secret_") || publishableKey === "service_role") {
-    throw new Error("Use somente a chave publishable do Supabase no frontend.");
+    throw new Error("O acesso está indisponível no momento. Fale com o suporte para continuar.");
   }
 
   let url: URL;
   try {
     url = new URL(rawURL);
   } catch {
-    throw new Error("NEXT_PUBLIC_SUPABASE_URL deve ser uma URL válida.");
+    throw new Error("O acesso está indisponível no momento. Fale com o suporte para continuar.");
   }
   const localHTTP =
     url.protocol === "http:" &&
@@ -31,9 +33,7 @@ export function supabaseBrowserConfig(): SupabaseBrowserConfig {
     url.search ||
     url.hash
   ) {
-    throw new Error(
-      "NEXT_PUBLIC_SUPABASE_URL deve ser a origem HTTPS do projeto (HTTP é aceito apenas localmente).",
-    );
+    throw new Error("O acesso está indisponível no momento. Fale com o suporte para continuar.");
   }
 
   return { url: url.toString().replace(/\/$/, ""), publishableKey };

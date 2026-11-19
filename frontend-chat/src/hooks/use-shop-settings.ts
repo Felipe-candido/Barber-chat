@@ -158,9 +158,7 @@ export function useShopSettings(
         sameSettings(settingsDraft(current), previous.sent)
       ) {
         acceptCurrent(current);
-        setNotice(
-          "Dados conferidos na API. O estado atual corresponde ao que você enviou; nada foi reenviado.",
-        );
+        setNotice("Suas alterações foram salvas. Os dados estão atualizados.");
       } else {
         setReview({
           current,
@@ -190,8 +188,8 @@ export function useShopSettings(
     if (keepChanges) setDraft(chosen.proposed);
     setNotice(
       keepChanges
-        ? "Rascunho preparado com a versão atual. Revise o formulário e salve quando estiver pronto. Nada foi reenviado."
-        : "Dados atuais da API carregados. Seu rascunho foi descartado; nada foi reenviado.",
+        ? "Suas alterações estão prontas para revisão. Confira o formulário e salve quando estiver pronto."
+        : "Os dados salvos foram carregados. As alterações não salvas foram descartadas.",
     );
   }
 

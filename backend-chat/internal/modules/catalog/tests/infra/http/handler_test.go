@@ -27,6 +27,8 @@ type testStore struct {
 	err         error
 	createdShop uuid.UUID
 	listedShop  uuid.UUID
+	updated     domain.Service
+	deletedID   uuid.UUID
 }
 
 func (s *testStore) LookupActiveShop(_ context.Context, slug string) (uuid.UUID, bool, error) {
@@ -41,13 +43,23 @@ func (s *testStore) ListActiveByShop(_ context.Context, shopID uuid.UUID) ([]dom
 	s.listedShop = shopID
 	return nil, s.err
 }
+func (s *testStore) Update(_ context.Context, v domain.Service) (domain.Service, error) {
+	s.updated = v
+	return v, s.err
+}
+func (s *testStore) Deactivate(_ context.Context, shopID, serviceID uuid.UUID) error {
+	s.createdShop, s.deletedID = shopID, serviceID
+	return s.err
+}
 func testRouter(store *testStore) http.Handler {
-	h := cataloghttp.NewHandler(application.NewCreateService(store), application.NewListServices(store, store), application.NewListAuthorizedServices(store), time.Second, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	h := cataloghttp.NewHandler(application.NewCreateService(store), application.NewListServices(store, store), application.NewListAuthorizedServices(store), application.NewManageServices(store), time.Second, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	router := chi.NewRouter()
 	cataloghttp.RegisterPublicRoutes(router, h)
 	// Authentication and authorization are tested together in httpapi/tests.
 	router.Post("/api/v1/admin/shops/{slug}/services", h.CreateService)
 	router.Get("/api/v1/admin/shops/{slug}/services", h.ListShopServices)
+	router.Put("/api/v1/admin/shops/{slug}/services/{serviceID}", h.UpdateService)
+	router.Delete("/api/v1/admin/shops/{slug}/services/{serviceID}", h.DeleteService)
 	return router
 }
 
@@ -121,12 +133,16 @@ func TestCreateRequiresMatchingIdentityAndScope(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			store := &testStore{shop: shopID}
-			for _, method := range []string{"GET", "POST"} {
-				r := httptest.NewRequest(method, "/api/v1/admin/shops/shop/services", strings.NewReader(validBody)).WithContext(tc.ctx)
+			for _, method := range []string{"GET", "POST", "PUT", "DELETE"} {
+				path := "/api/v1/admin/shops/shop/services"
+				if method == "PUT" || method == "DELETE" {
+					path += "/" + uuid.NewString()
+				}
+				r := httptest.NewRequest(method, path, strings.NewReader(validBody)).WithContext(tc.ctx)
 				r.Header.Set("Content-Type", "application/json")
 				w := httptest.NewRecorder()
 				testRouter(store).ServeHTTP(w, r)
-				if w.Code != tc.want || store.created != 0 || store.listedShop != uuid.Nil {
+				if w.Code != tc.want || store.created != 0 || store.listedShop != uuid.Nil || store.updated.ID != uuid.Nil || store.deletedID != uuid.Nil {
 					t.Fatalf("method=%s status=%d writes=%d read=%s", method, w.Code, store.created, store.listedShop)
 				}
 			}

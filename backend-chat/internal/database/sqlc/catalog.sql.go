@@ -58,6 +58,38 @@ func (q *Queries) CreateService(ctx context.Context, arg CreateServiceParams) (S
 	return i, err
 }
 
+const deactivateService = `-- name: DeactivateService :one
+UPDATE services AS s
+SET active = FALSE, updated_at = CASE WHEN s.active THEN NOW() ELSE s.updated_at END
+FROM shops AS sh
+WHERE s.shop_id = $1 AND s.id = $2
+  AND sh.id = s.shop_id AND sh.active = TRUE
+RETURNING s.id, s.shop_id, s.name, s.description, s.duration_minutes, s.price_cents, s.active, s.created_at, s.updated_at, s.currency
+`
+
+type DeactivateServiceParams struct {
+	ShopID uuid.UUID `json:"shop_id"`
+	ID     uuid.UUID `json:"id"`
+}
+
+func (q *Queries) DeactivateService(ctx context.Context, arg DeactivateServiceParams) (Service, error) {
+	row := q.db.QueryRow(ctx, deactivateService, arg.ShopID, arg.ID)
+	var i Service
+	err := row.Scan(
+		&i.ID,
+		&i.ShopID,
+		&i.Name,
+		&i.Description,
+		&i.DurationMinutes,
+		&i.PriceCents,
+		&i.Active,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Currency,
+	)
+	return i, err
+}
+
 const listActiveServicesByShopID = `-- name: ListActiveServicesByShopID :many
 SELECT s.id, s.shop_id, s.name, s.description, s.duration_minutes, s.price_cents, s.active, s.created_at, s.updated_at, s.currency
 FROM services AS s
@@ -95,4 +127,49 @@ func (q *Queries) ListActiveServicesByShopID(ctx context.Context, shopID uuid.UU
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateActiveService = `-- name: UpdateActiveService :one
+UPDATE services AS s
+SET name = $1, description = $2,
+    duration_minutes = $3, price_cents = $4,
+    updated_at = NOW()
+FROM shops AS sh
+WHERE s.shop_id = $5 AND s.id = $6
+  AND s.active = TRUE AND sh.id = s.shop_id AND sh.active = TRUE
+RETURNING s.id, s.shop_id, s.name, s.description, s.duration_minutes, s.price_cents, s.active, s.created_at, s.updated_at, s.currency
+`
+
+type UpdateActiveServiceParams struct {
+	Name            string    `json:"name"`
+	Description     string    `json:"description"`
+	DurationMinutes int32     `json:"duration_minutes"`
+	PriceCents      int64     `json:"price_cents"`
+	ShopID          uuid.UUID `json:"shop_id"`
+	ID              uuid.UUID `json:"id"`
+}
+
+func (q *Queries) UpdateActiveService(ctx context.Context, arg UpdateActiveServiceParams) (Service, error) {
+	row := q.db.QueryRow(ctx, updateActiveService,
+		arg.Name,
+		arg.Description,
+		arg.DurationMinutes,
+		arg.PriceCents,
+		arg.ShopID,
+		arg.ID,
+	)
+	var i Service
+	err := row.Scan(
+		&i.ID,
+		&i.ShopID,
+		&i.Name,
+		&i.Description,
+		&i.DurationMinutes,
+		&i.PriceCents,
+		&i.Active,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Currency,
+	)
+	return i, err
 }

@@ -24,18 +24,19 @@ type Handler struct {
 	createService          *application.CreateService
 	listServices           *application.ListServices
 	listAuthorizedServices *application.ListAuthorizedServices
+	manageServices         *application.ManageServices
 	timeout                time.Duration
 	logger                 *slog.Logger
 }
 
-func NewHandler(create *application.CreateService, list *application.ListServices, authorizedList *application.ListAuthorizedServices, timeout time.Duration, logger *slog.Logger) *Handler {
+func NewHandler(create *application.CreateService, list *application.ListServices, authorizedList *application.ListAuthorizedServices, manage *application.ManageServices, timeout time.Duration, logger *slog.Logger) *Handler {
 	if timeout <= 0 {
 		timeout = 3 * time.Second
 	}
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Handler{createService: create, listServices: list, listAuthorizedServices: authorizedList, timeout: timeout, logger: logger}
+	return &Handler{createService: create, listServices: list, listAuthorizedServices: authorizedList, manageServices: manage, timeout: timeout, logger: logger}
 }
 
 type createServiceRequest struct {
@@ -64,10 +65,29 @@ func (h *Handler) CreateService(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	request, ok := decodeServiceRequest(w, r)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
+	defer cancel()
+
+	service, err := h.createService.Execute(ctx, application.CreateServiceInput{
+		ShopID: shopID, Name: request.Name, Description: request.Description,
+		DurationMinutes: request.DurationMinutes, PriceCents: *request.PriceCents,
+	})
+	if err != nil {
+		h.writeOperationError(w, err, "create")
+		return
+	}
+	writeJSON(w, http.StatusCreated, responseOf(service))
+}
+
+func decodeServiceRequest(w http.ResponseWriter, r *http.Request) (*createServiceRequest, bool) {
 	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	if err != nil || mediaType != "application/json" {
 		writeError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type must be application/json")
-		return
+		return nil, false
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	decoder := json.NewDecoder(r.Body)
@@ -75,37 +95,74 @@ func (h *Handler) CreateService(w http.ResponseWriter, r *http.Request) {
 	var request *createServiceRequest
 	if err := decoder.Decode(&request); err != nil {
 		writeDecodeError(w, err)
-		return
+		return nil, false
 	}
 	if request == nil {
 		writeError(w, 400, "invalid_body", "body must be a JSON object")
-		return
+		return nil, false
 	}
 	if err := decoder.Decode(new(any)); !errors.Is(err, io.EOF) {
 		writeDecodeError(w, err)
-		return
+		return nil, false
 	}
 	if request.PriceCents == nil {
 		writeError(w, 422, "invalid_service", "price_cents is required")
+		return nil, false
+	}
+	return request, true
+}
+
+func serviceIDFromRequest(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
+	id, err := uuid.Parse(chi.URLParam(r, "serviceID"))
+	if err != nil || id == uuid.Nil {
+		writeError(w, http.StatusUnprocessableEntity, "invalid_service", "service ID must be a nonzero UUID")
+		return uuid.Nil, false
+	}
+	return id, true
+}
+
+func (h *Handler) UpdateService(w http.ResponseWriter, r *http.Request) {
+	shopID, ok := authorizedShopID(w, r)
+	if !ok {
+		return
+	}
+	serviceID, ok := serviceIDFromRequest(w, r)
+	if !ok {
+		return
+	}
+	request, ok := decodeServiceRequest(w, r)
+	if !ok {
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
 	defer cancel()
-
-	service, err := h.createService.Execute(
-		ctx, application.CreateServiceInput{
-			ShopID:          shopID,
-			Name:            request.Name,
-			Description:     request.Description,
-			DurationMinutes: request.DurationMinutes,
-			PriceCents:      *request.PriceCents,
-		})
-
+	service, err := h.manageServices.Update(ctx, application.UpdateServiceInput{
+		ShopID: shopID, ServiceID: serviceID, Name: request.Name, Description: request.Description,
+		DurationMinutes: request.DurationMinutes, PriceCents: *request.PriceCents,
+	})
 	if err != nil {
-		h.writeOperationError(w, err, "create")
+		h.writeOperationError(w, err, "update")
 		return
 	}
-	writeJSON(w, http.StatusCreated, responseOf(service))
+	writeJSON(w, http.StatusOK, responseOf(service))
+}
+
+func (h *Handler) DeleteService(w http.ResponseWriter, r *http.Request) {
+	shopID, ok := authorizedShopID(w, r)
+	if !ok {
+		return
+	}
+	serviceID, ok := serviceIDFromRequest(w, r)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
+	defer cancel()
+	if err := h.manageServices.Delete(ctx, shopID, serviceID); err != nil {
+		h.writeOperationError(w, err, "delete")
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func authorizedShopID(w http.ResponseWriter, r *http.Request) (uuid.UUID, bool) {
@@ -173,8 +230,10 @@ func (h *Handler) writeOperationError(w http.ResponseWriter, err error, operatio
 	switch {
 	case errors.Is(err, application.ErrShopNotFound):
 		writeError(w, 404, "shop_not_found", "active shop not found")
+	case errors.Is(err, application.ErrServiceNotFound):
+		writeError(w, 404, "service_not_found", "service not found in the authorized shop")
 	case errors.Is(err, domain.ErrInvalidShopID), errors.Is(err, domain.ErrInvalidName),
-		errors.Is(err, domain.ErrInvalidDuration), errors.Is(err, domain.ErrInvalidPrice):
+		errors.Is(err, domain.ErrInvalidDuration), errors.Is(err, domain.ErrInvalidPrice), errors.Is(err, application.ErrInvalidServiceID):
 		writeError(w, 422, "invalid_service", err.Error())
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
 		writeError(w, 503, "temporarily_unavailable", "catalog request could not be completed")

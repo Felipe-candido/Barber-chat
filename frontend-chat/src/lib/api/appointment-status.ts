@@ -47,7 +47,7 @@ export function isAppointmentStatusInput(value: unknown): value is AppointmentSt
 function invalid(): never {
   throw new ApiError(
     "invalid_response",
-    "A API retornou dados incompatíveis do atendimento. Consulte o estado atual antes de iniciar outra alteração.",
+    "Não conseguimos confirmar os dados do atendimento. Atualize antes de fazer outra alteração.",
   );
 }
 function path(scope: ShopRequest, id: string) {

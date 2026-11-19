@@ -29,7 +29,7 @@ export type Agenda = {
 function invalid(): never {
   throw new ApiError(
     "invalid_response",
-    "A API retornou uma agenda incompatível. Atualize e tente novamente.",
+    "Não conseguimos carregar a agenda. Atualize e tente novamente.",
   );
 }
 function text(value: unknown): value is string {

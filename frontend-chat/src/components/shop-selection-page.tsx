@@ -40,7 +40,7 @@ export function ShopSelectionPage() {
         actions={
           <Button variant="quiet" onClick={() => void refresh().catch(() => {})}>
             <RefreshCw size={18} aria-hidden="true" />
-            Atualizar vínculos
+            Atualizar barbearias
           </Button>
         }
       />
@@ -57,7 +57,7 @@ export function ShopSelectionPage() {
               </p>
               <Link
                 className={buttonClasses("secondary", styles.enter)}
-                href={adminShopPath(shop.slug) + "/servicos"}
+                href={adminShopPath(shop.slug)}
               >
                 Entrar em {shop.name}
                 <ArrowRight size={18} aria-hidden="true" />
@@ -67,8 +67,8 @@ export function ShopSelectionPage() {
         </div>
       ) : (
         <EmptyState
-          title="Nenhuma barbearia vinculada"
-          text="Sua conta foi reconhecida, mas não possui acesso ativo a uma barbearia. Peça ao proprietário ou ao responsável pelo sistema para conferir seu vínculo e atualize a lista."
+          title="Sua barbearia ainda não aparece aqui"
+          text="Cadastre sua barbearia para começar. Se você faz parte de uma equipe, peça ao proprietário para liberar seu acesso e atualize a lista."
         />
       )}
       <p className={styles.note}>

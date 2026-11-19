@@ -78,20 +78,18 @@ export function SetPasswordPage() {
   return (
     <AccessPage
       title="Definir sua senha"
-      description="Finalize seu acesso de barbeiro. Sua senha é enviada somente ao Supabase."
+      description="Crie sua senha para começar a acompanhar seus agendamentos."
     >
       {loading && (
         <p className={styles.loading} role="status">
           <LoaderCircle size={22} aria-hidden="true" />
-          Validando convite…
+          Conferindo seu convite…
         </p>
       )}
       {error && <Alert tone="error">{error}</Alert>}
       {done ? (
         <>
-          <Alert tone="success">
-            Senha definida. Entre no painel para validar seu acesso à agenda.
-          </Alert>
+          <Alert tone="success">Senha criada. Entre para acompanhar seus agendamentos.</Alert>
           <Link className={buttonClasses()} href="/admin">
             Entrar no painel
           </Link>
@@ -173,7 +171,7 @@ export function SetPasswordPage() {
             if (inFlight.current) event.preventDefault();
           }}
         >
-          Voltar ao login
+          Voltar para entrar
         </Link>
       )}
     </AccessPage>
