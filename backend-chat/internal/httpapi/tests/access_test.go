@@ -38,6 +38,8 @@ type accessStore struct {
 	memberships     map[uuid.UUID]identitydomain.Membership
 	shops           map[string]uuid.UUID
 	created         []catalogdomain.Service
+	updated         []catalogdomain.Service
+	deleted         []uuid.UUID
 	listedShopIDs   []uuid.UUID
 	userCalls       int
 	err             error
@@ -70,6 +72,14 @@ func (s *accessStore) Create(_ context.Context, service catalogdomain.Service) (
 func (s *accessStore) ListActiveByShop(_ context.Context, shopID uuid.UUID) ([]catalogdomain.Service, error) {
 	s.listedShopIDs = append(s.listedShopIDs, shopID)
 	return []catalogdomain.Service{}, s.err
+}
+func (s *accessStore) Update(_ context.Context, service catalogdomain.Service) (catalogdomain.Service, error) {
+	s.updated = append(s.updated, service)
+	return service, s.err
+}
+func (s *accessStore) Deactivate(_ context.Context, shopID, serviceID uuid.UUID) error {
+	s.deleted = append(s.deleted, shopID)
+	return s.err
 }
 
 type accessFixture struct {
@@ -125,7 +135,7 @@ func newAccessFixture(t *testing.T) *accessFixture {
 
 func (f *accessFixture) handler() http.Handler {
 	logger := slog.New(slog.NewJSONHandler(&f.logs, nil))
-	catalog := cataloghttp.NewHandler(catalogapp.NewCreateService(f.store), catalogapp.NewListServices(f.store, f.store), catalogapp.NewListAuthorizedServices(f.store), time.Second, logger)
+	catalog := cataloghttp.NewHandler(catalogapp.NewCreateService(f.store), catalogapp.NewListServices(f.store, f.store), catalogapp.NewListAuthorizedServices(f.store), catalogapp.NewManageServices(f.store), time.Second, logger)
 	return httpapi.NewHandler(httpapi.HandlerConfig{
 		Accounts: identityhttp.NewAccountHandler(identityapp.NewStaffAccounts(nil, nil), time.Second, logger),
 		Catalog:  catalog, Authenticate: identityapp.NewAuthenticate(f.verifier, f.store),

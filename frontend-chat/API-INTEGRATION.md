@@ -16,7 +16,7 @@ Disponibilidade não segura horário. Na confirmação, o servidor revalida tudo
 2. O SDK mantém e renova a sessão. O frontend não copia tokens para seu contexto.
 3. AdminAccessProvider chama GET /api/v1/admin/me e depois GET /api/v1/admin/shops, com Authorization: Bearer.
 4. /admin mostra as unidades elegíveis, inclusive um estado de lista vazia. Não escolhe a primeira automaticamente.
-5. A escolha abre /admin/{slug}/servicos. ShopPanel fornece nome/slug da unidade aos componentes.
+5. A escolha abre /admin/{slug}, na agenda. ShopPanel fornece nome/slug da unidade aos componentes.
 6. O painel consulta GET /api/v1/admin/shops/{slug}/services. Cada GET/POST administrativo revalida usuário, unidade e vínculo no Go.
 7. Trocar de unidade remonta componentes e cancela consultas anteriores. Logout usa scope local, limpa o estado da interface e volta ao login.
 
@@ -200,9 +200,17 @@ seleção/troca, lista vazia, bloqueios, logout, restauração, respostas atrasa
 contratos, erros, cadastro, cancelamento e telas móveis. Integração PostgreSQL e
 criptografia Go são validações separadas; ver backend-chat/docs/validation.md.
 
-## Pendências
+## Serviços: edição e exclusão
 
-Edição/exclusão/ativação, serviços inativos/paginação, edição de calendário,
+O proprietário pode editar nome, descrição, duração e preço via PUT em
+`/api/v1/admin/shops/{slug}/services/{serviceID}`. DELETE no mesmo endereço
+exclui logicamente o serviço e retorna 204. O painel pede confirmação; as reservas
+já feitas conservam os dados originais. Barbeiros possuem acesso de leitura.
+Reativação e consulta de serviços excluídos continuam fora deste fluxo.
+
+## Notas históricas de escopo
+
+Ativação, serviços inativos/paginação, edição de calendário,
 notificações, convites e recuperação real ainda não estão integrados. A agenda
 visual administrativa é um calendário sem consulta de reservas; o fluxo público
 de agendamento, consulta e cancelamento está integrado. A identidade Palma continua

@@ -60,3 +60,25 @@ func (r *Repository) ListActiveByShop(ctx context.Context, shopID uuid.UUID) ([]
 	}
 	return services, nil
 }
+
+func (r *Repository) Update(ctx context.Context, service domain.Service) (domain.Service, error) {
+	row, err := r.queries.UpdateActiveService(ctx, db.UpdateActiveServiceParams{
+		ShopID: service.ShopID, ID: service.ID, Name: service.Name, Description: service.Description,
+		DurationMinutes: int32(service.DurationMinutes), PriceCents: service.PriceCents,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domain.Service{}, application.ErrServiceNotFound
+	}
+	if err != nil {
+		return domain.Service{}, err
+	}
+	return toDomain(row), nil
+}
+
+func (r *Repository) Deactivate(ctx context.Context, shopID, serviceID uuid.UUID) error {
+	_, err := r.queries.DeactivateService(ctx, db.DeactivateServiceParams{ShopID: shopID, ID: serviceID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return application.ErrServiceNotFound
+	}
+	return err
+}

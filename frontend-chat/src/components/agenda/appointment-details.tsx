@@ -60,7 +60,7 @@ export function AppointmentDetails({
       />
       <p>
         {item.version === undefined
-          ? "Consulta dos dados da reserva. Atualize a API para gerenciar a situação pelo painel."
+          ? "Você pode consultar esta reserva. Para alterar a situação do atendimento, fale com o suporte."
           : completionMode === "manual"
             ? "Fechamento manual: o atendimento permanece em aberto até a equipe registrar realizado, ausência ou cancelamento."
             : completionMode === "automatic"

@@ -389,7 +389,7 @@ test("mobile and dark reports preserve navigation and readable graph without pag
     "R$ 190,00",
   );
   await expect(page.getByRole("navigation", { name: "Navegação rápida" })).toBeVisible();
-  await page.getByRole("button", { name: "Mais", exact: true }).click();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Menu do painel" });
   await expect(dialog.getByRole("link", { name: "Relatórios", exact: true })).toHaveAttribute(
     "aria-current",

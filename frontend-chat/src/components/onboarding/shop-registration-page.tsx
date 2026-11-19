@@ -114,7 +114,7 @@ export function ShopRegistrationPage() {
         saveRegistrationAttempt(pending);
       } catch {
         setError(
-          "Permita o armazenamento desta aba para preservar sua tentativa com segurança. Nada foi enviado à API.",
+          "Seu navegador precisa permitir salvar os dados desta aba para continuar. O cadastro ainda não foi enviado.",
         );
         return;
       }
@@ -250,7 +250,7 @@ export function ShopRegistrationPage() {
             sessão.
           </Alert>
           <Link href="/login" className={buttonClasses()}>
-            Voltar ao login
+            Voltar para entrar
           </Link>
           <Link href="/confirmar-email" className={buttonClasses("secondary")}>
             Reenviar confirmação
@@ -262,8 +262,8 @@ export function ShopRegistrationPage() {
             {created.name} foi cadastrada com seu endereço e seu acesso de proprietário.
           </Alert>
           <Alert>
-            O link de agendamento continua privado. Nenhuma assinatura foi iniciada e nenhum
-            pagamento foi feito. A publicação será liberada na etapa de integração com a Stripe.
+            Agora cadastre seus serviços e sua equipe. Quando estiver pronto, escolha seu plano e
+            ative o link de agendamento em Configurações.
           </Alert>
           <Button loading={busy} onClick={() => void openPanel()}>
             Abrir painel e cadastrar serviços

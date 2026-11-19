@@ -55,10 +55,7 @@ function OwnerProfessionalsPage() {
 
   return (
     <section className={styles.page}>
-      <PageHeader
-        title="Barbeiros"
-        description={`Equipe, serviços e expediente de ${shop.name}.`}
-      />
+      <PageHeader title="Equipe" description={`Equipe, serviços e expediente de ${shop.name}.`} />
       <p className={styles.hint}>
         O cadastro disponibiliza o barbeiro para agendamentos, mas não cria um login.{" "}
         <Link href={adminShopPath(shop.slug) + "/contas"}>

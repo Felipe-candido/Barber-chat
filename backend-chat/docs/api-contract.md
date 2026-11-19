@@ -1,5 +1,25 @@
 # Contrato com o frontend
 
+## Edição e exclusão de serviços
+
+`PUT /api/v1/admin/shops/{slug}/services/{serviceID}` recebe o mesmo corpo do
+cadastro (`name`, `description`, `duration_minutes`, `price_cents`) e retorna o
+serviço atualizado (200). `DELETE` no mesmo endereço retira o serviço do catálogo
+ativo e retorna 204 sem corpo. Repetir a exclusão retorna 204. Ambas exigem
+proprietário autenticado da unidade; barbeiros recebem 403.
+
+A exclusão é lógica (`active=false`): os dados e vínculos são preservados, mas o
+serviço deixa de ser oferecido para novas reservas. Serviço inexistente ou de outra
+unidade retorna 404 `service_not_found`; edição de serviço já excluído também.
+Nome, preço e duração dos atendimentos já registrados não são alterados. Edições
+simultâneas usam a última gravação; não há reativação pela edição nem controle de
+versão nesta etapa. Não é necessária migration: o catálogo já possui `active`.
+
+O painel preenche os dados atuais para edição e pede confirmação antes de excluir.
+Em falha ambígua de salvamento, mantém o formulário e orienta conferir a lista
+antes de reenviar. Exclusão pode ser repetida com o mesmo ID com segurança.
+Veja [ADR 0050](adr/0050-service-editing-and-logical-deletion.md).
+
 ## Histórico e indicadores de atividades
 
 GET /api/v1/admin/shops/{slug}/reports/activity retorna o resumo; o sufixo

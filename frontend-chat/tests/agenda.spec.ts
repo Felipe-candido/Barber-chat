@@ -137,7 +137,7 @@ test("agenda failures are not disguised as an empty calendar and retry is read-o
   });
   await page.goto("/admin/" + testShop.slug);
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "temporariamente indisponível",
+    "Não conseguimos atender seu pedido agora",
   );
   await expect(page.getByText("0 agendamentos carregados", { exact: false })).toHaveCount(0);
   unavailable = false;

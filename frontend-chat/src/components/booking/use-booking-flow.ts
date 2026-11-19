@@ -148,7 +148,7 @@ export function useBookingFlow({
     if (uncertain) {
       setSubscriptionRequired(false);
       setNotice(
-        "Use Repetir confirmação para recuperar os mesmos dados e a mesma chave. A API vai revalidar seu acesso.",
+        "Clique em Repetir confirmação para conferir sua reserva sem criar outro agendamento.",
       );
       return;
     }
@@ -178,8 +178,8 @@ export function useBookingFlow({
       setNotice(
         selected
           ? staff.role === "owner"
-            ? "Assinatura confirmada e horário reconsultado. Revise os dados e confirme o agendamento."
-            : "Horário reconsultado. Revise e confirme após o proprietário regularizar a assinatura; a API fará a validação final."
+            ? "Assinatura confirmada e horário atualizado. Confira os dados e confirme o agendamento."
+            : "Horário atualizado. Peça ao proprietário para regularizar a assinatura antes de confirmar."
           : "Seus dados foram mantidos, mas o horário mudou ou foi ocupado. Escolha outro horário.",
       );
     } catch (failure) {

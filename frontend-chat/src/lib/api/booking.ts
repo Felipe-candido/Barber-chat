@@ -43,7 +43,7 @@ export type AppointmentDetails = { appointment: Appointment; can_cancel: boolean
 function invalid(): never {
   throw new ApiError(
     "invalid_response",
-    "A resposta de agendamento da API não é compatível. Não faça outra reserva antes de conferir esta tentativa.",
+    "Não conseguimos confirmar o agendamento. Confira esta reserva antes de marcar novamente.",
   );
 }
 function record(value: unknown): Record<string, unknown> {

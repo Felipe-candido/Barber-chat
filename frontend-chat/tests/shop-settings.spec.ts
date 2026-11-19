@@ -277,7 +277,7 @@ test("conflict requires review and an explicit save, preserving remote changes i
   await page.getByLabel("Descrição (opcional)", { exact: true }).fill("My new description");
   await save(page).click();
   await expect(name(page)).toBeDisabled();
-  await page.getByRole("button", { name: "Conferir dados na API", exact: true }).click();
+  await page.getByRole("button", { name: "Conferir dados salvos", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Confira antes de continuar" })).toBeVisible();
   expect(writes).toHaveLength(1);
   await page.getByRole("button", { name: "Revisar minhas alterações", exact: true }).click();
@@ -315,10 +315,10 @@ test("conflicting draft can be discarded in favor of the API without another PUT
   await page.goto(path);
   await name(page).fill("Local name");
   await save(page).click();
-  await page.getByRole("button", { name: "Conferir dados na API" }).click();
+  await page.getByRole("button", { name: "Conferir dados salvos" }).click();
   await expect(page.getByRole("table")).toContainText("Another saved name");
   await expect(page.getByRole("table")).toContainText("Local name");
-  await page.getByRole("button", { name: "Usar dados atuais da API" }).click();
+  await page.getByRole("button", { name: "Usar dados salvos" }).click();
   await expect(name(page)).toHaveValue(remote.name);
   await expect(save(page)).toBeDisabled();
   expect(writes).toBe(1);
@@ -340,9 +340,9 @@ test("lost PUT response is recovered by a read that confirms the current data, n
   await name(page).fill("Saved but response lost");
   await save(page).click();
   await expect(name(page)).toBeDisabled();
-  await page.getByRole("button", { name: "Conferir dados na API" }).click();
+  await page.getByRole("button", { name: "Conferir dados salvos" }).click();
   await expect(
-    page.getByRole("status").filter({ hasText: "Dados conferidos na API." }),
+    page.getByRole("status").filter({ hasText: "Suas alterações foram salvas." }),
   ).toBeVisible();
   await expect(name(page)).toHaveValue(current.name);
   await expect(save(page)).toBeDisabled();
@@ -371,13 +371,13 @@ test("failed confirmation read keeps the uncertain draft locked until a successf
   await page.goto(path);
   await name(page).fill("Unconfirmed name");
   await save(page).click();
-  await page.getByRole("button", { name: "Conferir dados na API" }).click();
+  await page.getByRole("button", { name: "Conferir dados salvos" }).click();
   await expect(
-    page.getByRole("alert").filter({ hasText: "temporariamente indisponível" }),
+    page.getByRole("alert").filter({ hasText: "Não conseguimos atender seu pedido agora" }),
   ).toBeVisible();
   await expect(name(page)).toHaveValue("Unconfirmed name");
   await expect(name(page)).toBeDisabled();
-  await page.getByRole("button", { name: "Conferir dados na API" }).click();
+  await page.getByRole("button", { name: "Conferir dados salvos" }).click();
   await expect(page.getByRole("heading", { name: "Confira antes de continuar" })).toBeVisible();
   expect(writes).toBe(1);
   await page.getByRole("button", { name: "Revisar minhas alterações" }).click();
@@ -405,7 +405,7 @@ test("malformed write response is not success and revoked access hides the priva
   await save(page).click();
   await expect(page.getByText("Configurações salvas.", { exact: true })).toHaveCount(0);
   await expect(name(page)).toBeDisabled();
-  await page.getByRole("button", { name: "Conferir dados na API" }).click();
+  await page.getByRole("button", { name: "Conferir dados salvos" }).click();
   await expect(page.getByRole("link", { name: "Escolher barbearia", exact: true })).toBeVisible();
   await expect(name(page)).toHaveCount(0);
 });

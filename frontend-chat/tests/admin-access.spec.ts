@@ -33,12 +33,16 @@ test("selects and switches units, restores a direct route and logs out", async (
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: /Escolha sua barbearia/ })).toBeVisible();
   await page.getByRole("link", { name: "Entrar em " + otherShop.name }).click();
+  await expect(page).toHaveURL(`/admin/${otherShop.slug}`);
+  await page.getByRole("link", { name: "Serviços", exact: true }).click();
   await expect(page.getByRole("heading", { name: service.name, exact: true })).toBeVisible();
   await expect(page.locator(".topbar")).toContainText(otherShop.name);
   await page.reload();
   await expect(page.getByRole("heading", { name: service.name, exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Trocar barbearia" }).click();
   await page.getByRole("link", { name: "Entrar em " + testShop.name }).click();
+  await expect(page).toHaveURL(`/admin/${testShop.slug}`);
+  await page.getByRole("link", { name: "Serviços", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Nenhum serviço ativo" })).toBeVisible();
   await expect(page.getByRole("heading", { name: service.name, exact: true })).toHaveCount(0);
   expect(requests.at(-1)).toBe("/api/v1/admin/shops/" + testShop.slug + "/services");
@@ -63,7 +67,9 @@ test("does not open any shop automatically when the list is empty", async ({ pag
     return route.fulfill({ json: [] });
   });
   await page.goto("/admin");
-  await expect(page.getByRole("heading", { name: "Nenhuma barbearia vinculada" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Sua barbearia ainda não aparece aqui" }),
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: /^Entrar em/ })).toHaveCount(0);
   expect(servicesCalls).toBe(0);
 });
@@ -109,12 +115,16 @@ test("invalid identity or duplicate shops fail closed", async ({ page }) => {
   await installSupabaseSession(page);
   await mockAdminAccess(page, [testShop, testShop]);
   await page.goto("/admin");
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("incompatíveis");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "Não conseguimos carregar seu acesso",
+  );
   await page.route("**/api/v1/admin/me", (route) =>
     route.fulfill({ json: { ...testIdentity, user_id: "invalid" } }),
   );
   await page.getByRole("button", { name: "Tentar novamente" }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("incompatíveis");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "Não conseguimos carregar seu acesso",
+  );
 });
 
 test("public catalog never sends the existing administrative session", async ({ page }) => {
@@ -154,7 +164,7 @@ test("waits for API verification before mounting private pages", async ({ page }
   });
   await page.route("**/api/v1/admin/shops/*/services", (route) => route.fulfill({ json: [] }));
   await page.goto("/admin/" + testShop.slug + "/servicos");
-  await expect(page.getByRole("status")).toContainText("Validando seu acesso");
+  await expect(page.getByRole("status")).toContainText("Conferindo seu acesso");
   await expect(page.getByRole("button", { name: "Adicionar serviço" })).toHaveCount(0);
   release();
   await expect(page.getByRole("button", { name: "Adicionar serviço" })).toBeVisible();
@@ -185,6 +195,7 @@ test("a delayed response from the previous shop cannot populate the next shop", 
   await expect.poll(() => previousRequested).toBe(true);
   await page.getByRole("link", { name: "Trocar barbearia" }).click();
   await page.getByRole("link", { name: "Entrar em " + otherShop.name }).click();
+  await page.getByRole("link", { name: "Serviços", exact: true }).click();
   await expect(page.getByRole("heading", { name: service.name, exact: true })).toBeVisible();
   release();
   await expect.poll(() => previousFinished).toBe(true);
@@ -215,10 +226,10 @@ test("session restoration cannot keep the access screen waiting indefinitely", a
   });
   await page.goto("/admin");
   await expect.poll(() => refreshing).toBe(true);
-  await expect(page.getByRole("status")).toContainText("Validando seu acesso");
+  await expect(page.getByRole("status")).toContainText("Conferindo seu acesso");
   await page.clock.fastForward(11000);
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "demorou mais que o esperado",
+    "demorando mais do que o normal",
   );
   release();
 });

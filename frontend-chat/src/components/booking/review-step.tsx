@@ -64,8 +64,8 @@ export function ReviewStep({
       </p>
       {uncertain && (
         <Alert tone="warning">
-          Mantenha esta página aberta e use “Repetir confirmação”. Os mesmos dados e a mesma chave
-          serão usados para recuperar esta tentativa.
+          Mantenha esta página aberta e use “Repetir confirmação” para conferir sua reserva sem
+          criar outro agendamento.
         </Alert>
       )}
       <Button

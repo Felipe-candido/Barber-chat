@@ -162,7 +162,7 @@ function OwnerAccounts() {
                 onReplace={(newEmail) =>
                   void mutate(
                     () => replaceStaffAccount(shop.slug, account.id, newEmail),
-                    "Conta substituída. O Supabase recebeu a solicitação de convite para o novo e-mail.",
+                    "Acesso atualizado. O convite foi solicitado para o novo e-mail. Peça ao barbeiro para conferir a caixa de entrada.",
                   )
                 }
               />
@@ -188,7 +188,7 @@ function OwnerAccounts() {
                 return;
               void mutate(
                 () => inviteStaffAccount(shop.slug, professionalID, email.trim()),
-                "Conta vinculada. O Supabase recebeu a solicitação de convite; peça ao barbeiro para conferir o e-mail e definir a senha.",
+                "Acesso criado. Peça ao barbeiro para conferir o convite no e-mail e criar sua senha.",
               );
             }}
           >

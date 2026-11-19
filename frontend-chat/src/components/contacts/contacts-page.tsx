@@ -38,7 +38,7 @@ export function ContactsPage() {
   return (
     <section className={styles.page}>
       <PageHeader
-        title="Contatos"
+        title="Clientes"
         description="Os clientes dos agendamentos e os contatos cadastrados pela equipe, em uma só lista."
         actions={
           <Button disabled={!!page.error} onClick={() => setEditing(true)}>

@@ -61,14 +61,13 @@ export function SubscriptionCheckoutControl({
       paymentWindow = window.open("about:blank", "_blank");
       if (!paymentWindow) {
         setPaymentError(
-          "Seu navegador bloqueou a aba de pagamento. Permita a abertura de uma nova aba e clique em Abrir pagamento na Stripe novamente.",
+          "Seu navegador bloqueou a página de pagamento. Permita abrir uma nova aba e clique em Abrir pagamento.",
         );
         return;
       }
       paymentWindow.opener = null;
       paymentWindow.document.title = "Pagamento da assinatura";
-      paymentWindow.document.body.textContent =
-        "Aguarde enquanto preparamos seu pagamento na Stripe…";
+      paymentWindow.document.body.textContent = "Estamos preparando seu pagamento…";
       const checkout = readyLink ? flow.checkout : await flow.confirm();
       if (!checkout) {
         paymentWindow.close();
@@ -76,7 +75,7 @@ export function SubscriptionCheckoutControl({
       }
       if (paymentWindow.closed) {
         setPaymentError(
-          "A aba de pagamento foi fechada. Clique em Abrir pagamento na Stripe para abrir a mesma tentativa.",
+          "A página de pagamento foi fechada. Clique em Abrir pagamento para continuar de onde parou.",
         );
         return;
       }
@@ -116,18 +115,16 @@ export function SubscriptionCheckoutControl({
           <div className={styles.feedback}>
             {!inline && flow.offer && (
               <Badge tone={flow.offer.livemode ? "info" : "warning"}>
-                {flow.offer.livemode
-                  ? "Assinatura com cobrança real"
-                  : "Modo de teste — não use cartão real"}
+                {flow.offer.livemode ? "Assinatura mensal" : "Não use cartão real nesta página"}
               </Badge>
             )}
-            {flow.mode === "loading" && <p role="status">Consultando as condições na API…</p>}
+            {flow.mode === "loading" && <p role="status">Carregando seu plano…</p>}
             {flow.error && <Alert tone="error">{flow.error}</Alert>}
             {paymentError && <Alert tone="error">{paymentError}</Alert>}
             {flow.uncertain && (
               <Alert tone="warning">
-                A tentativa pode ter sido registrada. Consulte novamente as condições para recuperar
-                o Checkout da mesma barbearia. Não crie outra assinatura por fora.
+                Você pode já ter começado a assinatura. Confira o plano novamente para continuar de
+                onde parou, sem criar outra assinatura.
               </Alert>
             )}
             {offer && (
@@ -137,22 +134,22 @@ export function SubscriptionCheckoutControl({
                   <span> por mês, por barbearia</span>
                 </p>
                 <p className={styles.note}>
-                  Cobrança recorrente mensal em BRL, no cartão, sem período gratuito nesta oferta.
+                  Pagamento mensal no cartão, em reais. Este plano não inclui período grátis.
                 </p>
                 {offer.recovering && (
                   <Alert>
-                    Já existe uma tentativa para esta barbearia. Estas são as condições preservadas
-                    daquela tentativa.
+                    Você já começou uma assinatura para esta barbearia. Confira os dados abaixo para
+                    continuar.
                   </Alert>
                 )}
               </>
             )}
-            {flow.mode === "opening" && <p role="status">Abrindo o pagamento na Stripe…</p>}
+            {flow.mode === "opening" && <p role="status">Abrindo o pagamento…</p>}
             {flow.mode === "ready" && (
               <Alert>
                 {inline && bookingContext
-                  ? "Conclua o pagamento na Stripe e depois confira a assinatura para retomar seu agendamento."
-                  : "Conclua o pagamento na aba da Stripe e depois confira a assinatura. O pagamento não publica a barbearia automaticamente."}
+                  ? "Conclua o pagamento na outra aba e confira sua assinatura para continuar o agendamento."
+                  : "Conclua o pagamento na outra aba e confira sua assinatura. Depois, ative seu link de agendamento."}
               </Alert>
             )}
             {configurationPending && (
@@ -166,7 +163,7 @@ export function SubscriptionCheckoutControl({
                   disabled={configurationPending || disabled}
                   onClick={() => void proceedToPayment()}
                 >
-                  Abrir pagamento na Stripe <ArrowUpRight size={16} aria-hidden="true" />
+                  Abrir pagamento <ArrowUpRight size={16} aria-hidden="true" />
                 </Button>
               )}
               {(flow.mode === "error" || (flow.mode === "ready" && !readyLink)) && (
@@ -216,8 +213,8 @@ function CheckoutContainer({
         <h3>Assinatura mensal da barbearia</h3>
         <p className={styles.note}>
           {bookingContext
-            ? "Revise as condições e prossiga para o pagamento na Stripe. Ele abre em outra aba para manter os dados do agendamento nesta janela."
-            : "Confira o valor e abra o pagamento na Stripe. Ele abre em outra aba."}
+            ? "Confira o plano e continue para o pagamento. Ele abre em outra aba, mantendo seu agendamento aqui."
+            : "Confira o valor e continue para o pagamento em uma nova aba."}
         </p>
         {children}
       </section>
@@ -227,7 +224,7 @@ function CheckoutContainer({
       open
       title="Assinatura mensal da barbearia"
       onClose={onClose}
-      subtitle="Confira o valor e abra o pagamento. O cartão é informado somente na página da Stripe, em outra aba."
+      subtitle="Confira o valor. Você informará os dados do cartão na página segura de pagamento, em outra aba."
     >
       {children}
     </Modal>

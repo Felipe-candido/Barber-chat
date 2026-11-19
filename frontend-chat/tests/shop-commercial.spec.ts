@@ -119,7 +119,7 @@ test("checkout return is navigation only; unpaid owners keep configuration witho
     return route.abort();
   });
   await page.goto(path + "?checkout=returned");
-  await expect(card(page)).toContainText("O retorno do Checkout não confirma pagamento");
+  await expect(card(page)).toContainText("Confira abaixo se o pagamento já foi confirmado");
   await expect(card(page)).toContainText("Sem assinatura confirmada");
   await expect(card(page)).toContainText("Cadastre pelo menos um serviço");
   await expect(publish(page)).toBeDisabled();
@@ -159,7 +159,7 @@ test("owner publishes with explicit confirmation, accepts 204 and shares only a 
   await expect(copy(page)).toHaveCount(0);
   await publish(page).click();
   const dialog = page.getByRole("dialog", { name: "Publicar barbearia?", exact: true });
-  await expect(dialog).toContainText("não inicia cobrança");
+  await expect(dialog).toContainText("não inicia uma nova cobrança");
   expect(writes).toEqual([]);
   await dialog
     .getByRole("button", { name: "Confirmar publicação", exact: true })
@@ -167,7 +167,7 @@ test("owner publishes with explicit confirmation, accepts 204 and shares only a 
       (button as HTMLButtonElement).click();
       (button as HTMLButtonElement).click();
     });
-  await expect(card(page)).toContainText("Publicação confirmada na API.");
+  await expect(card(page)).toContainText("Seu link de agendamento está no ar.");
   expect(writes).toEqual([{ requested: true }]);
   await expect(card(page).getByRole("link", { name: "Abrir agendamento" })).toHaveAttribute(
     "href",
@@ -234,15 +234,15 @@ test("uncertain publication is recovered by GET without repeating PUT or losing 
   await expect(publish(page)).toBeEnabled();
   await publish(page).click();
   await page.getByRole("button", { name: "Confirmar publicação" }).click();
-  await expect(card(page)).toContainText("Atualizando publicação");
+  await expect(card(page)).toContainText("Atualizando seu link");
   await page.getByRole("tab", { name: "Barbearia" }).click();
   await page.getByLabel("Nome da barbearia", { exact: true }).fill("Edição durante envio");
   await page.getByRole("tab", { name: "Assinatura", exact: true }).click();
   release();
-  await expect(card(page).getByRole("button", { name: "Conferir situação na API" })).toBeVisible();
+  await expect(card(page).getByRole("button", { name: "Conferir situação atual" })).toBeVisible();
   await expect(copy(page)).toHaveCount(0);
-  await card(page).getByRole("button", { name: "Conferir situação na API" }).click();
-  await expect(card(page)).toContainText("Nenhuma ação foi reenviada.");
+  await card(page).getByRole("button", { name: "Conferir situação atual" }).click();
+  await expect(card(page)).toContainText("Situação atualizada.");
   await expect(copy(page)).toBeVisible();
   await expect(page.getByLabel("Nome da barbearia", { exact: true })).toHaveValue(
     "Edição durante envio",
@@ -322,9 +322,9 @@ test("a confirmed 204 followed by a failed status read never exposes a stale lin
   await expect(publish(page)).toBeEnabled();
   await publish(page).click();
   await page.getByRole("button", { name: "Confirmar publicação" }).click();
-  await expect(card(page).getByRole("button", { name: "Conferir situação na API" })).toBeVisible();
+  await expect(card(page).getByRole("button", { name: "Conferir situação atual" })).toBeVisible();
   await expect(copy(page)).toHaveCount(0);
-  await card(page).getByRole("button", { name: "Conferir situação na API" }).click();
+  await card(page).getByRole("button", { name: "Conferir situação atual" }).click();
   await expect(copy(page)).toBeVisible();
   expect(writes).toBe(1);
 });
@@ -346,7 +346,7 @@ test("server rejects stale readiness and GET explains blockers without another P
   await publish(page).click();
   await page.getByRole("button", { name: "Confirmar publicação" }).click();
   await expect(card(page).getByRole("alert")).toContainText("ainda não pode ser publicada");
-  await card(page).getByRole("button", { name: "Conferir situação na API" }).click();
+  await card(page).getByRole("button", { name: "Conferir situação atual" }).click();
   await expect(publish(page)).toBeDisabled();
   await expect(card(page)).toContainText("Sem assinatura confirmada");
   expect(writes).toBe(1);
@@ -378,7 +378,7 @@ test("revoked commercial access hides actions and clipboard failure offers a man
   await expect(card(page)).toContainText("Não foi possível copiar.");
   revoked = true;
   await card(page).getByRole("button", { name: "Atualizar situação" }).click();
-  await expect(card(page).getByRole("link", { name: "Validar acesso à barbearia" })).toBeVisible();
+  await expect(card(page).getByRole("link", { name: "Voltar às minhas barbearias" })).toBeVisible();
   await expect(copy(page)).toHaveCount(0);
   await expect(card(page).getByRole("button", { name: "Retirar do ar", exact: true })).toHaveCount(
     0,
@@ -432,8 +432,8 @@ test("legacy shops keep their public link without being described as Stripe subs
 }) => {
   await setup(page);
   await page.goto(path);
-  await expect(card(page)).toContainText("Acesso anterior mantido");
-  await expect(card(page)).toContainText("Nenhuma assinatura foi iniciada ou cobrada");
+  await expect(card(page)).toContainText("Acesso liberado");
+  await expect(card(page)).toContainText("Sua barbearia já tem acesso liberado");
   await expect(copy(page)).toBeVisible();
   await expect(publish(page)).toHaveCount(0);
   await expect(card(page).getByRole("button", { name: "Retirar do ar", exact: true })).toHaveCount(

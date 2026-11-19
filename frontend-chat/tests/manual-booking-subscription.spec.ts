@@ -180,14 +180,14 @@ test("owner pays from the same booking draft and explicitly reviews before creat
   const { state } = await setup(page);
   await fillBooking(page);
   await submit(page);
-  await expect(dialog(page)).toContainText("Seus dados foram mantidos");
+  await expect(dialog(page)).toContainText("Seus dados continuam aqui");
   await dialog(page).getByRole("button", { name: "Prosseguir para a assinatura" }).click();
   await expect(dialog(page)).toContainText("R$ 39,90");
-  await expect(dialog(page)).not.toContainText("Modo de teste");
+  await expect(dialog(page)).not.toContainText("Não use cartão real");
   expect(state.checkoutWrites).toEqual([]);
   const payment = page.waitForEvent("popup");
   await dialog(page)
-    .getByRole("button", { name: "Abrir pagamento na Stripe" })
+    .getByRole("button", { name: "Abrir pagamento" })
     .evaluate((button) => {
       (button as HTMLButtonElement).click();
       (button as HTMLButtonElement).click();
@@ -196,9 +196,7 @@ test("owner pays from the same booking draft and explicitly reviews before creat
   await expect(paymentPage).toHaveURL("https://checkout.stripe.com/c/pay/cs_test_existing");
   expect(await paymentPage.evaluate(() => window.opener === null)).toBe(true);
   await expect(dialog(page).getByRole("link", { name: "Continuar na Stripe" })).toHaveCount(0);
-  await expect(dialog(page).getByRole("button", { name: "Abrir pagamento na Stripe" })).toHaveCount(
-    0,
-  );
+  await expect(dialog(page).getByRole("button", { name: "Abrir pagamento" })).toHaveCount(0);
   expect(state.checkoutWrites).toEqual([{ intent: "manual_booking", offer_id: offer.offer_id }]);
   state.paid = true;
   await dialog(page).getByRole("button", { name: "Conferir assinatura", exact: true }).click();
@@ -207,7 +205,7 @@ test("owner pays from the same booking draft and explicitly reviews before creat
   ).toBeVisible();
   expect(state.bookings).toHaveLength(1);
   await dialog(page).getByRole("button", { name: "Retomar revisão do agendamento" }).click();
-  await expect(dialog(page)).toContainText("horário reconsultado");
+  await expect(dialog(page)).toContainText("horário atualizado");
   await expect(dialog(page)).toContainText("Ana Silva");
   expect(state.availabilityReads).toBe(2);
   expect(state.bookings).toHaveLength(1);
@@ -295,7 +293,7 @@ test("existing contract and a failed payment check never trigger another subscri
     route.fulfill({ status: 503, json: { error: { code: "temporarily_unavailable" } } }),
   );
   await dialog(page).getByRole("button", { name: "Conferir assinatura", exact: true }).click();
-  await expect(dialog(page)).toContainText("temporariamente indisponível");
+  await expect(dialog(page)).toContainText("Não conseguimos atender seu pedido agora");
   await expect(
     dialog(page).getByRole("button", { name: "Confirmar agendamento", exact: true }),
   ).toBeDisabled();
@@ -326,7 +324,7 @@ test("uncertain booking retains its original key across a billing denial and rec
   await fillBooking(page);
   await submit(page);
   await dialog(page).getByRole("button", { name: "Repetir confirmação" }).click();
-  await expect(dialog(page)).toContainText("resultado da tentativa anterior continua incerto");
+  await expect(dialog(page)).toContainText("Ainda precisamos confirmar a reserva anterior");
   state.paid = true;
   await dialog(page).getByRole("button", { name: "Conferir assinatura", exact: true }).click();
   await dialog(page).getByRole("button", { name: "Retomar revisão do agendamento" }).click();
@@ -351,7 +349,7 @@ test("lost Checkout response preserves the booking and retry stays explicit", as
   await submit(page);
   await dialog(page).getByRole("button", { name: "Prosseguir para a assinatura" }).click();
   const firstPayment = page.waitForEvent("popup");
-  await dialog(page).getByRole("button", { name: "Abrir pagamento na Stripe" }).click();
+  await dialog(page).getByRole("button", { name: "Abrir pagamento" }).click();
   await expect(dialog(page)).toContainText("A tentativa pode ter sido registrada");
   const failedPayment = await firstPayment;
   await expect.poll(() => failedPayment.isClosed()).toBe(true);
@@ -360,7 +358,7 @@ test("lost Checkout response preserves the booking and retry stays explicit", as
   expect(writes).toBe(1);
   expect(state.bookings).toHaveLength(1);
   const secondPayment = page.waitForEvent("popup");
-  await dialog(page).getByRole("button", { name: "Abrir pagamento na Stripe" }).click();
+  await dialog(page).getByRole("button", { name: "Abrir pagamento" }).click();
   await expect(await secondPayment).toHaveURL("https://checkout.stripe.com/c/pay/cs_test_existing");
   expect(writes).toBe(2);
   await page.keyboard.press("Escape");
@@ -378,8 +376,8 @@ test("blocked payment tab preserves the draft and never starts Checkout", async 
   await page.evaluate(() => {
     window.open = () => null;
   });
-  await dialog(page).getByRole("button", { name: "Abrir pagamento na Stripe" }).click();
-  await expect(dialog(page)).toContainText("Seu navegador bloqueou a aba de pagamento");
+  await dialog(page).getByRole("button", { name: "Abrir pagamento" }).click();
+  await expect(dialog(page)).toContainText("Seu navegador bloqueou a página de pagamento");
   expect(state.checkoutWrites).toHaveLength(0);
   expect(state.bookings).toHaveLength(1);
   await expect(dialog(page)).toContainText("Ana Silva");
@@ -401,13 +399,13 @@ test("closing the loading tab reopens the same validated Checkout without anothe
   await submit(page);
   await dialog(page).getByRole("button", { name: "Prosseguir para a assinatura" }).click();
   const first = page.waitForEvent("popup");
-  await dialog(page).getByRole("button", { name: "Abrir pagamento na Stripe" }).click();
+  await dialog(page).getByRole("button", { name: "Abrir pagamento" }).click();
   await (await first).close();
   release();
-  await expect(dialog(page)).toContainText("A aba de pagamento foi fechada");
+  await expect(dialog(page)).toContainText("A página de pagamento foi fechada");
   expect(state.checkoutWrites).toHaveLength(1);
   const reopened = page.waitForEvent("popup");
-  await dialog(page).getByRole("button", { name: "Abrir pagamento na Stripe" }).click();
+  await dialog(page).getByRole("button", { name: "Abrir pagamento" }).click();
   await expect(await reopened).toHaveURL("https://checkout.stripe.com/c/pay/cs_test_existing");
   expect(state.checkoutWrites).toHaveLength(1);
   expect(state.bookings).toHaveLength(1);
@@ -432,10 +430,10 @@ test("incompatible payment URL closes the reserved tab without navigating away",
   await submit(page);
   await dialog(page).getByRole("button", { name: "Prosseguir para a assinatura" }).click();
   const popup = page.waitForEvent("popup");
-  await dialog(page).getByRole("button", { name: "Abrir pagamento na Stripe" }).click();
+  await dialog(page).getByRole("button", { name: "Abrir pagamento" }).click();
   const reserved = await popup;
   await expect.poll(() => reserved.isClosed()).toBe(true);
-  await expect(dialog(page)).toContainText("endereço de pagamento incompatíveis");
+  await expect(dialog(page)).toContainText("preparar o pagamento com segurança");
   await expect(dialog(page)).toContainText("Ana Silva");
   expect(state.bookings).toHaveLength(1);
 });
@@ -446,9 +444,7 @@ test("manual subscription recovery fits a narrow viewport and enlarged text", as
   await fillBooking(page);
   await submit(page);
   await dialog(page).getByRole("button", { name: "Prosseguir para a assinatura" }).click();
-  await expect(
-    dialog(page).getByRole("button", { name: "Abrir pagamento na Stripe" }),
-  ).toBeVisible();
+  await expect(dialog(page).getByRole("button", { name: "Abrir pagamento" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({
     path: "test-results/manual-booking-subscription-390.png",
@@ -474,6 +470,6 @@ test("manual subscription recovery fits a narrow viewport and enlarged text", as
   }));
   expect(layout.scroll, JSON.stringify(layout)).toBeLessThanOrEqual(layout.width + 1);
   const payment = page.waitForEvent("popup");
-  await dialog(page).getByRole("button", { name: "Abrir pagamento na Stripe" }).click();
+  await dialog(page).getByRole("button", { name: "Abrir pagamento" }).click();
   await expect(await payment).toHaveURL("https://checkout.stripe.com/c/pay/cs_test_existing");
 });

@@ -144,7 +144,7 @@ test("slow professional creation keeps one submission pending beyond ten seconds
     await page.clock.fastForward(11_000);
     await expect(page.getByRole("button", { name: "Cadastrando…", exact: true })).toBeDisabled();
     await expect(
-      page.getByRole("alert").filter({ hasText: "demorou mais que o esperado" }),
+      page.getByRole("alert").filter({ hasText: "demorando mais do que o normal" }),
     ).toHaveCount(0);
     release();
     await expect(page.getByRole("status").filter({ hasText: "Barbeiro cadastrado" })).toBeVisible();

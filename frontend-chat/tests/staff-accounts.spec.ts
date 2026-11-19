@@ -82,12 +82,12 @@ test("ambiguous invitation stays visible for explicit recovery, not automatic re
   await page.getByLabel("Barbeiro vinculado").selectOption(professional.id);
   await page.getByLabel("E-mail do barbeiro").fill(account.email);
   await page.getByRole("button", { name: "Criar conta e enviar convite" }).click();
-  await expect(page.getByText("Vínculo precisa ser conferido", { exact: true })).toBeVisible();
+  await expect(page.getByText("Acesso precisa ser conferido", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Criar conta e enviar convite" })).toBeDisabled();
   expect(posts).toBe(1);
-  await page.getByText("Conferir conta existente no Supabase", { exact: true }).click();
-  await page.getByLabel("UUID da conta Supabase").fill(account.user_id);
-  await page.getByRole("button", { name: "Concluir vínculo" }).click();
+  await page.getByText("Recuperar acesso com ajuda do suporte", { exact: true }).click();
+  await page.getByLabel("Código de recuperação da conta").fill(account.user_id);
+  await page.getByRole("button", { name: "Concluir acesso" }).click();
   await expect(page.getByText("Acesso ativo", { exact: true })).toBeVisible();
   expect(posts).toBe(2);
 });
@@ -110,8 +110,8 @@ test("barber sees a simple menu, cannot open accounts, and creates only for thei
     page.getByRole("heading", { name: "Acesso restrito ao proprietário" }),
   ).toBeVisible();
   expect(accountsCalls).toBe(0);
-  await expect(page.getByRole("link", { name: "Contas de acesso", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Barbeiros", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Acessos da equipe", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Equipe", exact: true })).toHaveCount(0);
   const service = {
     id: professional.service_ids[0],
     name: "Corte",
@@ -229,7 +229,7 @@ test("invitation opens in a fresh browser and password goes only to Supabase", a
   await password.fill("Ab1!xyzQ");
   await confirmation.fill("Ab1!xyzQ");
   await page.getByRole("button", { name: "Salvar senha" }).click();
-  await expect(page.getByRole("status")).toContainText("Senha definida");
+  await expect(page.getByRole("status")).toContainText("Senha criada");
   expect(submitted).toMatchObject({ password: "Ab1!xyzQ" });
   expect(await page.evaluate(() => location.hash)).toBe("");
   expect(await page.evaluate(() => JSON.stringify({ ...localStorage }))).not.toContain("Ab1!xyzQ");
@@ -305,10 +305,10 @@ test("failed replacement refreshes the new review request and never resends auto
   await page.getByLabel("Novo e-mail de acesso").fill("correct@example.com");
   await page.getByLabel("Confirmo a remoção do vínculo antigo nesta barbearia.").check();
   await page.getByRole("button", { name: "Substituir e enviar convite" }).click();
-  await expect(page.getByText("Vínculo precisa ser conferido", { exact: true })).toBeVisible();
+  await expect(page.getByText("Acesso precisa ser conferido", { exact: true })).toBeVisible();
   await expect(page.getByText("correct@example.com", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Atualizar contas" }).click();
-  await expect(page.getByText("Vínculo precisa ser conferido", { exact: true })).toBeVisible();
+  await expect(page.getByText("Acesso precisa ser conferido", { exact: true })).toBeVisible();
   expect(posts).toBe(1);
   await expect(page.getByRole("button", { name: "Criar conta e enviar convite" })).toBeDisabled();
 });

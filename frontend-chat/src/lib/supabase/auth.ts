@@ -13,7 +13,9 @@ export class AuthenticationError extends Error {
 
 function configurationError(error: unknown): AuthenticationError {
   return new AuthenticationError(
-    error instanceof Error ? error.message : "Não foi possível configurar a autenticação.",
+    error instanceof Error
+      ? error.message
+      : "Não foi possível entrar agora. Tente novamente em instantes.",
     "configuration",
   );
 }
@@ -49,7 +51,10 @@ export async function signInWithPassword(email: string, password: string): Promi
     );
   }
   if (!result.data.session?.access_token) {
-    throw new AuthenticationError("O Supabase não retornou uma sessão válida.", "missing_session");
+    throw new AuthenticationError(
+      "Não conseguimos concluir seu acesso. Tente entrar novamente.",
+      "missing_session",
+    );
   }
   return result.data.session;
 }

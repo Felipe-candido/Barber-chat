@@ -49,7 +49,7 @@ export function useShopCommercial(
       const current = await getCommercialStatus(slug, shopID, userID, abort.signal);
       if (generation.current !== attempt) return;
       accept(current);
-      if (checking) setNotice("Situação atual conferida na API. Nenhuma ação foi reenviada.");
+      if (checking) setNotice("Situação atualizada. Confira os detalhes abaixo.");
     } catch (failure) {
       if (generation.current !== attempt) return;
       setError(errorMessage(failure));
@@ -128,7 +128,7 @@ export function useShopCommercial(
       setNotice(
         current.publication_requested === requested
           ? requested
-            ? "Publicação confirmada na API."
+            ? "Seu link de agendamento está no ar."
             : "Barbearia retirada do ar. A assinatura e os agendamentos foram mantidos."
           : "A situação atual é diferente da ação solicitada. Confira antes de continuar; nada foi reenviado.",
       );

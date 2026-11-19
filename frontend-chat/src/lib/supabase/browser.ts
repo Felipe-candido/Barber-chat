@@ -5,7 +5,7 @@ let browserClient: SupabaseClient | undefined;
 
 export function getSupabaseBrowserClient(): SupabaseClient {
   if (typeof window === "undefined") {
-    throw new Error("O cliente Supabase de autenticação só pode ser usado no navegador.");
+    throw new Error("Abra o Na Regua no navegador para entrar na sua conta.");
   }
   if (!browserClient) {
     const { url, publishableKey } = supabaseBrowserConfig();

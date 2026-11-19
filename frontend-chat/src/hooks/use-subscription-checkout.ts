@@ -37,9 +37,7 @@ export function useSubscriptionCheckout(
     const timer = setTimeout(
       () => {
         setCheckout(null);
-        setError(
-          "O endereço de pagamento expirou. Consulte as condições novamente para conferir a tentativa na API.",
-        );
+        setError("O link de pagamento expirou. Confira o plano novamente para continuar.");
         setMode("error");
       },
       Math.max(0, remaining),
@@ -89,7 +87,7 @@ export function useSubscriptionCheckout(
       if (result.livemode !== offer.livemode)
         throw new ApiError(
           "invalid_response",
-          "O ambiente da cobrança mudou. Consulte novamente as condições antes de continuar.",
+          "As condições do pagamento mudaram. Confira o plano novamente antes de continuar.",
         );
       setCheckout(result);
       setUncertain(false);

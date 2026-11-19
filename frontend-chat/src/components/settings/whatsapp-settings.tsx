@@ -238,8 +238,7 @@ export function WhatsAppSettings({
             </p>
             {!connection.provider_configured && (
               <Alert tone="warning">
-                A integração de WhatsApp ainda precisa ser habilitada pelo responsável pela
-                plataforma.
+                Fale com o suporte para ativar o WhatsApp da sua barbearia.
               </Alert>
             )}
           </>
@@ -319,7 +318,9 @@ export function WhatsAppSettings({
               </span>
             </label>
             {!draft.delivery_available && (
-              <p className={local.muted}>Os envios ainda não estão habilitados neste ambiente.</p>
+              <p className={local.muted}>
+                O envio pelo WhatsApp ainda não está disponível. Fale com o suporte para ativar.
+              </p>
             )}
             <SelectField
               label="Forma de enviar o lembrete"

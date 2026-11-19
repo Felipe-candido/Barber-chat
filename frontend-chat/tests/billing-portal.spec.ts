@@ -67,7 +67,7 @@ async function setup(page: Page) {
   await page.route(base + "/commercial-status", (route) => route.fulfill({ json: commercial() }));
   return identity;
 }
-const dialog = (page: Page) => page.getByRole("dialog", { name: "Gerenciar assinatura na Stripe" });
+const dialog = (page: Page) => page.getByRole("dialog", { name: "Gerenciar assinatura" });
 const manage = (page: Page) =>
   page.getByRole("button", { name: "Gerenciar assinatura", exact: true });
 
@@ -126,7 +126,7 @@ test("owner opens only its Customer portal and preserves draft; checking only re
   await page.getByLabel("Nome da barbearia", { exact: true }).fill("Meu rascunho");
   await page.getByRole("tab", { name: "Assinatura", exact: true }).click();
   await manage(page).click();
-  const link = dialog(page).getByRole("link", { name: "Abrir portal da Stripe" });
+  const link = dialog(page).getByRole("link", { name: "Abrir minha assinatura" });
   await expect(link).toHaveAttribute("href", session().url);
   await expect(link).toHaveAttribute("target", "_blank");
   expect(requests).toBe(1);
@@ -188,7 +188,11 @@ test("return URL does not activate or publish and canceled contracts retain hist
     return route.fulfill({ json: session() });
   });
   await page.goto(path + "?portal=returned&paid=true");
-  await expect(page.getByText("Você voltou do portal.", { exact: false })).toBeVisible();
+  await expect(
+    page.getByText("Confira abaixo se as alterações da sua assinatura já foram confirmadas.", {
+      exact: false,
+    }),
+  ).toBeVisible();
   await expect(page.getByText("Assinatura encerrada", { exact: true })).toBeVisible();
   await expect(manage(page)).toBeVisible();
   await expect(page.getByRole("link", { name: "Abrir agendamento" })).toHaveCount(0);
@@ -222,7 +226,7 @@ test("legacy shops and shops without a subscription have no portal", async ({ pa
     }),
   );
   await page.reload();
-  await expect(page.getByText("Acesso anterior mantido", { exact: true })).toBeVisible();
+  await expect(page.getByText("Acesso liberado", { exact: true })).toBeVisible();
   await expect(manage(page)).toHaveCount(0);
 });
 

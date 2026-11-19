@@ -80,16 +80,12 @@ test("lists API data, creates with the real payload and reloads the list", async
   expect(bodies).toEqual([
     { name: "Corte novo", description: "Novo serviço", price_cents: 6250, duration_minutes: 1 },
   ]);
-  await expect(page.getByRole("status")).toContainText("criado na API");
+  await expect(page.getByRole("status")).toContainText("cadastrado");
   await page.reload();
   await expect(page.getByRole("heading", { name: "Corte novo", exact: true })).toBeVisible();
   expect(await page.evaluate(() => localStorage.getItem("palma-barbearia-demo-v1"))).toBeNull();
-  // Unsupported API actions are explained, not presented as unusable controls.
-  await expect(page.getByRole("button", { name: "Editar serviço" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Excluir Corte novo" })).toHaveCount(0);
-  await expect(
-    page.getByText("Edição e exclusão ainda não estão disponíveis.", { exact: false }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Editar Corte novo", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Excluir Corte novo", exact: true })).toBeVisible();
 });
 test("empty and failed lists never restore legacy demonstration data", async ({ page }) => {
   await installSupabaseSession(page);
@@ -110,7 +106,7 @@ test("empty and failed lists never restore legacy demonstration data", async ({ 
   );
   await page.goto("/admin/barbearia-do-felipe/servicos");
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "temporariamente indisponível",
+    "Não conseguimos atender seu pedido agora",
   );
   await expect(page.getByText("Old mock")).toHaveCount(0);
   fail = false;
@@ -145,7 +141,7 @@ for (const [status, code, text] of [
   [403, "access_denied", "Acesso não liberado"],
   [404, "shop_not_found", "Barbearia não encontrada"],
   [422, "invalid_service", "Revise o nome"],
-  [500, "internal_error", "não conseguiu concluir"],
+  [500, "internal_error", "Não foi possível concluir"],
 ] as const) {
   test("creation handles " + status + " without losing form data", async ({ page }) => {
     await installSupabaseSession(page);
@@ -172,13 +168,11 @@ test("rejects malformed responses and shows a readable network error", async ({ 
   await installSupabaseSession(page);
   await intercept(page, () => ({ json: { items: [sample] } }));
   await page.goto("/admin/barbearia-do-felipe/servicos");
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("retornar uma lista");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("carregar os serviços");
   await page.unrouteAll();
   await page.route("http://127.0.0.1:8080/api/v1/**", (route) => route.abort("failed"));
   await page.getByRole("button", { name: "Tentar novamente" }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "Não foi possível acessar a API",
-  );
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("Confira sua internet");
 });
 test("pending requests disable duplicate submissions; a failed refresh keeps creation success distinct", async ({
   page,
@@ -214,9 +208,9 @@ test("pending requests disable duplicate submissions; a failed refresh keeps cre
   await expect(dialog.getByLabel("Nome do serviço")).toBeDisabled();
   release();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await expect(page.getByRole("status")).toContainText("criado na API");
+  await expect(page.getByRole("status")).toContainText("cadastrado");
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "temporariamente indisponível",
+    "Não conseguimos atender seu pedido agora",
   );
   expect(posts).toBe(1);
 });

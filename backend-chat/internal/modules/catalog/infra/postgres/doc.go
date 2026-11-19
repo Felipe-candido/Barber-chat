@@ -16,8 +16,13 @@
 // Both operations map rows through toDomain; pgx timestamp wrappers and generated
 // database types do not escape into the application/domain layers.
 //
-// Source queries live in db/queries/catalog.sql. Constraints and currency are
-// maintained through versioned migrations. The present operations each use one
+// Source queries live in db/queries/catalog.sql.
+// Update changes active services only; Deactivate marks active=false and can be
+// repeated. Both filter by the authorized shop and service ID. Appointment
+// snapshots and professional assignments are never modified by these operations.
+//
+// Constraints and currency are maintained through versioned migrations.
+// The present operations each use one
 // SQL statement. Future booking reads must use the reservation transaction
 // supplied by composition rather than opening a separate pool or transaction.
 package postgres

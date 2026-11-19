@@ -81,14 +81,15 @@ test("login sends credentials only to Supabase and the API receives only the acc
   expect(stored).not.toContain(testPassword);
 
   await page.getByRole("link", { name: "Entrar em " + testShop.name }).click();
-  await expect(page).toHaveURL("/admin/" + testShop.slug + "/servicos");
+  await expect(page).toHaveURL("/admin/" + testShop.slug);
+  await page.getByRole("link", { name: "Serviços", exact: true }).click();
   await page.getByRole("button", { name: "Adicionar serviço" }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Nome do serviço").fill("Corte autenticado");
   await dialog.getByLabel(/Descrição/).fill("Teste");
   await dialog.getByLabel("Preço (R$)").fill("45,00");
   await dialog.getByRole("button", { name: "Adicionar serviço" }).click();
-  await expect(page.getByText("Serviço “Corte autenticado” criado na API.")).toBeVisible();
+  await expect(page.getByText("Serviço “Corte autenticado” cadastrado.")).toBeVisible();
 
   expect(backendAuthorization).toBe("Bearer " + session.accessToken);
   expect(backendBody).not.toContain(testEmail);
@@ -129,7 +130,7 @@ test("recovery guidance has no fake form and access help explains manual provisi
   let dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("reenviar seu convite");
   await expect(dialog.getByRole("textbox")).toHaveCount(0);
-  await dialog.getByRole("button", { name: "Voltar ao login" }).click();
+  await dialog.getByRole("button", { name: "Voltar para entrar" }).click();
   await page.getByRole("button", { name: "Como obter acesso" }).click();
   dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("Não é necessário compartilhar uma senha");

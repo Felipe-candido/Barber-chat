@@ -216,7 +216,7 @@ export function LoginPage() {
                 Use seu próprio e-mail. Não é necessário compartilhar uma senha: cada pessoa da
                 equipe possui sua conta e suas permissões.
               </Alert>
-              <Button onClick={closeHelp}>Voltar ao login</Button>
+              <Button onClick={closeHelp}>Voltar para entrar</Button>
             </div>
           ) : (
             <div className={styles.form}>
@@ -225,7 +225,7 @@ export function LoginPage() {
                 da barbearia. O novo convite permite definir outra senha.
               </p>
               <p>Se você é proprietário, fale com o suporte para recuperar o acesso.</p>
-              <Button onClick={closeHelp}>Voltar ao login</Button>
+              <Button onClick={closeHelp}>Voltar para entrar</Button>
             </div>
           )}
         </Modal>

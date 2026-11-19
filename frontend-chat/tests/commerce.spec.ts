@@ -816,7 +816,7 @@ test("adding a product checks the subscription and offers the Stripe payment whe
   await dialog.getByRole("button", { name: "Prosseguir para a assinatura" }).click();
   await expect(dialog).toContainText("R$ 49,90");
   const payment = page.waitForEvent("popup");
-  await dialog.getByRole("button", { name: "Abrir pagamento na Stripe" }).click();
+  await dialog.getByRole("button", { name: "Abrir pagamento" }).click();
   await expect(await payment).toHaveURL("https://checkout.stripe.com/g/pay/cs_test_example");
   expect(checkouts).toBe(1);
   await dialog.getByRole("button", { name: "Conferir assinatura", exact: true }).click();

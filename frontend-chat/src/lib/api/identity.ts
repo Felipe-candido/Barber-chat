@@ -32,7 +32,7 @@ export async function getShopAccess(slug: string, signal?: AbortSignal): Promise
 function invalidResponse(): never {
   throw new ApiError(
     "invalid_response",
-    "A API retornou dados de identidade ou barbearia incompatíveis.",
+    "Não conseguimos carregar seu acesso à barbearia. Entre novamente ou fale com o suporte.",
   );
 }
 

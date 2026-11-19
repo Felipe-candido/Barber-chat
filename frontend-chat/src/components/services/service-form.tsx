@@ -2,19 +2,21 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ApiError, errorMessage } from "@/lib/api/client";
-import { createService, priceToCents } from "@/lib/api/services";
+import { createService, updateService, priceToCents, type Service } from "@/lib/api/services";
 import { useFeedback } from "../feedback-provider";
 import { Alert, Button, Modal, TextField, TextareaField } from "../ui";
 import styles from "../admin/management.module.css";
 
 export function ServiceForm({
   slug,
+  service,
   onClose,
-  onCreated,
+  onSaved,
 }: {
   slug: string;
+  service?: Service;
   onClose: () => void;
-  onCreated: () => void;
+  onSaved: () => void;
 }) {
   const { notify } = useFeedback();
   const [saving, setSaving] = useState(false);
@@ -29,8 +31,12 @@ export function ServiceForm({
       onClose={() => {
         if (!inFlight.current) onClose();
       }}
-      title="Adicionar serviço"
-      subtitle="O serviço será criado ativo e ficará disponível para vincular aos barbeiros."
+      title={service ? "Editar serviço" : "Adicionar serviço"}
+      subtitle={
+        service
+          ? "As alterações valem para novos agendamentos. Os atendimentos já marcados serão mantidos."
+          : "Cadastre o serviço e escolha quais barbeiros podem realizá-lo na tela de equipe."
+      }
     >
       <form
         className={styles.form}
@@ -50,10 +56,12 @@ export function ServiceForm({
             setSaving(true);
             const controller = new AbortController();
             request.current = controller;
-            const saved = await createService(slug, input, controller.signal);
+            const saved = service
+              ? await updateService(slug, service.id, input, controller.signal)
+              : await createService(slug, input, controller.signal);
             if (controller.signal.aborted) return;
-            notify("Serviço “" + saved.name + "” criado na API.");
-            onCreated();
+            notify("Serviço “" + saved.name + (service ? "” atualizado." : "” cadastrado."));
+            onSaved();
           } catch (cause) {
             if (!request.current?.signal.aborted) {
               setError(errorMessage(cause));
@@ -61,6 +69,7 @@ export function ServiceForm({
               setUncertain(
                 inFlight.current &&
                   (!(cause instanceof ApiError) ||
+                    cause.code === "invalid_response" ||
                     (cause.code !== "invalid_service" &&
                       (cause.status === 0 || cause.status >= 500))),
               );
@@ -78,12 +87,14 @@ export function ServiceForm({
             required
             maxLength={100}
             placeholder="Ex.: Corte clássico"
+            defaultValue={service?.name}
           />
           <TextareaField
             name="description"
             label="Descrição (opcional)"
             rows={3}
             placeholder="Descreva o que está incluído"
+            defaultValue={service?.description}
           />
           <TextField
             name="price"
@@ -92,6 +103,9 @@ export function ServiceForm({
             inputMode="decimal"
             required
             placeholder="45,00"
+            defaultValue={
+              service ? (service.price_cents / 100).toFixed(2).replace(".", ",") : undefined
+            }
           />
           <TextField
             name="duration"
@@ -102,14 +116,14 @@ export function ServiceForm({
             max={2147483647}
             step={1}
             required
-            defaultValue={30}
+            defaultValue={service?.duration_minutes ?? 30}
           />
         </fieldset>
         {error && <Alert tone="error">{error}</Alert>}
         {uncertain && (
           <Alert tone="warning">
-            O resultado pode ter sido salvo. Feche esta janela e atualize o catálogo antes de
-            iniciar outro cadastro.
+            O resultado pode ter sido salvo. Feche esta janela e atualize a lista para conferir
+            antes de tentar novamente.
           </Alert>
         )}
         <div className={styles.actions}>
@@ -117,7 +131,7 @@ export function ServiceForm({
             Voltar
           </Button>
           <Button type="submit" loading={saving} disabled={uncertain}>
-            {saving ? "Salvando…" : "Adicionar serviço"}
+            {saving ? "Salvando…" : service ? "Salvar alterações" : "Adicionar serviço"}
           </Button>
         </div>
       </form>

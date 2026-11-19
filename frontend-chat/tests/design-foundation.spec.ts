@@ -105,11 +105,11 @@ test("shop selection shows only API identities without inheriting the original s
   ).toBeVisible();
   await expect(page.getByRole("link", { name: `Entrar em ${testShop.name}` })).toHaveAttribute(
     "href",
-    `/admin/${testShop.slug}/servicos`,
+    `/admin/${testShop.slug}`,
   );
   await expect(page.getByRole("link", { name: `Entrar em ${otherShop.name}` })).toHaveAttribute(
     "href",
-    `/admin/${otherShop.slug}/servicos`,
+    `/admin/${otherShop.slug}`,
   );
   await expect(page.getByRole("img", { name: /Palma/i })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);

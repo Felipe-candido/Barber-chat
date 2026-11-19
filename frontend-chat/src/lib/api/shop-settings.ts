@@ -23,7 +23,7 @@ export type SettingsUpdate = SettingsDraft & { version: number };
 function invalid(): never {
   throw new ApiError(
     "invalid_response",
-    "A API retornou configurações incompatíveis. Confira os dados na API antes de salvar novamente.",
+    "Não conseguimos confirmar as configurações. Confira os dados salvos antes de tentar novamente.",
   );
 }
 function record(value: unknown): Record<string, unknown> {
@@ -124,7 +124,7 @@ export async function updateShopSettings(
   if (new TextEncoder().encode(JSON.stringify(body)).length > 8192)
     throw new ApiError(
       "body_too_large",
-      "Os dados ultrapassam 8 KiB. Reduza os textos antes de salvar.",
+      "Os textos estão muito longos. Reduza as descrições antes de salvar.",
       413,
     );
   const settings = parseSettings(

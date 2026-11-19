@@ -37,7 +37,7 @@ export function AccountItem({
             ? account.active
               ? "Acesso ativo"
               : "Acesso inativo"
-            : "Vínculo precisa ser conferido"}
+            : "Acesso precisa ser conferido"}
         </Badge>
       </div>
       {linked && (
@@ -49,15 +49,14 @@ export function AccountItem({
       )}
       {!linked && (
         <details className={styles.details}>
-          <summary>Conferir conta existente no Supabase</summary>
+          <summary>Recuperar acesso com ajuda do suporte</summary>
           <div>
             <p className={styles.hint}>
-              Confira se o e-mail existe em Authentication → Users. Cole o UUID dessa conta para
-              concluir o vínculo. O backend confere se o e-mail coincide. Se ela ainda não existir,
-              crie ou convide no Supabase antes de vincular aqui.
+              Peça ao suporte o código de recuperação da conta deste barbeiro. Com ele, você pode
+              concluir a liberação do acesso sem enviar outro convite.
             </p>
             <TextField
-              label="UUID da conta Supabase"
+              label="Código de recuperação da conta"
               value={recovery}
               onChange={(event) => setRecovery(event.target.value.trim())}
               disabled={disabled}
@@ -69,7 +68,7 @@ export function AccountItem({
               disabled={disabled || !recovery}
               onClick={() => onLink(recovery)}
             >
-              Concluir vínculo
+              Concluir acesso
             </Button>
           </div>
         </details>
@@ -87,8 +86,8 @@ export function AccountItem({
           >
             <p className={styles.hint}>
               O acesso antigo será desvinculado somente desta barbearia. O barbeiro e seus
-              agendamentos serão preservados. A conta antiga no Supabase não será apagada. Se o
-              convite falhar, confira o novo vínculo na lista.
+              agendamentos serão preservados. Se o convite não chegar, confira o acesso na lista
+              antes de enviar outro.
             </p>
             <TextField
               label="Novo e-mail de acesso"

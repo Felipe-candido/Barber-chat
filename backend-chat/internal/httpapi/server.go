@@ -226,6 +226,10 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 			Get("/api/v1/admin/shops/{slug}/services", cfg.Catalog.ListShopServices)
 		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).
 			Post("/api/v1/admin/shops/{slug}/services", cfg.Catalog.CreateService)
+		servicePath := "/api/v1/admin/shops/{slug}/services/{serviceID}"
+		router.Options(servicePath, accessmiddleware.Preflight(http.MethodPut, http.MethodDelete))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Put(servicePath, cfg.Catalog.UpdateService)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Delete(servicePath, cfg.Catalog.DeleteService)
 	}
 	if cfg.Booking != nil {
 		cfg.Booking.Register(router, publicGates...)

@@ -101,7 +101,10 @@ export function AppointmentNotifications({ id, revision }: { id: string; revisio
         </Alert>
       )}
       {data && !data.delivery_available && (
-        <p>Os envios de WhatsApp estão indisponíveis neste ambiente.</p>
+        <p>
+          O envio pelo WhatsApp ainda não está disponível. Peça ao proprietário para conferir a
+          conexão.
+        </p>
       )}
       {data && data.messages.length === 0 && (
         <p>

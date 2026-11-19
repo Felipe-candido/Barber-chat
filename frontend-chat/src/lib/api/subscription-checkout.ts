@@ -24,7 +24,7 @@ const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 function invalid(): never {
   throw new ApiError(
     "invalid_response",
-    "A API retornou condições ou endereço de pagamento incompatíveis. Não abra links alternativos; confira a situação antes de tentar novamente.",
+    "Não conseguimos preparar o pagamento com segurança. Confira sua assinatura antes de tentar novamente.",
   );
 }
 function record(value: unknown): Record<string, unknown> {

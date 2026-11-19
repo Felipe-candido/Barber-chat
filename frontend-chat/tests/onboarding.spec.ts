@@ -255,7 +255,7 @@ test("required business address blocks submission, then provisions shop without 
   await fillShop(page);
   await page.getByRole("button", { name: "Criar minha barbearia", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Sua barbearia está criada" })).toBeVisible();
-  await expect(page.getByText(/O link de agendamento continua privado/)).toBeVisible();
+  await expect(page.getByText(/Agora cadastre seus serviços e sua equipe/)).toBeVisible();
   expect(calls).toBe(1);
   expect(
     await page.evaluate(() => sessionStorage.getItem("barberchat-shop-registration-v1")),

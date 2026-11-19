@@ -60,7 +60,7 @@ test("password setup has associated field errors and never sends mismatched pass
   await expect(password).toHaveAttribute("type", "text");
   await page.getByRole("button", { name: "Ocultar nova senha" }).click();
   await page.getByRole("button", { name: "Salvar senha" }).click();
-  await expect(page.getByRole("status")).toContainText("Senha definida");
+  await expect(page.getByRole("status")).toContainText("Senha criada");
   // Supabase may add its own PKCE fields; the app contract is one password update.
   expect(state.writes).toHaveLength(1);
   expect(state.writes[0]).toMatchObject({ password: "senha-forte-exemplo-123!" });
@@ -112,13 +112,13 @@ test("pending password change disables duplicate submissions and the return link
     await expect(page.getByRole("button", { name: "Salvando…" })).toBeDisabled();
     await expect(page.getByLabel("Nova senha", { exact: true })).toBeDisabled();
     await expect(page.getByRole("button", { name: "Mostrar nova senha" })).toBeDisabled();
-    await expect(page.getByRole("link", { name: "Voltar ao login" })).toHaveAttribute(
+    await expect(page.getByRole("link", { name: "Voltar para entrar" })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
     expect(puts).toBe(1);
     release();
-    await expect(page.getByRole("status")).toContainText("Senha definida");
+    await expect(page.getByRole("status")).toContainText("Senha criada");
     expect(puts).toBe(1);
   } finally {
     release();
@@ -136,7 +136,7 @@ test("missing invitation does not show password controls and offers explicit rec
   await expect(page.getByRole("button", { name: "Verificar convite novamente" })).toBeVisible();
   await page.getByRole("button", { name: "Verificar convite novamente" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("Confira o link recebido");
-  await expect(page.getByRole("link", { name: "Voltar ao login" })).toHaveAttribute(
+  await expect(page.getByRole("link", { name: "Voltar para entrar" })).toHaveAttribute(
     "href",
     "/login",
   );

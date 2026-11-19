@@ -185,7 +185,7 @@ test("failed account refresh blocks changes instead of showing stale access cont
   failed = true;
   await page.getByRole("button", { name: "Atualizar contas" }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
-    "temporariamente indisponível",
+    "Não conseguimos atender seu pedido agora",
   );
   await expect(page.getByRole("button", { name: "Ativar acesso", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Criar conta e enviar convite" })).toBeDisabled();
@@ -200,14 +200,16 @@ test("account recovery preserves the entered UUID after a validation failure and
     route.fulfill({ json: [{ ...account, user_id: null, state: "review" }] }),
   );
   await page.goto(`/admin/${testShop.slug}/contas`);
-  const summary = page.getByText("Conferir conta existente no Supabase", { exact: true });
+  const summary = page.getByText("Recuperar acesso com ajuda do suporte", { exact: true });
   await summary.focus();
   await expect(summary).toBeFocused();
   await page.keyboard.press("Enter");
-  const input = page.getByLabel("UUID da conta Supabase");
+  const input = page.getByLabel("Código de recuperação da conta");
   await input.fill("uuid-incompleto");
-  await page.getByRole("button", { name: "Concluir vínculo" }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("Informe o UUID");
+  await page.getByRole("button", { name: "Concluir acesso" }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "Informe o código de recuperação",
+  );
   await expect(input).toHaveValue("uuid-incompleto");
   await expect(input).toBeVisible();
   await page.getByRole("button", { name: "Atualizar contas" }).click();

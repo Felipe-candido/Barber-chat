@@ -51,7 +51,7 @@ test("desktop navigation identifies the current section and routes sharing throu
     "aria-current",
     "page",
   );
-  await expect(nav.getByRole("link", { name: "Barbeiros", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Equipe", exact: true })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Navegação rápida" })).toBeHidden();
   await expect(page.getByRole("link", { name: "Gerenciar link de agendamento" })).toHaveAttribute(
     "href",
@@ -124,7 +124,7 @@ test("resizing an open mobile menu releases the modal before displaying desktop 
   await page.setViewportSize({ width: 768, height: 1000 });
   await mockPanel(page);
   await page.goto(panel);
-  await page.getByRole("button", { name: "Mais", exact: true }).click();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Menu do painel" })).toBeVisible();
   await page.setViewportSize({ width: 1440, height: 1000 });
   await expect(page.getByRole("dialog", { name: "Menu do painel" })).toHaveCount(0);
@@ -139,14 +139,14 @@ test("barber navigation never renders owner-only destinations", async ({ page })
   );
   await page.goto(panel);
   await expect(page.getByRole("heading", { name: "Agenda", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Barbeiros", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("link", { name: "Contas de acesso", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Equipe", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Acessos da equipe", exact: true })).toHaveCount(0);
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.getByRole("button", { name: "Mais", exact: true }).click();
+  await page.getByRole("button", { name: "Menu", exact: true }).click();
   const drawer = page.getByRole("dialog", { name: "Menu do painel" });
   await expect(drawer.getByRole("link", { name: "Agenda", exact: true })).toBeVisible();
-  await expect(drawer.getByRole("link", { name: "Barbeiros", exact: true })).toHaveCount(0);
-  await expect(drawer.getByRole("link", { name: "Contas de acesso", exact: true })).toHaveCount(0);
+  await expect(drawer.getByRole("link", { name: "Equipe", exact: true })).toHaveCount(0);
+  await expect(drawer.getByRole("link", { name: "Acessos da equipe", exact: true })).toHaveCount(0);
 });
 
 test("agenda opens on the week and switches to day and month at every width", async ({ page }) => {

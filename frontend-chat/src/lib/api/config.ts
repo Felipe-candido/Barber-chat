@@ -1,6 +1,8 @@
 export function shopPathSegment(slug: string) {
   if (!slug || slug !== slug.trim() || /[\/\\\s]/.test(slug) || slug === "." || slug === "..") {
-    throw new Error("Informe o slug válido de uma barbearia.");
+    throw new Error(
+      "O link desta barbearia está incompleto. Confira o endereço e tente novamente.",
+    );
   }
   return encodeURIComponent(slug);
 }
@@ -19,7 +21,9 @@ export function apiBaseURL() {
   try {
     url = new URL(raw);
   } catch {
-    throw new Error("Configure NEXT_PUBLIC_API_BASE_URL com a URL HTTP da API.");
+    throw new Error(
+      "O serviço está indisponível no momento. Tente mais tarde ou fale com o suporte.",
+    );
   }
   if (
     !["http:", "https:"].includes(url.protocol) ||
@@ -29,7 +33,7 @@ export function apiBaseURL() {
     url.hash
   )
     throw new Error(
-      "NEXT_PUBLIC_API_BASE_URL deve conter somente a URL base HTTP da API, sem credenciais.",
+      "O serviço está indisponível no momento. Tente mais tarde ou fale com o suporte.",
     );
   return url.toString().replace(/\/$/, "");
 }

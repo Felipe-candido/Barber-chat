@@ -271,14 +271,14 @@ function OwnerSettings({ shopID, slug, userID }: { shopID: string; slug: string;
                   <Alert tone="warning">
                     {editor.mode === "conflict"
                       ? "Outra edição foi salva. Seu rascunho foi mantido e nenhum dado foi sobrescrito."
-                      : "O resultado do salvamento ainda não foi confirmado. Seu rascunho foi mantido. Não envie novamente antes de conferir os dados na API."}
+                      : "Ainda não conseguimos confirmar se as alterações foram salvas. Seu rascunho continua aqui. Confira os dados salvos antes de tentar novamente."}
                   </Alert>
                   <Button
                     variant="secondary"
                     loading={editor.mode === "checking"}
                     onClick={() => void editor.checkCurrent()}
                   >
-                    {editor.mode === "checking" ? "Conferindo dados…" : "Conferir dados na API"}
+                    {editor.mode === "checking" ? "Conferindo dados…" : "Conferir dados salvos"}
                   </Button>
                 </div>
               )}
@@ -477,7 +477,7 @@ function OwnerSettings({ shopID, slug, userID }: { shopID: string; slug: string;
                   </Button>
                   <p>
                     {editor.mode === "saving"
-                      ? "Aguarde a confirmação da API."
+                      ? "Aguarde a confirmação para continuar."
                       : editor.dirty
                         ? "Há alterações não salvas."
                         : "Nenhuma alteração pendente."}

@@ -35,7 +35,7 @@ export function SignupPage() {
       } catch {
         if (!cancelled)
           setError(
-            "Não foi possível verificar sua sessão. Confira a configuração do Supabase e recarregue a página.",
+            "Não conseguimos confirmar seu acesso. Atualize a página ou tente entrar novamente.",
           );
       } finally {
         if (!cancelled) setChecking(false);
@@ -104,8 +104,8 @@ export function SignupPage() {
             Confira também o spam. Se já possui conta, entre pelo login.
           </Alert>
           <p className={styles.description}>
-            Abra o link no mesmo navegador e endereço usados aqui (localhost e 127.0.0.1 são origens
-            diferentes). Se abrir em outro dispositivo, confirme o e-mail e depois faça login.
+            Abra o link no mesmo navegador em que fez o cadastro. Se usar outro dispositivo,
+            confirme seu e-mail e depois entre com sua conta.
           </p>
           <EmailConfirmationForm initialEmail={values.email.trim()} recentlySent />
           <Link href="/cadastro/barbearia" className={buttonClasses()}>

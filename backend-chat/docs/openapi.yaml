@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Na Regua API
-  version: 0.18.0
+  version: 0.19.0
   description: Health/readiness, administrative identity, services/professionals and public booking. Administrative routes require a Supabase ES256 access token and an active local user; shop reads and writes also require an active shop membership. Public appointments use a private consultation code, not staff login. Browser requests require the exact FRONTEND_ORIGIN. Secrets are never accepted in URL parameters.
 servers:
   - url: http://127.0.0.1:8080
@@ -287,6 +287,60 @@ paths:
           $ref: '#/components/responses/Preflight'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/v1/admin/shops/{slug}/services/{serviceID}:
+    parameters:
+      - name: slug
+        in: path
+        required: true
+        schema: {type: string}
+      - name: serviceID
+        in: path
+        required: true
+        schema: {type: string, format: uuid}
+    put:
+      operationId: updateShopService
+      summary: Update an active service in the owner's shop
+      description: Requires current owner access. Replaces name, description, duration and price; preserves ID and BRL currency. A service from another shop, an unknown service or an inactive service returns service_not_found. Existing appointments retain their snapshots. Concurrent edits use last-write-wins; an update never reactivates a deleted service. Body limit is 64 KiB; tenant, ID, currency and active cannot be changed in JSON.
+      security:
+        - bearerAuth: []
+      requestBody:
+        $ref: '#/components/requestBodies/CreateService'
+      responses:
+        '200':
+          description: Updated service
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Service'}
+        '400': {$ref: '#/components/responses/InvalidBody'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404':
+          description: service_not_found within the authorized shop
+        '413': {$ref: '#/components/responses/BodyTooLarge'}
+        '415': {$ref: '#/components/responses/UnsupportedMedia'}
+        '422': {$ref: '#/components/responses/InvalidService'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    delete:
+      operationId: deleteShopService
+      summary: Remove a service from future bookings, preserving history
+      description: Requires current owner access. Sets active=false without deleting rows, professional assignments or appointments. Repeating deletion of the same service in the same active shop succeeds with 204. Missing services and IDs belonging to another shop return service_not_found. Existing appointments remain consultable and cancellable.
+      security:
+        - bearerAuth: []
+      responses:
+        '204': {description: Service removed from the active catalog}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {description: service_not_found within the authorized shop}
+        '422': {$ref: '#/components/responses/InvalidService'}
+        '500': {$ref: '#/components/responses/InternalError'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    options:
+      operationId: preflightShopServiceChanges
+      summary: Browser preflight for PUT and DELETE
+      responses:
+        '204': {$ref: '#/components/responses/Preflight'}
+        '403': {$ref: '#/components/responses/Forbidden'}
   /api/v1/public/shops/{slug}/services:
     get:
       operationId: listPublicServices

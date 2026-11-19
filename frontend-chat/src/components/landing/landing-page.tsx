@@ -288,7 +288,7 @@ export function LandingPage({ channel }: { channel: string }) {
                 sizes="(max-width: 1240px) 92vw, 1152px"
               />
               <figcaption className={styles.caption}>
-                Tela com dados de uma barbearia de demonstração.
+                Acompanhe os resultados da sua barbearia em um só lugar.
               </figcaption>
             </figure>
           </div>

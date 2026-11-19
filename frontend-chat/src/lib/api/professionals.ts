@@ -32,7 +32,7 @@ function professional(value: unknown): StaffProfessional {
   ) {
     throw new ApiError(
       "invalid_response",
-      "A resposta de profissionais não é compatível. Confira a lista antes de repetir um cadastro.",
+      "Não conseguimos confirmar os dados da equipe. Confira a lista antes de cadastrar novamente.",
     );
   }
   return item;
@@ -46,7 +46,10 @@ export async function listStaffProfessionals(
 ): Promise<StaffProfessional[]> {
   const value = await requestJSON(path(slug), { authenticated: true, signal });
   if (!Array.isArray(value))
-    throw new ApiError("invalid_response", "A API deveria retornar uma lista de profissionais.");
+    throw new ApiError(
+      "invalid_response",
+      "Não conseguimos carregar a equipe. Atualize a lista e tente novamente.",
+    );
   return value.map(professional);
 }
 export async function createProfessional(
