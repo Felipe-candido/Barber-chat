@@ -10,6 +10,7 @@ import { adminShopPath, publicBookingPath } from "@/lib/api/config";
 import { type StaffProfessional, listStaffProfessionals } from "@/lib/api/professionals";
 import { Alert, Badge, Button, PageHeader, buttonClasses } from "./ui";
 import { ProfessionalForm } from "./professionals/professional-form";
+import { ProfessionalEditDialog } from "./professionals/professional-edit-dialog";
 import styles from "./admin/management.module.css";
 
 export function ProfessionalsPage() {
@@ -32,6 +33,7 @@ function OwnerProfessionalsPage() {
   const [items, setItems] = useState<StaffProfessional[]>([]);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState("");
+  const [editing, setEditing] = useState<string | null>(null);
   const activeRequest = useRef<AbortController | null>(null);
   const reload = useCallback(async () => {
     activeRequest.current?.abort();
@@ -109,6 +111,13 @@ function OwnerProfessionalsPage() {
                       <p className={styles.hint}>Sem serviços vinculados</p>
                     )}
                   </div>
+                  <Button
+                    variant="secondary"
+                    aria-label={`Editar ${item.name}`}
+                    onClick={() => setEditing(item.id)}
+                  >
+                    Editar barbeiro
+                  </Button>
                 </li>
               ))}
             </ul>
@@ -124,6 +133,18 @@ function OwnerProfessionalsPage() {
           }}
         />
       </div>
+      {editing && (
+        <ProfessionalEditDialog
+          slug={shop.slug}
+          id={editing}
+          catalog={catalog}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            void reload();
+          }}
+        />
+      )}
     </section>
   );
 }

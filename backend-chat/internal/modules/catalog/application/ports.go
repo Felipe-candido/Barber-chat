@@ -34,6 +34,9 @@ type InitialScheduleWriter interface {
 type ProfessionalTx struct {
 	Professionals ProfessionalRepository
 	Schedule      InitialScheduleWriter
+	Management    ProfessionalManagementStore
+	Calendar      ProfessionalCalendarEditor
+	Owner         ProfessionalOwnerAccess
 }
 type ProfessionalTransactor interface {
 	WithinProfessionalTx(context.Context, func(context.Context, ProfessionalTx) error) error

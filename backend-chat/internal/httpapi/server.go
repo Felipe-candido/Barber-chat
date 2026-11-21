@@ -39,8 +39,10 @@ type HandlerConfig struct {
 	Sales                   *saleshttp.Handler
 	Reporting               *reportinghttp.Handler
 	Professionals           *cataloghttp.ProfessionalHandler
+	ProfessionalManagement  *cataloghttp.ProfessionalManagementHandler
 	Booking                 *bookinghttp.Handler
 	Agenda                  *bookinghttp.AgendaHandler
+	TimeOff                 *bookinghttp.TimeOffHandler
 	AppointmentLifecycle    *bookinghttp.LifecycleHandler
 	CompletionSettings      *bookinghttp.CompletionSettingsHandler
 	Accounts                *identityhttp.AccountHandler
@@ -254,6 +256,15 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 		router.With(authenticate, shopAccess).
 			Get("/api/v1/admin/shops/{slug}/appointments", cfg.Agenda.List)
 	}
+	if cfg.TimeOff != nil {
+		base := "/api/v1/admin/shops/{slug}"
+		router.Options(base+"/time-off", accessmiddleware.Preflight(http.MethodGet))
+		router.With(authenticate, shopAccess).Method(http.MethodGet, base+"/time-off", cfg.TimeOff)
+		resource := base + "/professionals/{professionalID}/time-off/{blockID}"
+		router.Options(resource, accessmiddleware.Preflight(http.MethodPut, http.MethodDelete))
+		router.With(authenticate, shopAccess).Method(http.MethodPut, resource, cfg.TimeOff)
+		router.With(authenticate, shopAccess).Method(http.MethodDelete, resource, cfg.TimeOff)
+	}
 	if cfg.AppointmentLifecycle != nil {
 		base := "/api/v1/admin/shops/{slug}/appointments/{appointmentID}"
 		router.Options(base, accessmiddleware.Preflight(http.MethodGet))
@@ -279,6 +290,12 @@ func NewHandler(cfg HandlerConfig) http.Handler {
 			Get("/api/v1/admin/shops/{slug}/professionals", cfg.Professionals.List)
 		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).
 			Post("/api/v1/admin/shops/{slug}/professionals", cfg.Professionals.Create)
+	}
+	if cfg.ProfessionalManagement != nil {
+		resource := "/api/v1/admin/shops/{slug}/professionals/{professionalID}"
+		router.Options(resource, accessmiddleware.Preflight(http.MethodGet, http.MethodPut))
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Method(http.MethodGet, resource, cfg.ProfessionalManagement)
+		router.With(authenticate, shopAccess, accessmiddleware.OwnerOnly).Method(http.MethodPut, resource, cfg.ProfessionalManagement)
 	}
 	return router
 }

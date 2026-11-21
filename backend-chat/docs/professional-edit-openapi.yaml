@@ -1,0 +1,99 @@
+paths:
+  professional:
+    parameters:
+      - {in: path, name: slug, required: true, schema: {type: string}}
+      - {in: path, name: professionalID, required: true, schema: {type: string, format: uuid}}
+    get:
+      operationId: getProfessionalSettings
+      summary: Owner reads a professional's profile, services and weekly calendar
+      description: Reads an active or inactive professional in the authorized shop. Locks the professional and rechecks the local owner membership inside the same transaction. No subscription gate or query parameters. Missing calendar policy is represented by a 60-minute interval, zero buffer and current working periods; nothing is created by GET. Revision is an opaque lowercase SHA-256 fingerprint of the current editable values. No-store.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Current editable settings
+          content: {application/json: {schema: {$ref: '#/components/schemas/Professional'}}}
+        '400': {description: Unsupported query parameters}
+        '401': {description: Authentication required}
+        '403': {description: Active owner membership required}
+        '404': {description: professional_not_found in this shop}
+        '422': {description: Invalid nonzero UUID}
+        '500': {description: Internal failure}
+        '503': {description: Temporarily unavailable}
+    put:
+      operationId: updateProfessionalSettings
+      summary: Atomically replace profile, service assignments and weekly working periods
+      description: Owner only. Same professional calendar lock as booking and time off, acquired before owner membership locks. Body limit 64 KiB, known fields only, no query parameters. A current revision is required; concurrent changes return 409 without writes. Repeating a PUT whose desired editable values already match the saved result returns 200 even with the prior revision, allowing safe recovery of a lost response. Invalid services or overlapping hours roll back the entire operation. Empty services or working periods are allowed and stop new booking options. New service assignments must be active, bookable services from this shop; already linked inactive/unbookable services may be retained or removed. Renaming or deactivating preserves appointments, historical snapshots, accounts and time-off blocks. Inactive professionals cannot receive new bookings or use barber membership access; reactivation preserves their account records. Existing reservations outside the new weekly hours remain unchanged for the owner to review. No migration required.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/Edit'}
+      responses:
+        '200':
+          description: Saved or recovered settings and current revision
+          content: {application/json: {schema: {$ref: '#/components/schemas/Professional'}}}
+        '400': {description: Invalid JSON, unsupported fields or query}
+        '401': {description: Authentication required}
+        '403': {description: Active owner membership required; checked again after calendar lock}
+        '404': {description: professional_not_found in this shop}
+        '409': {description: professional_changed; read current settings before reviewing another edit}
+        '413': {description: Body exceeds 64 KiB}
+        '415': {description: JSON required}
+        '422': {description: invalid_professional_edit, invalid_professional_services or invalid_professional_schedule}
+        '500': {description: Internal failure; outcome may require confirmation}
+        '503': {description: Outcome unconfirmed; repeat exactly the same body or read current settings}
+    options:
+      responses:
+        '204': {description: Allowed preflight for GET and PUT}
+        '403': {description: Origin or preflight denied}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  schemas:
+    Period:
+      type: object
+      additionalProperties: false
+      required: [weekday, opens_at_minute, closes_at_minute]
+      properties:
+        weekday: {type: integer, minimum: 0, maximum: 6, description: Sunday is 0}
+        opens_at_minute: {type: integer, minimum: 0, maximum: 1439}
+        closes_at_minute: {type: integer, minimum: 1, maximum: 1440, description: After opening on the same civil day; 1440 represents midnight}
+    Schedule:
+      type: object
+      additionalProperties: false
+      required: [interval_minutes, buffer_minutes, working_hours]
+      properties:
+        interval_minutes: {type: integer, minimum: 1, maximum: 1440}
+        buffer_minutes: {type: integer, minimum: 0, maximum: 1440}
+        working_hours:
+          type: array
+          maxItems: 28
+          description: Local weekly periods; adjacent periods allowed, overlapping periods on the same weekday rejected
+          items: {$ref: '#/components/schemas/Period'}
+    Edit:
+      type: object
+      additionalProperties: false
+      required: [name, active, service_ids, schedule, revision]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        active: {type: boolean}
+        service_ids:
+          type: array
+          maxItems: 100
+          uniqueItems: true
+          items: {type: string, format: uuid}
+        schedule: {$ref: '#/components/schemas/Schedule'}
+        revision: {type: string, pattern: '^[a-f0-9]{64}$'}
+    Professional:
+      type: object
+      required: [id, name, active, service_ids, schedule, revision]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string, minLength: 1, maxLength: 100}
+        active: {type: boolean}
+        service_ids:
+          type: array
+          items: {type: string, format: uuid}
+        schedule: {$ref: '#/components/schemas/Schedule'}
+        revision: {type: string, pattern: '^[a-f0-9]{64}$'}

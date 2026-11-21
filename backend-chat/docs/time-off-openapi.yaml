@@ -1,0 +1,108 @@
+paths:
+  list:
+    parameters:
+      - {in: path, name: slug, required: true, schema: {type: string}}
+    get:
+      operationId: listTimeOff
+      summary: Read upcoming days off and active professional choices
+      description: Owners see the shop; barbers see only their active linked professional. Current local access is rechecked inside the transaction. Includes ongoing blocks, excludes ended blocks. No subscription gate or query parameters. No-store.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Upcoming blocks and server-local date limits
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [today, max_date, shop_timezone, professionals, blocks]
+                properties:
+                  today: {type: string, format: date}
+                  max_date: {type: string, format: date, description: Two calendar years from today}
+                  shop_timezone: {type: string}
+                  professionals:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name]
+                      properties:
+                        id: {type: string, format: uuid}
+                        name: {type: string}
+                  blocks:
+                    type: array
+                    items: {$ref: '#/components/schemas/Block'}
+        '400': {description: Unsupported query parameters}
+        '401': {description: Authentication required}
+        '403': {description: Active staff access required}
+        '404': {description: Active shop not found}
+        '500': {description: Internal failure}
+        '503': {description: Temporarily unavailable}
+    options:
+      responses:
+        '204': {description: Allowed preflight}
+        '403': {description: Preflight denied}
+  block:
+    parameters:
+      - {in: path, name: slug, required: true, schema: {type: string}}
+      - {in: path, name: professionalID, required: true, schema: {type: string, format: uuid}}
+      - {in: path, name: blockID, required: true, schema: {type: string, format: uuid}}
+    put:
+      operationId: saveTimeOff
+      summary: Block complete local days without changing weekly working hours
+      description: Owner can choose an active professional; barber can choose only their own. Client generates a nonzero blockID once. Repeating identical PUT recovers the original block; reusing its ID with different dates returns 409. No automatic edits, cancellation, notification or commercial gate. Locks the same professional as booking before revalidating access. Existing non-cancelled appointments or overlapping blocks reject the whole operation. Date boundaries follow the shop timezone and include both dates; maximum 366 civil days, starting today or later and ending within two years. No query parameters. Body limit 8 KiB. No-store.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [from_date, through_date]
+              properties:
+                from_date: {type: string, format: date}
+                through_date: {type: string, format: date}
+      responses:
+        '200':
+          description: Saved or replayed block
+          content: {application/json: {schema: {$ref: '#/components/schemas/Block'}}}
+        '400': {description: Malformed body, unsupported fields or query}
+        '401': {description: Authentication required}
+        '403': {description: Staff scope denied, including another professional}
+        '404': {description: Active shop or professional unavailable}
+        '409': {description: 'time_off_has_appointments, time_off_overlap or time_off_conflict; no partial writes'}
+        '413': {description: Body too large}
+        '415': {description: JSON required}
+        '422': {description: invalid_time_off; check IDs, civil dates and limits}
+        '500': {description: Internal failure}
+        '503': {description: Outcome unconfirmed; retry the same resource and dates}
+    delete:
+      operationId: removeTimeOff
+      summary: Release a previously blocked period
+      description: Same staff scope and calendar lock as PUT. Deletes only the matching shop, professional and blockID. Repeating DELETE is safe and returns 204, including when that block no longer exists. Existing appointments are never modified. No query parameters.
+      security: [{bearerAuth: []}]
+      responses:
+        '204': {description: Period released}
+        '400': {description: Unsupported query}
+        '401': {description: Authentication required}
+        '403': {description: Staff scope denied}
+        '404': {description: Professional unavailable}
+        '422': {description: Invalid identifiers}
+        '500': {description: Internal failure}
+        '503': {description: Outcome unconfirmed; same DELETE can be retried}
+    options:
+      responses:
+        '204': {description: Allowed preflight for PUT or DELETE}
+        '403': {description: Preflight denied}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  schemas:
+    Block:
+      type: object
+      required: [id, professional_id, professional_name, starts_at, ends_at]
+      properties:
+        id: {type: string, format: uuid}
+        professional_id: {type: string, format: uuid}
+        professional_name: {type: string}
+        starts_at: {type: string, format: date-time}
+        ends_at: {type: string, format: date-time, description: Exclusive instant after the last civil day}

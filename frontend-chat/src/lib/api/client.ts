@@ -15,6 +15,14 @@ export class ApiError extends Error {
   }
 }
 const messages: Record<string, string> = {
+  invalid_time_off:
+    "Confira as datas. Escolha dias de hoje em diante, até um ano por vez, dentro dos próximos dois anos.",
+  time_off_has_appointments:
+    "Já há atendimentos nesse período. Remaneje ou cancele esses agendamentos antes de bloquear os dias.",
+  time_off_overlap:
+    "Já existe uma folga nesses dias. Confira os períodos programados antes de adicionar outro.",
+  time_off_conflict:
+    "Este bloqueio já foi usado com outras datas. Atualize as folgas e confira o período antes de tentar novamente.",
   completion_settings_changed:
     "O modo de fechamento mudou. Consulte o modo atual e revise antes de salvar novamente.",
   invalid_completion_settings:
@@ -109,6 +117,12 @@ const messages: Record<string, string> = {
   invalid_service: "Revise o nome, a duração e o preço do serviço.",
   service_not_found: "Este serviço não está mais disponível. Atualize a lista para continuar.",
   invalid_professional: "Informe um nome de barbeiro com até 100 caracteres.",
+  professional_not_found:
+    "Este barbeiro não está disponível nesta barbearia. Atualize a equipe e tente novamente.",
+  professional_changed:
+    "O cadastro foi alterado desde que você abriu a edição. Confira os dados atuais antes de salvar novamente.",
+  invalid_professional_edit:
+    "Confira o nome e as opções do barbeiro. Recarregue o cadastro se os dados tiverem mudado.",
   invalid_professional_services: "Selecione serviços ativos e agendáveis desta barbearia.",
   invalid_professional_schedule:
     "Confira os dias, abertura, fechamento, intervalo e margem da agenda.",

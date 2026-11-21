@@ -1,5 +1,43 @@
 # Contrato com o frontend
 
+## Edição de barbeiros e escala
+
+O proprietário consulta `GET /api/v1/admin/shops/{slug}/professionals/{professionalID}`
+e recebe `id`, `name`, `active`, `service_ids`, `revision` e `schedule`, com
+`interval_minutes`, `buffer_minutes` e `working_hours` (weekday 0–6,
+opens_at_minute, closes_at_minute). Os horários são locais à barbearia.
+
+PUT no mesmo endereço envia os campos editáveis e a revisão recebida. Nome,
+serviços e expediente são substituídos na mesma transação. `professional_changed`
+(409) exige consulta e revisão explícita. Repetir exatamente um resultado já salvo
+recupera o estado com segurança. Dias podem ter vários períodos sem sobreposição;
+listas vazias são permitidas para retirar serviços ou pausar o expediente.
+
+Novos vínculos exigem serviços ativos da mesma unidade; vínculos antigos com
+serviços fora do catálogo podem ser mantidos ou removidos. Desativação mantém a
+conta e o histórico, mas suspende novas reservas e o acesso de barbeiro. Reservas
+já marcadas e folgas permanecem, inclusive se estiverem fora da nova escala.
+Não há cancelamento automático nem migration. Veja [o contrato completo](professional-edit-openapi.yaml)
+e [ADR 0052](adr/0052-professional-profile-and-weekly-schedule-editing.md).
+
+## Folgas e férias
+
+`GET /api/v1/admin/shops/{slug}/time-off` retorna o fuso, a data local atual,
+o limite de dois anos, os profissionais permitidos e seus bloqueios futuros ou
+em andamento. O proprietário vê a unidade; o barbeiro vê apenas o próprio acesso.
+
+`PUT /api/v1/admin/shops/{slug}/professionals/{professionalID}/time-off/{blockID}`
+recebe `from_date` e `through_date` inclusivos, em dias inteiros. O navegador gera
+o UUID do bloqueio uma vez; repetir o mesmo ID e corpo recupera o resultado sem
+duplicar. DELETE no mesmo endereço libera o período e pode ser repetido.
+
+Conflitos retornam 409 `time_off_has_appointments`, `time_off_overlap` ou
+`time_off_conflict`. Datas inválidas retornam 422; outro profissional/unidade ou
+acesso revogado retorna 403. As operações não cancelam atendimentos nem mudam o
+expediente semanal. O lock transacional é compartilhado com a reserva. Não é
+necessária migration. Veja [o contrato completo](time-off-openapi.yaml) e
+[ADR 0051](adr/0051-professional-time-off.md).
+
 ## Edição e exclusão de serviços
 
 `PUT /api/v1/admin/shops/{slug}/services/{serviceID}` recebe o mesmo corpo do
