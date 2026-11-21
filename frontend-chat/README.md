@@ -56,6 +56,31 @@ src/lib/api centraliza HTTP, contratos e erros; src/hooks/use-services.ts compar
 
 A identidade Palma é uma referência visual; a API ainda não fornece marca/dados públicos da barbearia. Logo original e reconstruída em public/brand. [BRANDING.md](BRANDING.md) registra a origem.
 
+## Editar barbeiro e escala
+
+Em **Equipe → Editar barbeiro**, o proprietário altera nome, ativação, serviços,
+intervalo entre horários e tempo extra. Abra cada dia para ajustar seus períodos.
+Para uma pausa de almoço, use um período antes e outro depois; os horários podem
+ser diferentes em cada dia. Use 24:00 para terminar à meia-noite.
+
+Retirar todos os serviços ou dias pausa novas opções de agendamento. Desativar
+também impede o acesso da conta de barbeiro à unidade. Reservas já marcadas,
+histórico e folgas continuam salvos; confira a agenda antes de mudar a escala.
+Se outra pessoa editar o cadastro, recarregue os dados e revise antes de salvar.
+Falhas de conexão permitem repetir a confirmação sem duplicar a alteração.
+
+## Folgas e férias
+
+Na **Agenda → Folgas e férias**, escolha o barbeiro (para proprietários) e informe
+o primeiro e o último dia sem atendimento. Repita a data para uma folga de um dia.
+Ambas as datas ficam bloqueadas por inteiro no horário da barbearia, sem alterar
+o expediente semanal. O barbeiro gerencia somente seus dias. Reservas existentes
+impedem o bloqueio; nenhum atendimento é cancelado automaticamente. Para voltar
+ao expediente habitual, escolha **Remover período → Liberar dias**.
+
+É possível programar até um ano por período, dentro dos próximos dois anos. Em
+falhas de rede, **Repetir confirmação** recupera o mesmo bloqueio sem duplicar.
+
 ## Textos e navegação
 
 As mensagens das telas usam linguagem voltada a barbeiros e proprietários:

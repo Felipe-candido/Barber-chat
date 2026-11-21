@@ -200,10 +200,11 @@ func run(
 
 	catalogHandler := cataloghttp.NewHandler(createService, listServices, listAuthorizedServices, catalogapp.NewManageServices(catalogRepository), cfg.DBTimeout, logger)
 	professionalTransactions := catalogpostgres.NewProfessionalTransactor(pool, func(q *db.Queries) catalogapp.ProfessionalTx {
-		return catalogapp.ProfessionalTx{Professionals: catalogpostgres.NewRepository(q), Schedule: bookingpostgres.NewRepository(q)}
+		return catalogapp.ProfessionalTx{Professionals: catalogpostgres.NewRepository(q), Schedule: bookingpostgres.NewRepository(q), Management: catalogpostgres.NewRepository(q), Calendar: bookingpostgres.NewRepository(q), Owner: identitypostgres.NewRepository(q)}
 	})
 	professionalHandler := cataloghttp.NewProfessionalHandler(catalogapp.NewCreateProfessional(professionalTransactions),
 		catalogapp.NewListProfessionals(catalogRepository), cfg.OperationTimeout, logger)
+	professionalManagementHandler := cataloghttp.NewProfessionalManagementHandler(catalogapp.NewManageProfessionals(professionalTransactions), cfg.OperationTimeout, logger)
 
 	var payloadSealer notificationsapp.PayloadSealer
 	var payloadOpener notificationsapp.PayloadOpener
@@ -240,6 +241,10 @@ func run(
 
 	// Register HTTP adapters and dependency probes.
 	agendaHandler := bookinghttp.NewAgendaHandler(bookingapp.NewListAgenda(shopResolver, bookingpostgres.NewRepository(queries), clock), cfg.OperationTimeout, logger)
+	timeOffTx := bookingpostgres.NewTimeOffTransactor(pool, func(q *db.Queries) bookingapp.TimeOffTx {
+		return bookingapp.TimeOffTx{Access: identitypostgres.NewRepository(q), Shops: shopspostgres.NewResolver(q), Store: bookingpostgres.NewRepository(q)}
+	})
+	timeOffHandler := bookinghttp.NewTimeOffHandler(bookingapp.NewManageTimeOff(timeOffTx, clock), cfg.OperationTimeout, logger)
 	lifecycleTx := bookingpostgres.NewLifecycleTransactor(pool, func(q *db.Queries) bookingapp.AppointmentLifecycleTx {
 		return bookingapp.AppointmentLifecycleTx{Access: identitypostgres.NewRepository(q), Store: bookingpostgres.NewLifecycleStore(q)}
 	})
@@ -283,32 +288,34 @@ func run(
 		Notifications:     notificationHandler,
 		Contacts:          contactHandler,
 		WhatsApp:          connectionHandler, EvolutionWebhookEnabled: connectionProvider != nil,
-		CheckDB:              pool.Ping,
-		Catalog:              catalogHandler,
-		Professionals:        professionalHandler,
-		Booking:              bookingHandler,
-		Agenda:               agendaHandler,
-		AppointmentLifecycle: lifecycleHandler,
-		CompletionSettings:   completionSettingsHandler,
-		Accounts:             accountHandler,
-		Authenticate:         authenticate,
-		AuthorizeShop:        authorizeShop,
-		ListMyShops:          listMyShops,
-		Registration:         registrationHandler,
-		ShopSettings:         settingsHandler,
-		ShopPublication:      publicationHandler,
-		Products:             productHandler,
-		Sales:                salesHandler,
-		Reporting:            reportingHandler,
-		Checkout:             checkoutHandler,
-		Portal:               billinghttp.NewPortalHandler(billingapp.NewOpenPortalForMode(checkoutTx, portalProvider, billingapp.ClockFunc(time.Now), cfg.StripePortalConfigurationID, cfg.FrontendOrigin, billingdomain.BillingMode(cfg.StripeMode)), cfg.OperationTimeout, logger),
-		StripeWebhook:        webhookHandler,
-		VerifyRegistration:   verifyRegistration,
-		PublicShopGate:       publicShopGate,
-		RequestTimeout:       cfg.HTTPTimeout,
-		DBTimeout:            cfg.DBTimeout,
-		Logger:               logger,
-		FrontendOrigin:       cfg.FrontendOrigin,
+		CheckDB:                pool.Ping,
+		Catalog:                catalogHandler,
+		Professionals:          professionalHandler,
+		ProfessionalManagement: professionalManagementHandler,
+		Booking:                bookingHandler,
+		Agenda:                 agendaHandler,
+		TimeOff:                timeOffHandler,
+		AppointmentLifecycle:   lifecycleHandler,
+		CompletionSettings:     completionSettingsHandler,
+		Accounts:               accountHandler,
+		Authenticate:           authenticate,
+		AuthorizeShop:          authorizeShop,
+		ListMyShops:            listMyShops,
+		Registration:           registrationHandler,
+		ShopSettings:           settingsHandler,
+		ShopPublication:        publicationHandler,
+		Products:               productHandler,
+		Sales:                  salesHandler,
+		Reporting:              reportingHandler,
+		Checkout:               checkoutHandler,
+		Portal:                 billinghttp.NewPortalHandler(billingapp.NewOpenPortalForMode(checkoutTx, portalProvider, billingapp.ClockFunc(time.Now), cfg.StripePortalConfigurationID, cfg.FrontendOrigin, billingdomain.BillingMode(cfg.StripeMode)), cfg.OperationTimeout, logger),
+		StripeWebhook:          webhookHandler,
+		VerifyRegistration:     verifyRegistration,
+		PublicShopGate:         publicShopGate,
+		RequestTimeout:         cfg.HTTPTimeout,
+		DBTimeout:              cfg.DBTimeout,
+		Logger:                 logger,
+		FrontendOrigin:         cfg.FrontendOrigin,
 	})
 
 	// Open the HTTP listener.

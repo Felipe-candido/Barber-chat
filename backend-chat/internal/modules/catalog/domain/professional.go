@@ -22,13 +22,21 @@ func NewProfessional(shopID uuid.UUID, name string) (Professional, error) {
 	if shopID == uuid.Nil {
 		return Professional{}, ErrInvalidShopID
 	}
-	name = strings.TrimSpace(name)
-	if !utf8.ValidString(name) || utf8.RuneCountInString(name) < 1 || utf8.RuneCountInString(name) > 100 || strings.ContainsFunc(name, unicode.IsControl) {
-		return Professional{}, ErrInvalidProfessional
+	name, err := NormalizeProfessionalName(name)
+	if err != nil {
+		return Professional{}, err
 	}
 	id, err := uuid.NewRandom()
 	if err != nil {
 		return Professional{}, err
 	}
 	return Professional{ID: id, ShopID: shopID, Name: name, Active: true}, nil
+}
+
+func NormalizeProfessionalName(name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if !utf8.ValidString(name) || utf8.RuneCountInString(name) < 1 || utf8.RuneCountInString(name) > 100 || strings.ContainsFunc(name, unicode.IsControl) {
+		return "", ErrInvalidProfessional
+	}
+	return name, nil
 }

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { LoaderCircle, Plus, RefreshCw } from "lucide-react";
+import { CalendarOff, LoaderCircle, Plus, RefreshCw } from "lucide-react";
 import { addDays, dateKey, parseDate, startOfWeek } from "@/lib/model";
 import type { AdminAppointment } from "@/lib/api/agenda";
 import { useSelectedShop } from "./shop-panel";
@@ -11,6 +11,7 @@ import { AgendaCalendar, type AgendaView } from "./agenda/calendar";
 import { AppointmentDetails } from "./agenda/appointment-details";
 import { AppointmentLifecyclePanel } from "./agenda/appointment-lifecycle-panel";
 import { SaleForm } from "./commerce/sale-form";
+import { TimeOffDialog } from "./agenda/time-off-dialog";
 import styles from "./agenda/agenda.module.css";
 
 export function AgendaPage() {
@@ -25,6 +26,7 @@ export function AgendaPage() {
   const [focusDay, setFocusDay] = useState("");
   const [selling, setSelling] = useState<AdminAppointment | null>(null);
   const [creating, setCreating] = useState(false);
+  const [timeOffOpen, setTimeOffOpen] = useState(false);
   const [creationLocked, setCreationLocked] = useState(false);
   const [creationDirty, setCreationDirty] = useState(false);
   const [discarding, setDiscarding] = useState(false);
@@ -66,9 +68,15 @@ export function AgendaPage() {
         title="Agenda"
         description={"Acompanhe e organize os atendimentos de " + shop.name + "."}
         actions={
-          <Button className={styles.headerNew} onClick={() => setCreating(true)}>
-            {newAppointment}
-          </Button>
+          <>
+            <Button variant="secondary" onClick={() => setTimeOffOpen(true)}>
+              <CalendarOff size={18} aria-hidden="true" />
+              Folgas e férias
+            </Button>
+            <Button className={styles.headerNew} onClick={() => setCreating(true)}>
+              {newAppointment}
+            </Button>
+          </>
         }
       />
       <Button
@@ -164,6 +172,7 @@ export function AgendaPage() {
           ))}
       </Modal>
       {selling && <SaleForm appointment={selling} onClose={() => setSelling(null)} />}
+      {timeOffOpen && <TimeOffDialog onClose={() => setTimeOffOpen(false)} onChanged={refresh} />}
       <Modal
         open={creating}
         onClose={() => {
